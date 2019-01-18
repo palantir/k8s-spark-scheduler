@@ -1,0 +1,23 @@
+checks:
+  errcheck:
+    exclude:
+      paths:
+        - 'pkg/client'
+  varcheck:
+    exclude:
+      paths:
+        - 'pkg/client'
+  importalias:
+    exclude:
+      paths:
+        - 'pkg/client'
+  deadcode:
+    exclude:
+      paths:
+        - 'pkg/client'
+  novendor:
+    filters:
+      - value: "k8s.io/code-generator"
+      - value: "k8s.io/gengo"
+      - value: "golang.org/x/tools"
+

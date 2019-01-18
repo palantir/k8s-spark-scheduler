@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    spark-app-id: my-custom-id
+  annotations:
+    spark-driver-cpus: 1
+    spark-driver-mem: 1g
+    spark-executor-cpu: 2
+    spark-executor-mem: 4g
+    spark-executor-count: 8
+spec:
+  schedulerName: spark-scheduler

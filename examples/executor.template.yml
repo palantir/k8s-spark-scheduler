@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    spark-app-id: my-custom-id
+spec:
+  schedulerName: spark-scheduler

@@ -1,0 +1,20 @@
+products:
+  spark-scheduler:
+    build:
+      main-pkg: .
+      version-var: main.version
+      environment:
+        CGO_ENABLED: "0"
+      os-archs:
+        - os: linux
+          arch: amd64
+    docker:
+      docker-builders:
+        spark-scheduler:
+          type: default
+          context-dir: docker
+          tag-templates:
+            - "{{Repository}}palantirtechnologies/spark-scheduler:latest"
+            - "{{Repository}}palantirtechnologies/spark-scheduler:{{Version}}"
+    publish:
+      group-id: com.palantir.spark-scheduler

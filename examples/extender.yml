@@ -1,0 +1,136 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark-scheduler
+  namespace: kube-system
+---
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: spark-scheduler-admin-binding
+    namespace: kube-system
+  subjects:
+    - kind: ServiceAccount
+      name: spark-scheduler
+      namespace: kube-system
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cluster-admin
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-scheduler
+  namespace: kube-system
+data:
+  policy.cfg : |
+    {
+    "kind" : "Policy",
+    "apiVersion" : "v1",
+    "predicates" : [
+      {"name" : "PodFitsHostPorts"},
+      {"name" : "PodFitsResources"},
+      {"name" : "NoDiskConflict"},
+      {"name" : "MatchNodeSelector"},
+      {"name" : "HostName"}],
+    "extenders" : [
+      {
+        "urlPrefix": "https://localhost:8483/spark-scheduler",
+        "apiVersion": "v1beta1",
+        "filterVerb": "predicates",
+        "weight": 1,
+        "enableHttps": true,
+        "nodeCacheCapable": true,
+        "ignorable": false,
+        "httpTimeout": 30000000000
+      }],
+        "hardPodAffinitySymmetricWeight": 10
+    }
+  kube-scheduler-config: |
+    apiVersion: componentconfig/v1alpha1
+    kind: KubeSchedulerConfiguration
+    schedulerName: spark-scheduler
+    algorithmSource:
+      policy:
+        configMap:
+          name: spark-scheduler
+          namespace: kube-system
+    leaderElection:
+      lockObjectName: spark-scheduler
+  spark-scheduler-extender-config: |
+    server:
+      port: 8483
+      management-port: 8484
+      context-path: /spark-scheduler
+    fifo: true
+    logging:
+      level: debug
+      output: STDOUT
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-scheduler
+  namespace: kube-system
+  labels:
+    app: spark-scheduler
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: spark-scheduler
+  template:
+    metadata:
+      labels:
+        app: spark-scheduler
+    spec:
+      serviceAccountName: spark-scheduler
+      containers:
+      - name: kube-scheduler
+        image: gcr.io/google_containers/hyperkube:v1.11.1
+        imagePullPolicy: IfNotPresent
+        command:
+        - sh
+        - -c
+        - |
+          /hyperkube kube-scheduler \
+            --config=/etc/config/config \
+            --feature-gates=PodPriority=false \
+            -v=4
+        volumeMounts:
+        - name: kube-scheduler-config-volume
+          mountPath: /etc/config
+      - name: spark-scheduler-extender
+        image: palantir/spark-scheduler:latest
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            scheme: HTTPS
+            path: /spark-scheduler/status/liveness
+            port: 8484
+        readinessProbe:
+          httpGet:
+            scheme: HTTPS
+            path: /spark-scheduler/status/readiness
+            port: 8484
+        ports:
+        - containerPort: 8484
+        - containerPort: 8483
+        volumeMounts:
+        - name: scheduler-extender-config-volume
+          mountPath: /opt/palantir/services/spark-scheduler/var/conf
+      volumes:
+      - name: kube-scheduler-config-volume
+        configMap:
+          name: spark-scheduler
+          items:
+          - key: kube-scheduler-config
+            path: config
+      - name: scheduler-extender-config-volume
+        configMap:
+          name: spark-scheduler
+          items:
+          - key: spark-scheduler-extender-config
+            path: install.yml
+

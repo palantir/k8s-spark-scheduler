@@ -1,0 +1,144 @@
+working_dir: &working_dir
+  working_directory: /go/src/github.com/palantir/k8s-spark-scheduler
+
+# Uses a custom image to support efficient cross-compilation for darwin and linux with no CGo. This image has the Go
+# standard libraries without CGo for both platforms precompiled and sets CGO_ENABLED to 0. Defaults to disabling CGo so
+# that the compiled binaries do not have any dependencies on C (which allows more portability to run in environments
+# like alpine-linux where glibc is not standard.
+darwin-linux-no-cgo: &darwin-linux-no-cgo
+  <<: *working_dir
+  docker:
+    - image: nmiyake/go:go-darwin-linux-no-cgo-1.11.2-java-8u181-t137
+      environment:
+        CGO_ENABLED: 0
+
+# Standard Go image with Docker installed to allow execution of Docker operations.
+go-docker: &go-docker
+  <<: *working_dir
+  docker:
+    - image: nmiyake/go:go-1.11.2-docker-17.06.0-ce-t137
+
+# Operations for saving and loading gödel cache, which contains all of the plugin and asset executables. Cache is keyed
+# on checksum of godelw and godel/config/godel.yml, as the content of these files should be enough to identify the
+# dependencies.
+godel-cache-restore: &godel-cache-restore
+  restore_cache:
+    keys:
+      - &godel-cache-key godel-cache-{{ checksum "godelw" }}-{{ checksum "godel/config/godel.yml" }}-v1
+godel-cache-save: &godel-cache-save
+  save_cache:
+    key: *godel-cache-key
+    paths:
+      - ~/.godel
+
+# gödel cache only works if cached outputs are newer than source that generates it. CircleCI restore_cache restores
+# the cache with the original modification dates, but the source's modification date in CI is the time of checkout.
+# Manually touch all of the cache output to mark it as being generated after source was checked out.
+out-cache-fix: &out-cache-fix
+  run: find out -exec touch {} \;
+
+go-version: &go-version
+  run: go version
+
+godel-version: &godel-version
+  run: ./godelw version
+
+define-tests-dir: &define-tests-dir
+  run: echo 'export TESTS_DIR=/tmp/test-results' >> $BASH_ENV
+
+mkdir-tests-dir: &mkdir-tests-dir
+  run: mkdir -p "${TESTS_DIR}"
+
+store-test-results: &store-test-results
+  type: test-results-store
+  path: /tmp/test-results
+
+store-artifacts: &store-artifacts
+  type: artifacts-store
+  path: /tmp/test-results
+  destination: test-results
+
+version: 2
+jobs:
+  # Runs all "./godelw verify" tasks except for tests.
+  verify:
+    <<: *darwin-linux-no-cgo
+    steps:
+      - checkout
+      - *go-version
+      - *godel-cache-restore
+      - *godel-version
+      - *godel-cache-save
+      - run: ./godelw verify --apply=false --skip-test
+  # Runs tests.
+  test:
+    <<: *darwin-linux-no-cgo
+    steps:
+      - checkout
+      - *go-version
+      - *godel-cache-restore
+      - *godel-version
+      - *godel-cache-save
+      - *define-tests-dir
+      - *mkdir-tests-dir
+      - run: ./godelw test --junit-output="$TESTS_DIR/$CIRCLE_PROJECT_REPONAME-tests.xml"
+      - *store-test-results
+      - *store-artifacts
+  # Creates and caches dist output.
+  dist:
+    <<: *darwin-linux-no-cgo
+    steps:
+      - checkout
+      - *go-version
+      - *godel-cache-restore
+      - *godel-version
+      - *godel-cache-save
+      - run: ./godelw dist
+  # Builds Docker images and saves them to a persisted layer so that they can be loaded later. By default, this job runs
+  # concurrently with the "dist" job and duplicates that work. This may not be ideal if the "dist" task is expensive and
+  # takes a long time. However, in practice, acquiring a remote Docker worker can take
+  docker-build:
+    <<: *go-docker
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - checkout
+      - *go-version
+      - *godel-cache-restore
+      - *godel-version
+      - *godel-cache-save
+      - run: ./godelw docker build --verbose
+      - run: |
+          mkdir -p /tmp/docker-cache
+          docker save -o /tmp/docker-cache/docker-images.tar $(./godelw artifacts docker)
+      - persist_to_workspace:
+          root: /tmp/docker-cache/
+          paths:
+            - docker-images.tar
+
+### Workflows ###
+
+# The set of jobs that should be run on every build. All publish operations block on these jobs.
+requires_jobs: &requires_jobs
+  - verify
+  - test
+  - dist
+  - docker-build
+
+# Filter that matches all tags (will run on every build).
+all-tags-filter: &all-tags-filter
+  filters: { tags: { only: /.*/ } }
+
+workflows:
+  version: 2
+  verify:
+    jobs:
+      # verify, dist, test and docker-build are run on all builds
+      - verify:
+          <<: *all-tags-filter
+      - test:
+          <<: *all-tags-filter
+      - dist:
+          <<: *all-tags-filter
+      - docker-build:
+          <<: *all-tags-filter

@@ -1,0 +1,8 @@
+*.iml
+*.ipr
+*.iws
+
+*.test
+
+/out/
+inputs/
