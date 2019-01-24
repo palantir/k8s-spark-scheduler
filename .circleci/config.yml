@@ -142,3 +142,7 @@ workflows:
           <<: *all-tags-filter
       - docker-build:
           <<: *all-tags-filter
+template.sh references an invalid template: go-distribution-conjure, available options: ./templates/frontend-library-oss.config.yml
+./templates/go-distribution-oss.config.yml
+./templates/go-library-oss.config.yml
+./templates/java-library-oss.config.yml
