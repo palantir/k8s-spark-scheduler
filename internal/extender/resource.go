@@ -232,6 +232,8 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		svc1log.SafeParam("executorResources", executorResources),
 		svc1log.SafeParam("executorCount", executorCount),
 		svc1log.SafeParam("hasCapacity", hasCapacity),
+		svc1log.SafeParam("candidateDriverNodes", nodeNames),
+		svc1log.SafeParam("candidateExecutorNodes", executorNodeNames),
 		svc1log.SafeParam("driverNode", driverNode),
 		svc1log.SafeParam("executorNodes", executorNodes),
 		svc1log.SafeParam("binpacker", s.binpacker.Name))
