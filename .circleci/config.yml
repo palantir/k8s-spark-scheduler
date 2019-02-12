@@ -31,6 +31,9 @@ godel-cache-save: &godel-cache-save
     paths:
       - ~/.godel
 
+go-version: &go-version
+  run: go version
+
 # Steps for publishing the ".config.tgz" artifact and the Docker image. Publishes all tags for all Docker images on
 # snapshots and only the tags with the key name "release" (as specified in dist-config.yml) on releases.
 #
@@ -56,9 +59,6 @@ docker_publish_steps: &docker_publish_steps
       else
         ./godelw docker push --repository "$DOCKER_REPO" --tags=latest
       fi
-
-go-version: &go-version
-  run: go version
 
 godel-version: &godel-version
   run: ./godelw version
