@@ -4,5 +4,6 @@
 
 *.test
 
+/docker/*/build/
 /out/
 inputs/
