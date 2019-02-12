@@ -36,9 +36,9 @@ func createResources(cpu, memory int64) *resources.Resources {
 
 func TestSparkResources(t *testing.T) {
 	tests := []struct {
-		name                      string
-		pod                       v1.Pod
-		expectedApplicationResources *sparkApplicationResources,
+		name                         string
+		pod                          v1.Pod
+		expectedApplicationResources *sparkApplicationResources
 	}{{
 		name: "parses pod annotations into resources",
 		pod: v1.Pod{
@@ -53,9 +53,9 @@ func TestSparkResources(t *testing.T) {
 			},
 		},
 		expectedApplicationResources: &sparkApplicationResources{
-			createResources(1, 2432*1024*1024),
-			createResources(2, 6758*1024*1024),
-			2,
+			driverResources:   createResources(1, 2432*1024*1024),
+			executorResources: createResources(2, 6758*1024*1024),
+			executorCount:     2,
 		},
 	}}
 
