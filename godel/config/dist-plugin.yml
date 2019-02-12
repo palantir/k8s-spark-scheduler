@@ -14,7 +14,7 @@ products:
           type: default
           context-dir: docker
           tag-templates:
-            - "{{Repository}}palantirtechnologies/spark-scheduler:latest"
-            - "{{Repository}}palantirtechnologies/spark-scheduler:{{Version}}"
+            release: "{{Repository}}palantirtechnologies/spark-scheduler:{{Version}}"
+            latest: "{{Repository}}palantirtechnologies/spark-scheduler:latest"
     publish:
       group-id: com.palantir.spark-scheduler
