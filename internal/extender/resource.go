@@ -177,7 +177,8 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 				svc1log.SafeParam("reason", err.Error))
 			continue
 		}
-		driverNode, executorNodes, hasCapacity := s.binpacker.BinpackFunc(ctx,
+		driverNode, executorNodes, hasCapacity := s.binpacker.BinpackFunc(
+			ctx,
 			applicationResources.driverResources,
 			applicationResources.executorResources,
 			applicationResources.executorCount,
@@ -232,7 +233,8 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	if err != nil {
 		return "", failureInternal, werror.Wrap(err, "failed to get spark resources")
 	}
-	driverNode, executorNodes, hasCapacity := s.binpacker.BinpackFunc(ctx,
+	driverNode, executorNodes, hasCapacity := s.binpacker.BinpackFunc(
+		ctx,
 		applicationResources.driverResources,
 		applicationResources.executorResources,
 		applicationResources.executorCount,
