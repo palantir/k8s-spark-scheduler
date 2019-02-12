@@ -341,7 +341,7 @@ func (s *SparkSchedulerExtender) usedResources(nodeNames []string) (resources.No
 func (s *SparkSchedulerExtender) createResourceReservations(
 	ctx context.Context,
 	driver *v1.Pod,
-	applicationResources *SparkApplicationResources,
+	applicationResources *sparkApplicationResources,
 	driverNode string,
 	executorNodes []string) (string, string, error) {
 	logger := svc1log.FromContext(ctx)

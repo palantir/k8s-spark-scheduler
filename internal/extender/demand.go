@@ -82,7 +82,7 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 	return nil
 }
 
-func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context, driverPod *v1.Pod, applicationResources *SparkApplicationResources) error {
+func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context, driverPod *v1.Pod, applicationResources *sparkApplicationResources) error {
 	if !s.demandCRDInitialized.Load() {
 		return nil
 	}
@@ -250,7 +250,7 @@ func checkForExistingDemand(ctx context.Context, namespace, demandName string, c
 
 }
 
-func demandResources(applicationResources *SparkApplicationResources) []demandapi.DemandUnit {
+func demandResources(applicationResources *sparkApplicationResources) []demandapi.DemandUnit {
 	return []demandapi.DemandUnit{
 		{
 			Count:  1,

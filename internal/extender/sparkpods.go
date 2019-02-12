@@ -50,7 +50,7 @@ const (
 	ExecutorCount = "spark-executor-count"
 )
 
-type SparkApplicationResources struct {
+type sparkApplicationResources struct {
 	driverResources   *resources.Resources
 	executorResources *resources.Resources
 	executorCount     int
@@ -93,7 +93,7 @@ func filterToEarliestAndSort(driver *v1.Pod, allDrivers []*v1.Pod) []*v1.Pod {
 	return earlierDrivers
 }
 
-func sparkResources(ctx context.Context, pod *v1.Pod) (*SparkApplicationResources, error) {
+func sparkResources(ctx context.Context, pod *v1.Pod) (*sparkApplicationResources, error) {
 	parsedResources := map[string]resource.Quantity{}
 
 	for _, a := range []string{DriverCPU, DriverMemory, ExecutorCPU, ExecutorMemory, ExecutorCount} {
@@ -120,7 +120,7 @@ func sparkResources(ctx context.Context, pod *v1.Pod) (*SparkApplicationResource
 		CPU:    parsedResources[ExecutorCPU],
 		Memory: parsedResources[ExecutorMemory],
 	}
-	return &SparkApplicationResources{driverResources, executorResources, executorCount}, nil
+	return &sparkApplicationResources{driverResources, executorResources, executorCount}, nil
 }
 
 func sparkResourceUsage(driverResources, executorResources *resources.Resources, driverNode string, executorNodes []string) resources.NodeGroupResources {
