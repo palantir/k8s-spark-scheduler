@@ -50,6 +50,12 @@ const (
 	ExecutorCount = "spark-executor-count"
 )
 
+type SparkApplicationResources struct {
+	driverResources   *resources.Resources
+	executorResources *resources.Resources
+	executorCount     int
+}
+
 // SparkPodLister is a PodLister which can also list drivers per node selector
 type SparkPodLister struct {
 	corelisters.PodLister
@@ -87,17 +93,17 @@ func filterToEarliestAndSort(driver *v1.Pod, allDrivers []*v1.Pod) []*v1.Pod {
 	return earlierDrivers
 }
 
-func sparkResources(ctx context.Context, pod *v1.Pod) (*resources.Resources, *resources.Resources, int, error) {
+func sparkResources(ctx context.Context, pod *v1.Pod) (*SparkApplicationResources, error) {
 	parsedResources := map[string]resource.Quantity{}
 
 	for _, a := range []string{DriverCPU, DriverMemory, ExecutorCPU, ExecutorMemory, ExecutorCount} {
 		value, ok := pod.Annotations[a]
 		if !ok {
-			return nil, nil, 0, fmt.Errorf("annotation %v is missing from driver", a)
+			return nil, fmt.Errorf("annotation %v is missing from driver", a)
 		}
 		quantity, err := resource.ParseQuantity(value)
 		if err != nil {
-			return nil, nil, 0, fmt.Errorf("annotation %v does not have a parseable value %v", a, value)
+			return nil, fmt.Errorf("annotation %v does not have a parseable value %v", a, value)
 		}
 		parsedResources[a] = quantity
 	}
@@ -114,7 +120,7 @@ func sparkResources(ctx context.Context, pod *v1.Pod) (*resources.Resources, *re
 		CPU:    parsedResources[ExecutorCPU],
 		Memory: parsedResources[ExecutorMemory],
 	}
-	return driverResources, executorResources, executorCount, nil
+	return &SparkApplicationResources{driverResources, executorResources, executorCount}, nil
 }
 
 func sparkResourceUsage(driverResources, executorResources *resources.Resources, driverNode string, executorNodes []string) resources.NodeGroupResources {
