@@ -38,7 +38,7 @@ func TestSparkResources(t *testing.T) {
 	tests := []struct {
 		name                      string
 		pod                       v1.Pod
-		sparkApplicationResources *sparkApplicationResources
+		expectedApplicationResources *sparkApplicationResources,
 	}{{
 		name: "parses pod annotations into resources",
 		pod: v1.Pod{
@@ -52,7 +52,7 @@ func TestSparkResources(t *testing.T) {
 				},
 			},
 		},
-		sparkApplicationResources: &sparkApplicationResources{
+		expectedApplicationResources: &sparkApplicationResources{
 			createResources(1, 2432*1024*1024),
 			createResources(2, 6758*1024*1024),
 			2,
@@ -65,8 +65,17 @@ func TestSparkResources(t *testing.T) {
 			if err != nil {
 				t.Fatalf("error: %v", err)
 			}
-			if !reflect.DeepEqual(applicationResources, test.sparkApplicationResources) {
-				t.Fatalf("sparkApplicationResources are not equal, expected: %v, got: %v", test.sparkApplicationResources, applicationResources)
+			if !applicationResources.driverResources.Eq(test.expectedApplicationResources.driverResources) {
+				t.Fatalf("driverResources are not equal, expected: %v, got: %v",
+					test.expectedApplicationResources.driverResources, applicationResources.driverResources)
+			}
+			if !applicationResources.executorResources.Eq(test.expectedApplicationResources.executorResources) {
+				t.Fatalf("executorResources are not equal, expected: %v, got: %v",
+					test.expectedApplicationResources.executorResources, applicationResources.executorResources)
+			}
+			if applicationResources.executorCount != test.expectedApplicationResources.executorCount {
+				t.Fatalf("executorCount are not equal, expected: %v, got: %v",
+					test.expectedApplicationResources.executorCount, applicationResources.executorCount)
 			}
 		})
 	}
