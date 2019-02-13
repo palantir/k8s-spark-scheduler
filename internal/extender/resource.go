@@ -205,15 +205,15 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		return availableNodes[j].CreationTimestamp.Before(&availableNodes[i].CreationTimestamp)
 	})
 
-	executorNodeNames := make([]string, 0, len(availableNodes))
 	driverNodeNames := make([]string, 0, len(availableNodes))
+	executorNodeNames := make([]string, 0, len(availableNodes))
 
 	for _, node := range availableNodes {
-		if !node.Spec.Unschedulable {
-			executorNodeNames = append(executorNodeNames, node.Name)
-		}
 		if _, ok := nodeNames[node.Name]; ok {
 			driverNodeNames = append(driverNodeNames, node.Name)
+		}
+		if !node.Spec.Unschedulable {
+			executorNodeNames = append(executorNodeNames, node.Name)
 		}
 	}
 
