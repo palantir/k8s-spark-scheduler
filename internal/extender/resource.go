@@ -170,20 +170,28 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 	nodeNames, executorNodeNames []string,
 	availableResources resources.NodeGroupResources) bool {
 	for _, driver := range drivers {
-		driverResources, executorResources, executorCount, err := sparkResources(ctx, driver)
+		applicationResources, err := sparkResources(ctx, driver)
 		if err != nil {
 			svc1log.FromContext(ctx).Warn("failed to get driver resources, skipping driver",
 				svc1log.SafeParam("faultyDriverName", driver.Name),
 				svc1log.SafeParam("reason", err.Error))
 			continue
 		}
-		driverNode, executorNodes, hasCapacity := s.binpacker.BinpackFunc(ctx, driverResources, executorResources, executorCount, nodeNames, executorNodeNames, availableResources)
+		driverNode, executorNodes, hasCapacity := s.binpacker.BinpackFunc(
+			ctx,
+			applicationResources.driverResources,
+			applicationResources.executorResources,
+			applicationResources.executorCount,
+			nodeNames, executorNodeNames, availableResources)
 		if !hasCapacity {
 			svc1log.FromContext(ctx).Warn("failed to fit one of the earlier drivers",
 				svc1log.SafeParam("earlierDriverName", driver.Name))
 			return false
 		}
-		availableResources.Sub(sparkResourceUsage(driverResources, executorResources, driverNode, executorNodes))
+		availableResources.Sub(sparkResourceUsage(
+			applicationResources.driverResources,
+			applicationResources.executorResources,
+			driverNode, executorNodes))
 	}
 	return true
 }
@@ -225,16 +233,21 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 			return "", failureFit, werror.Error("earlier drivers do not fit to the cluster")
 		}
 	}
-	driverResources, executorResources, executorCount, err := sparkResources(ctx, driver)
+	applicationResources, err := sparkResources(ctx, driver)
 	if err != nil {
 		return "", failureInternal, werror.Wrap(err, "failed to get spark resources")
 	}
-	driverNode, executorNodes, hasCapacity := s.binpacker.BinpackFunc(ctx, driverResources, executorResources, executorCount, driverNodeNames, executorNodeNames, availableResources)
+	driverNode, executorNodes, hasCapacity := s.binpacker.BinpackFunc(
+		ctx,
+		applicationResources.driverResources,
+		applicationResources.executorResources,
+		applicationResources.executorCount,
+		driverNodeNames, executorNodeNames, availableResources)
 	svc1log.FromContext(ctx).Debug("binpacking result",
 		svc1log.SafeParam("availableResources", availableResources),
-		svc1log.SafeParam("driverResources", driverResources),
-		svc1log.SafeParam("executorResources", executorResources),
-		svc1log.SafeParam("executorCount", executorCount),
+		svc1log.SafeParam("driverResources", applicationResources.driverResources),
+		svc1log.SafeParam("executorResources", applicationResources.executorResources),
+		svc1log.SafeParam("executorCount", applicationResources.executorCount),
 		svc1log.SafeParam("hasCapacity", hasCapacity),
 		svc1log.SafeParam("candidateDriverNodes", nodeNames),
 		svc1log.SafeParam("candidateExecutorNodes", executorNodeNames),
@@ -242,13 +255,13 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		svc1log.SafeParam("executorNodes", executorNodes),
 		svc1log.SafeParam("binpacker", s.binpacker.Name))
 	if !hasCapacity {
-		if err := s.createDemandForApplication(ctx, driver, driverResources, executorResources, executorCount); err != nil {
+		if err := s.createDemandForApplication(ctx, driver, applicationResources); err != nil {
 			return "", failureInternal, werror.Wrap(err, "application does not fit to the cluster, but failed to create demand resource")
 		}
 		return "", failureFit, werror.Error("application does not fit to the cluster")
 	}
 	s.removeDemandIfExists(ctx, driver)
-	return s.createResourceReservations(ctx, driver, driverResources, executorResources, executorCount, driverNode, executorNodes)
+	return s.createResourceReservations(ctx, driver, applicationResources, driverNode, executorNodes)
 }
 
 func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executor *v1.Pod, nodeNames []string) (string, string, error) {
@@ -334,12 +347,11 @@ func (s *SparkSchedulerExtender) usedResources(nodeNames []string) (resources.No
 func (s *SparkSchedulerExtender) createResourceReservations(
 	ctx context.Context,
 	driver *v1.Pod,
-	driverResources, executorResources *resources.Resources,
-	executorCount int,
+	applicationResources *sparkApplicationResources,
 	driverNode string,
 	executorNodes []string) (string, string, error) {
 	logger := svc1log.FromContext(ctx)
-	rr := newResourceReservation(driverNode, executorNodes, driver, driverResources, executorResources)
+	rr := newResourceReservation(driverNode, executorNodes, driver, applicationResources.driverResources, applicationResources.executorResources)
 	_, err := s.resourceReservationClient.ResourceReservations(driver.Namespace).Create(rr)
 	if err != nil {
 		if !errors.IsAlreadyExists(err) {
