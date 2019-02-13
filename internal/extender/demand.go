@@ -42,7 +42,7 @@ const (
 )
 
 var (
-	demandCreatedCondition *v1.PodCondition = &v1.PodCondition{
+	demandCreatedCondition = &v1.PodCondition{
 		Type:   podDemandCreated,
 		Status: v1.ConditionTrue,
 	}
@@ -82,11 +82,11 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 	return nil
 }
 
-func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context, driverPod *v1.Pod, driverResources, executorResources *resources.Resources, executorCount int) error {
+func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context, driverPod *v1.Pod, applicationResources *sparkApplicationResources) error {
 	if !s.demandCRDInitialized.Load() {
 		return nil
 	}
-	newDemand, err := newDemand(driverPod, demandResources(driverResources, executorResources, executorCount))
+	newDemand, err := newDemand(driverPod, demandResources(applicationResources))
 	if err != nil {
 		return err
 	}
@@ -250,17 +250,17 @@ func checkForExistingDemand(ctx context.Context, namespace, demandName string, c
 
 }
 
-func demandResources(podResources, executorResources *resources.Resources, executorCount int) []demandapi.DemandUnit {
+func demandResources(applicationResources *sparkApplicationResources) []demandapi.DemandUnit {
 	return []demandapi.DemandUnit{
 		{
 			Count:  1,
-			CPU:    podResources.CPU,
-			Memory: podResources.Memory,
+			CPU:    applicationResources.driverResources.CPU,
+			Memory: applicationResources.driverResources.Memory,
 		},
 		{
-			Count:  executorCount,
-			CPU:    executorResources.CPU,
-			Memory: executorResources.Memory,
+			Count:  applicationResources.executorCount,
+			CPU:    applicationResources.executorResources.CPU,
+			Memory: applicationResources.executorResources.Memory,
 		},
 	}
 }

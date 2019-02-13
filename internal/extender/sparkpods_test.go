@@ -36,11 +36,9 @@ func createResources(cpu, memory int64) *resources.Resources {
 
 func TestSparkResources(t *testing.T) {
 	tests := []struct {
-		name                      string
-		pod                       v1.Pod
-		expectedDriverResources   *resources.Resources
-		expectedExecutorResources *resources.Resources
-		expectedExecutorCount     int
+		name                         string
+		pod                          v1.Pod
+		expectedApplicationResources *sparkApplicationResources
 	}{{
 		name: "parses pod annotations into resources",
 		pod: v1.Pod{
@@ -54,25 +52,30 @@ func TestSparkResources(t *testing.T) {
 				},
 			},
 		},
-		expectedDriverResources:   createResources(1, 2432*1024*1024),
-		expectedExecutorResources: createResources(2, 6758*1024*1024),
-		expectedExecutorCount:     2,
+		expectedApplicationResources: &sparkApplicationResources{
+			driverResources:   createResources(1, 2432*1024*1024),
+			executorResources: createResources(2, 6758*1024*1024),
+			executorCount:     2,
+		},
 	}}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			driverResources, executorResources, executorCount, err := sparkResources(context.Background(), &test.pod)
+			applicationResources, err := sparkResources(context.Background(), &test.pod)
 			if err != nil {
 				t.Fatalf("error: %v", err)
 			}
-			if !driverResources.Eq(test.expectedDriverResources) {
-				t.Fatalf("driverResources are not equal, expected: %v, got: %v", test.expectedDriverResources, driverResources)
+			if !applicationResources.driverResources.Eq(test.expectedApplicationResources.driverResources) {
+				t.Fatalf("driverResources are not equal, expected: %v, got: %v",
+					test.expectedApplicationResources.driverResources, applicationResources.driverResources)
 			}
-			if !executorResources.Eq(test.expectedExecutorResources) {
-				t.Fatalf("executorResources are not equal, expected: %v, got: %v", test.expectedExecutorResources, executorResources)
+			if !applicationResources.executorResources.Eq(test.expectedApplicationResources.executorResources) {
+				t.Fatalf("executorResources are not equal, expected: %v, got: %v",
+					test.expectedApplicationResources.executorResources, applicationResources.executorResources)
 			}
-			if executorCount != test.expectedExecutorCount {
-				t.Fatalf("executorCount are not equal, expected: %v, got: %v", test.expectedExecutorCount, executorCount)
+			if applicationResources.executorCount != test.expectedApplicationResources.executorCount {
+				t.Fatalf("executorCount are not equal, expected: %v, got: %v",
+					test.expectedApplicationResources.executorCount, applicationResources.executorCount)
 			}
 		})
 	}
