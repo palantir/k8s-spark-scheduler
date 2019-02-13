@@ -207,7 +207,6 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 
 	driverNodeNames := make([]string, 0, len(availableNodes))
 	executorNodeNames := make([]string, 0, len(availableNodes))
-
 	for _, node := range availableNodes {
 		if _, ok := nodeNames[node.Name]; ok {
 			driverNodeNames = append(driverNodeNames, node.Name)
