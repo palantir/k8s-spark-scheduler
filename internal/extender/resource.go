@@ -154,7 +154,7 @@ func failWithMessage(ctx context.Context, args schedulerapi.ExtenderArgs, messag
 func (s *SparkSchedulerExtender) selectNode(ctx context.Context, role string, pod *v1.Pod, nodeNames []string) (string, string, error) {
 	switch role {
 	case Driver:
-		return s.selectDriverNode(ctx, pod, nodeNames)
+		return s.selectDriverNode(ctx, pod, convertToSet(nodeNames))
 	case Executor:
 		return s.selectExecutorNode(ctx, pod, nodeNames)
 	default:
@@ -188,24 +188,28 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 	return true
 }
 
-func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v1.Pod, nodeNames []string) (string, string, error) {
+func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v1.Pod, nodeNames set) (string, string, error) {
 	availableNodes, err := s.nodeLister.List(labels.Set(driver.Spec.NodeSelector).AsSelector())
+	if err != nil {
+		return "", failureInternal, err
+	}
+	sort.Slice(availableNodes, func(i, j int) bool {
+		return availableNodes[j].CreationTimestamp.Before(&availableNodes[i].CreationTimestamp)
+	})
+
 	executorNodeNames := make([]string, 0, len(availableNodes))
+	driverNodeNames := make([]string, 0, len(availableNodes))
+
 	for _, node := range availableNodes {
 		if !node.Spec.Unschedulable {
 			executorNodeNames = append(executorNodeNames, node.Name)
 		}
+		if _, ok := nodeNames[node.Name]; ok {
+			driverNodeNames = append(driverNodeNames, node.Name)
+		}
 	}
-	if err != nil {
-		return "", failureInternal, err
-	}
-	sort.Slice(nodeNames, func(i, j int) bool {
-		return availableNodes[j].CreationTimestamp.Before(&availableNodes[i].CreationTimestamp)
-	})
-	sort.Slice(executorNodeNames, func(i, j int) bool {
-		return availableNodes[j].CreationTimestamp.Before(&availableNodes[i].CreationTimestamp)
-	})
-	usages, err := s.usedResources(nodeNames)
+
+	usages, err := s.usedResources(driverNodeNames)
 	if err != nil {
 		return "", failureInternal, err
 	}
@@ -216,7 +220,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		if err != nil {
 			return "", failureInternal, werror.Wrap(err, "failed to list earlier drivers")
 		}
-		ok := s.fitEarlierDrivers(ctx, queuedDrivers, nodeNames, executorNodeNames, availableResources)
+		ok := s.fitEarlierDrivers(ctx, queuedDrivers, driverNodeNames, executorNodeNames, availableResources)
 		if !ok {
 			return "", failureFit, werror.Error("earlier drivers do not fit to the cluster")
 		}
@@ -225,7 +229,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	if err != nil {
 		return "", failureInternal, werror.Wrap(err, "failed to get spark resources")
 	}
-	driverNode, executorNodes, hasCapacity := s.binpacker.BinpackFunc(ctx, driverResources, executorResources, executorCount, nodeNames, executorNodeNames, availableResources)
+	driverNode, executorNodes, hasCapacity := s.binpacker.BinpackFunc(ctx, driverResources, executorResources, executorCount, driverNodeNames, executorNodeNames, availableResources)
 	svc1log.FromContext(ctx).Debug("binpacking result",
 		svc1log.SafeParam("availableResources", availableResources),
 		svc1log.SafeParam("driverResources", driverResources),
@@ -443,4 +447,14 @@ func (s *SparkSchedulerExtender) allNodesGoneOrUnschedulable(ctx context.Context
 func (s *SparkSchedulerExtender) deleteResourceReservation(namespace, name string) error {
 	background := metav1.DeletePropagationBackground
 	return s.resourceReservationClient.ResourceReservations(namespace).Delete(name, &metav1.DeleteOptions{PropagationPolicy: &background})
+}
+
+type set map[string]interface{}
+
+func convertToSet(items []string) map[string]interface{} {
+	itemSet := make(set)
+	for _, item := range items {
+		itemSet[item] = nil
+	}
+	return itemSet
 }
