@@ -145,24 +145,17 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 			if err != nil {
 				return
 			}
-			increment(zonesCounter, executorZone)
+			zonesCounter[executorZone]++
 		} else if n.Name == driverNodeName {
 			driverZone, err := getNodeZone(n)
 			if err != nil {
 				return
 			}
-			increment(zonesCounter, driverZone)
+			zonesCounter[driverZone]++
 		}
 	}
 
 	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(crossZoneTraffic(zonesCounter))
-}
-
-func increment(counter map[string]int64, zoneName string) {
-	if _, ok := counter[zoneName]; !ok {
-		counter[zoneName] = 0
-	}
-	counter[zoneName]++
 }
 
 func getNodeZone(node *v1.Node) (string, error) {
