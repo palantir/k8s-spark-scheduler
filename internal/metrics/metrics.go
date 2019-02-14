@@ -35,7 +35,7 @@ const (
 	lifecycleAgeP95          = "foundry.spark.scheduler.pod.lifecycle.p95"
 	lifecycleAgeP50          = "foundry.spark.scheduler.pod.lifecycle.p50"
 	lifecycleCount           = "foundry.spark.scheduler.pod.lifecycle.count"
-	crossAzTraffic           = "foundry.spark.scheduler.cross.az.traffic"
+	crossAzTraffic           = "foundry.spark.scheduler.az.cross.traffic"
 )
 
 const (
@@ -55,61 +55,6 @@ var (
 	didRetryTag = metrics.MustNewTag("retry", "true")
 	firstTryTag = metrics.MustNewTag("retry", "false")
 )
-
-func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorNodeNames []string, nodes []*v1.Node) {
-	executorNodesSet := make(map[string]interface{})
-	for _, n := range executorNodeNames {
-		executorNodesSet[n] = nil
-	}
-
-	zonesCounter := make(map[string]int64)
-	for _, n := range nodes {
-		if _, ok := executorNodesSet[n.Name]; ok {
-			executorZone, err := getNodeZone(n)
-			if err != nil {
-				return
-			}
-			increment(zonesCounter, executorZone)
-		} else if n.Name == driverNodeName {
-			driverZone, err := getNodeZone(n)
-			if err != nil {
-				return
-			}
-			increment(zonesCounter, driverZone)
-		}
-	}
-
-	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(crossZoneTraffic(zonesCounter))
-}
-
-func increment(counter map[string]int64, key string) {
-	if _, ok := counter[key]; !ok {
-		counter[key] = 0
-	}
-	counter[key] += 1
-}
-
-func crossZoneTraffic(zonesCounter map[string]int64) int64 {
-	var podsInDifferentZones int64 = 0
-	for _, numPods := range zonesCounter {
-		podsInDifferentZones += numPods
-	}
-
-	var crossZoneTraffic int64 = 0
-	for _, numPods := range zonesCounter {
-		podsInDifferentZones -= numPods
-		crossZoneTraffic += numPods * podsInDifferentZones
-	}
-	return crossZoneTraffic
-}
-
-func getNodeZone(node *v1.Node) (string, error) {
-	zone, ok := node.GetLabels()[nodeZoneLabel]
-	if !ok {
-		return "", errors.New("zone label not found")
-	}
-	return zone, nil
-}
 
 func tagWithDefault(ctx context.Context, key, value, defaultValue string) metrics.Tag {
 	tag, err := metrics.NewTag(key, value)
@@ -184,4 +129,59 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 		schedulingWaitTime, sparkRoleTag, outcomeTag, s.instanceGroupTag).Update(now.Sub(s.podCreationTime).Nanoseconds())
 	metrics.FromContext(ctx).Histogram(
 		schedulingRetryTime, sparkRoleTag, outcomeTag, s.instanceGroupTag, s.retryTag).Update(now.Sub(s.lastSeenTime).Nanoseconds())
+}
+
+func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorNodeNames []string, nodes []*v1.Node) {
+	executorNodesSet := make(map[string]interface{})
+	for _, n := range executorNodeNames {
+		executorNodesSet[n] = nil
+	}
+
+	zonesCounter := make(map[string]int64)
+	for _, n := range nodes {
+		if _, ok := executorNodesSet[n.Name]; ok {
+			executorZone, err := getNodeZone(n)
+			if err != nil {
+				return
+			}
+			increment(zonesCounter, executorZone)
+		} else if n.Name == driverNodeName {
+			driverZone, err := getNodeZone(n)
+			if err != nil {
+				return
+			}
+			increment(zonesCounter, driverZone)
+		}
+	}
+
+	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(crossZoneTraffic(zonesCounter))
+}
+
+func increment(counter map[string]int64, key string) {
+	if _, ok := counter[key]; !ok {
+		counter[key] = 0
+	}
+	counter[key] += 1
+}
+
+func getNodeZone(node *v1.Node) (string, error) {
+	zone, ok := node.GetLabels()[nodeZoneLabel]
+	if !ok {
+		return "", errors.New("zone label not found")
+	}
+	return zone, nil
+}
+
+func crossZoneTraffic(zonesCounter map[string]int64) int64 {
+	var podsInDifferentZones int64 = 0
+	for _, numPods := range zonesCounter {
+		podsInDifferentZones += numPods
+	}
+
+	var crossZoneTraffic int64 = 0
+	for _, numPods := range zonesCounter {
+		podsInDifferentZones -= numPods
+		crossZoneTraffic += numPods * podsInDifferentZones
+	}
+	return crossZoneTraffic
 }
