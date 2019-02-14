@@ -16,7 +16,6 @@ package metrics
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/palantir/pkg/metrics"
@@ -141,14 +140,18 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 	zonesCounter := make(map[string]int)
 	for _, n := range nodes {
 		if _, ok := executorNodesSet[n.Name]; ok {
-			executorZone, err := getNodeZone(ctx, n)
-			if err != nil {
+			executorZone, ok := n.Labels[nodeZoneLabel]
+			if !ok {
+				svc1log.FromContext(ctx).Warn("zone label not found for node",
+					svc1log.SafeParam("nodeName", n.Name))
 				return
 			}
 			zonesCounter[executorZone]++
 		} else if n.Name == driverNodeName {
-			driverZone, err := getNodeZone(ctx, n)
-			if err != nil {
+			driverZone, ok := n.Labels[nodeZoneLabel]
+			if !ok {
+				svc1log.FromContext(ctx).Warn("zone label not found for node",
+					svc1log.SafeParam("nodeName", n.Name))
 				return
 			}
 			zonesCounter[driverZone]++
@@ -156,16 +159,6 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 	}
 
 	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(int64(crossZoneTraffic(zonesCounter)))
-}
-
-func getNodeZone(ctx context.Context, node *v1.Node) (string, error) {
-	zone, ok := node.Labels[nodeZoneLabel]
-	if !ok {
-		svc1log.FromContext(ctx).Warn("zone label not found for node",
-			svc1log.SafeParam("nodeName", node.Name))
-		return "", errors.New("zone label not found")
-	}
-	return zone, nil
 }
 
 // crossZoneTraffic calculates the total number of pairs of pods, where the 2 pods are in different zones.
