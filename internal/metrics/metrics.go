@@ -62,32 +62,24 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 		executorNodesSet[n] = nil
 	}
 
-	zoneCount := make(map[string]int64)
+	zonesCounter := make(map[string]int64)
 	for _, n := range nodes {
 		if _, ok := executorNodesSet[n.Name]; ok {
 			executorZone, err := getNodeZone(n)
 			if err != nil {
 				return
 			}
-			increment(zoneCount, executorZone)
+			increment(zonesCounter, executorZone)
 		} else if n.Name == driverNodeName {
 			driverZone, err := getNodeZone(n)
 			if err != nil {
 				return
 			}
-			increment(zoneCount, driverZone)
+			increment(zonesCounter, driverZone)
 		}
 	}
 
-	var crossZoneTraffic int64 = 0
-	if len(zoneCount) > 1 {
-		crossZoneTraffic = 1
-		for _, numPods := range zoneCount {
-			crossZoneTraffic *= numPods
-		}
-	}
-
-	metrics.FromContext(ctx).Histogram(crossAzScheduling).Update(crossZoneTraffic)
+	metrics.FromContext(ctx).Histogram(crossAzScheduling).Update(calculateCrossZoneTraffic(zonesCounter))
 }
 
 func increment(counter map[string]int64, key string) {
@@ -97,18 +89,18 @@ func increment(counter map[string]int64, key string) {
 	counter[key] += 1
 }
 
-func calculateCrossZoneTraffic(zoneCount map[string]int64) int64 {
-	if len(zoneCount) == 1 {
+func calculateCrossZoneTraffic(zonesCounter map[string]int64) int64 {
+	if len(zonesCounter) <= 1 {
 		return 0
 	}
 
 	var podsInDifferentZones int64 = 0
-	for _, numPods := range zoneCount {
+	for _, numPods := range zonesCounter {
 		podsInDifferentZones += numPods
 	}
 
 	var crossZoneTraffic int64 = 1
-	for _, numPods := range zoneCount {
+	for _, numPods := range zonesCounter {
 		podsInDifferentZones -= numPods
 		crossZoneTraffic += numPods * podsInDifferentZones
 	}
