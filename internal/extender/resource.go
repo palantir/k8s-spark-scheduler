@@ -202,7 +202,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		return "", failureFit, err
 	}
 
-	driverNodeNames, executorNodeNames := s.getPotentialNodes(availableNodes, driver, nodeNames)
+	driverNodeNames, executorNodeNames := s.potentialNodes(availableNodes, driver, nodeNames)
 	usages, err := s.usedResources(driverNodeNames)
 	if err != nil {
 		return "", failureInternal, err
@@ -250,7 +250,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	return s.createResourceReservations(ctx, driver, applicationResources, driverNode, executorNodes)
 }
 
-func (s *SparkSchedulerExtender) getPotentialNodes(availableNodes []*v1.Node, driver *v1.Pod, nodeNames []string) (driverNodes, executorNodes []string) {
+func (s *SparkSchedulerExtender) potentialNodes(availableNodes []*v1.Node, driver *v1.Pod, nodeNames []string) (driverNodes, executorNodes []string) {
 	sort.Slice(availableNodes, func(i, j int) bool {
 		return availableNodes[j].CreationTimestamp.Before(&availableNodes[i].CreationTimestamp)
 	})
