@@ -199,7 +199,7 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v1.Pod, nodeNames []string) (string, string, error) {
 	availableNodes, err := s.nodeLister.List(labels.Set(driver.Spec.NodeSelector).AsSelector())
 	if err != nil {
-		return "", failureFit, err
+		return "", failureInternal, err
 	}
 
 	driverNodeNames, executorNodeNames := s.potentialNodes(availableNodes, driver, nodeNames)
