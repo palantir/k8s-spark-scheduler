@@ -79,15 +79,15 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 		}
 	}
 
-	var crossAZ int64 = 0
+	var crossZoneTraffic int64 = 0
 	if len(zoneCount) > 1 {
-		crossAZ = 1
-		for _, count := range zoneCount {
-			crossAZ *= count
+		crossZoneTraffic = 1
+		for _, numPods := range zoneCount {
+			crossZoneTraffic *= numPods
 		}
 	}
 
-	metrics.FromContext(ctx).Histogram(crossAzScheduling).Update(crossAZ)
+	metrics.FromContext(ctx).Histogram(crossAzScheduling).Update(crossZoneTraffic)
 }
 
 func increment(counter map[string]int64, key string) {
