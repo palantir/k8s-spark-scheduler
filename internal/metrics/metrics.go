@@ -35,7 +35,7 @@ const (
 	lifecycleAgeP95          = "foundry.spark.scheduler.pod.lifecycle.p95"
 	lifecycleAgeP50          = "foundry.spark.scheduler.pod.lifecycle.p50"
 	lifecycleCount           = "foundry.spark.scheduler.pod.lifecycle.count"
-	crossAzTraffic        = "foundry.spark.scheduler.cross.az.traffic"
+	crossAzTraffic           = "foundry.spark.scheduler.cross.az.traffic"
 )
 
 const (
@@ -107,10 +107,10 @@ func crossZoneTraffic(zonesCounter map[string]int64) int64 {
 	return crossZoneTraffic
 }
 
-func getNodeZone(node *v1.Node) (string, error){
+func getNodeZone(node *v1.Node) (string, error) {
 	zone, ok := node.GetLabels()[nodeZoneLabel]
 	if !ok {
-		return "", errors.New("Zone label not found")
+		return "", errors.New("zone label not found")
 	}
 	return zone, nil
 }
