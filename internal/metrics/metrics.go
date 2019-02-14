@@ -90,10 +90,6 @@ func increment(counter map[string]int64, key string) {
 }
 
 func crossZoneTraffic(zonesCounter map[string]int64) int64 {
-	if len(zonesCounter) <= 1 {
-		return 0
-	}
-
 	var podsInDifferentZones int64 = 0
 	for _, numPods := range zonesCounter {
 		podsInDifferentZones += numPods
