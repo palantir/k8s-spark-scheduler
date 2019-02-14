@@ -131,6 +131,7 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 		schedulingRetryTime, sparkRoleTag, outcomeTag, s.instanceGroupTag, s.retryTag).Update(now.Sub(s.lastSeenTime).Nanoseconds())
 }
 
+// Reports metric about cross AZ traffic between pods of a spark application
 func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorNodeNames []string, nodes []*v1.Node) {
 	executorNodesSet := make(map[string]interface{})
 	for _, n := range executorNodeNames {
@@ -161,7 +162,7 @@ func increment(counter map[string]int64, zoneName string) {
 	if _, ok := counter[zoneName]; !ok {
 		counter[zoneName] = 0
 	}
-	counter[zoneName] += 1
+	counter[zoneName]++
 }
 
 func getNodeZone(node *v1.Node) (string, error) {
@@ -173,12 +174,12 @@ func getNodeZone(node *v1.Node) (string, error) {
 }
 
 func crossZoneTraffic(zonesCounter map[string]int64) int64 {
-	var podsInDifferentZones int64 = 0
+	var podsInDifferentZones int64
 	for _, numPods := range zonesCounter {
 		podsInDifferentZones += numPods
 	}
 
-	var crossZoneTraffic int64 = 0
+	var crossZoneTraffic int64
 	for _, numPods := range zonesCounter {
 		podsInDifferentZones -= numPods
 		crossZoneTraffic += numPods * podsInDifferentZones
