@@ -264,7 +264,7 @@ func (s *SparkSchedulerExtender) potentialNodes(availableNodes []*v1.Node, drive
 	}
 
 	for _, node := range availableNodes {
-		if _, ok:= nodeNamesSet[node.Name]; ok {
+		if _, ok := nodeNamesSet[node.Name]; ok {
 			driverNodeNames = append(driverNodeNames, node.Name)
 		}
 		if !node.Spec.Unschedulable {
