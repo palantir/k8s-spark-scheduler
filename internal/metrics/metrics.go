@@ -157,15 +157,15 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(crossZoneTraffic(zonesCounter))
 }
 
-func increment(counter map[string]int64, key string) {
-	if _, ok := counter[key]; !ok {
-		counter[key] = 0
+func increment(counter map[string]int64, zoneName string) {
+	if _, ok := counter[zoneName]; !ok {
+		counter[zoneName] = 0
 	}
-	counter[key] += 1
+	counter[zoneName] += 1
 }
 
 func getNodeZone(node *v1.Node) (string, error) {
-	zone, ok := node.GetLabels()[nodeZoneLabel]
+	zone, ok := node.Labels[nodeZoneLabel]
 	if !ok {
 		return "", errors.New("zone label not found")
 	}
