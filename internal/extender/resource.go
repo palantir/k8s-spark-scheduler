@@ -247,7 +247,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		return "", failureFit, werror.Error("application does not fit to the cluster")
 	}
 	s.removeDemandIfExists(ctx, driver)
-	metrics.ReportCrossAzMetric(ctx, driverNode, executorNodes, availableNodes)
+	metrics.ReportCrossZoneMetric(ctx, driverNode, executorNodes, availableNodes)
 	return s.createResourceReservations(ctx, driver, applicationResources, driverNode, executorNodes)
 }
 

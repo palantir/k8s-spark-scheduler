@@ -35,7 +35,7 @@ const (
 	lifecycleAgeP95          = "foundry.spark.scheduler.pod.lifecycle.p95"
 	lifecycleAgeP50          = "foundry.spark.scheduler.pod.lifecycle.p50"
 	lifecycleCount           = "foundry.spark.scheduler.pod.lifecycle.count"
-	crossAzScheduling        = "foundry.spark.scheduler.cross.az.traffic"
+	crossAzTraffic        = "foundry.spark.scheduler.cross.az.traffic"
 )
 
 const (
@@ -79,7 +79,7 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 		}
 	}
 
-	metrics.FromContext(ctx).Histogram(crossAzScheduling).Update(crossZoneTraffic(zonesCounter))
+	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(crossZoneTraffic(zonesCounter))
 }
 
 func increment(counter map[string]int64, key string) {
@@ -110,7 +110,7 @@ func crossZoneTraffic(zonesCounter map[string]int64) int64 {
 func getNodeZone(node *v1.Node) (string, error){
 	zone, ok := node.GetLabels()[nodeZoneLabel]
 	if !ok {
-		return "", errors.New("AZ label not found")
+		return "", errors.New("Zone label not found")
 	}
 	return zone, nil
 }
