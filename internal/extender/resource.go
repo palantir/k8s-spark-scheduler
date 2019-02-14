@@ -198,22 +198,12 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 
 func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v1.Pod, nodeNames []string) (string, string, error) {
 	availableNodes, err := s.nodeLister.List(labels.Set(driver.Spec.NodeSelector).AsSelector())
-	executorNodeNames := make([]string, 0, len(availableNodes))
-	for _, node := range availableNodes {
-		if !node.Spec.Unschedulable {
-			executorNodeNames = append(executorNodeNames, node.Name)
-		}
-	}
 	if err != nil {
 		return "", failureInternal, err
 	}
-	sort.Slice(nodeNames, func(i, j int) bool {
-		return availableNodes[j].CreationTimestamp.Before(&availableNodes[i].CreationTimestamp)
-	})
-	sort.Slice(executorNodeNames, func(i, j int) bool {
-		return availableNodes[j].CreationTimestamp.Before(&availableNodes[i].CreationTimestamp)
-	})
-	usages, err := s.usedResources(nodeNames)
+
+	driverNodeNames, executorNodeNames := s.potentialNodes(availableNodes, driver, nodeNames)
+	usages, err := s.usedResources(driverNodeNames)
 	if err != nil {
 		return "", failureInternal, err
 	}
@@ -224,7 +214,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		if err != nil {
 			return "", failureInternal, werror.Wrap(err, "failed to list earlier drivers")
 		}
-		ok := s.fitEarlierDrivers(ctx, queuedDrivers, nodeNames, executorNodeNames, availableResources)
+		ok := s.fitEarlierDrivers(ctx, queuedDrivers, driverNodeNames, executorNodeNames, availableResources)
 		if !ok {
 			return "", failureFit, werror.Error("earlier drivers do not fit to the cluster")
 		}
@@ -238,7 +228,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		applicationResources.driverResources,
 		applicationResources.executorResources,
 		applicationResources.executorCount,
-		nodeNames, executorNodeNames, availableResources)
+		driverNodeNames, executorNodeNames, availableResources)
 	svc1log.FromContext(ctx).Debug("binpacking result",
 		svc1log.SafeParam("availableResources", availableResources),
 		svc1log.SafeParam("driverResources", applicationResources.driverResources),
@@ -258,6 +248,30 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	}
 	s.removeDemandIfExists(ctx, driver)
 	return s.createResourceReservations(ctx, driver, applicationResources, driverNode, executorNodes)
+}
+
+func (s *SparkSchedulerExtender) potentialNodes(availableNodes []*v1.Node, driver *v1.Pod, nodeNames []string) (driverNodes, executorNodes []string) {
+	sort.Slice(availableNodes, func(i, j int) bool {
+		return availableNodes[j].CreationTimestamp.Before(&availableNodes[i].CreationTimestamp)
+	})
+
+	driverNodeNames := make([]string, 0, len(availableNodes))
+	executorNodeNames := make([]string, 0, len(availableNodes))
+
+	nodeNamesSet := make(map[string]interface{})
+	for _, item := range nodeNames {
+		nodeNamesSet[item] = nil
+	}
+
+	for _, node := range availableNodes {
+		if _, ok := nodeNamesSet[node.Name]; ok {
+			driverNodeNames = append(driverNodeNames, node.Name)
+		}
+		if !node.Spec.Unschedulable {
+			executorNodeNames = append(executorNodeNames, node.Name)
+		}
+	}
+	return driverNodeNames, executorNodeNames
 }
 
 func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executor *v1.Pod, nodeNames []string) (string, string, error) {
