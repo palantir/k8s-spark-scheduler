@@ -132,9 +132,9 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 
 // ReportCrossZoneMetric reports metric about cross AZ traffic between pods of a spark application
 func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorNodeNames []string, nodes []*v1.Node) {
-	executorNodesSet := make(map[string]interface{})
+	executorNodesSet := make(map[string]bool)
 	for _, n := range executorNodeNames {
-		executorNodesSet[n] = nil
+		executorNodesSet[n] = true
 	}
 
 	zonesCounter := make(map[string]int)
