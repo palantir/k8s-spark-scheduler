@@ -97,6 +97,24 @@ func increment(counter map[string]int64, key string) {
 	counter[key] += 1
 }
 
+func calculateCrossZoneTraffic(zoneCount map[string]int64) int64 {
+	if len(zoneCount) == 1 {
+		return 0
+	}
+
+	var podsInDifferentZones int64 = 0
+	for _, numPods := range zoneCount {
+		podsInDifferentZones += numPods
+	}
+
+	var crossZoneTraffic int64 = 1
+	for _, numPods := range zoneCount {
+		podsInDifferentZones -= numPods
+		crossZoneTraffic += numPods * podsInDifferentZones
+	}
+	return crossZoneTraffic
+}
+
 func getNodeZone(node *v1.Node) (string, error){
 	zone, ok := node.GetLabels()[nodeZoneLabel]
 	if !ok {
