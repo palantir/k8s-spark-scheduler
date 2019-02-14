@@ -258,7 +258,11 @@ func (s *SparkSchedulerExtender) potentialNodes(availableNodes []*v1.Node, drive
 	driverNodeNames := make([]string, 0, len(availableNodes))
 	executorNodeNames := make([]string, 0, len(availableNodes))
 
-	nodeNamesSet := convertToSet(nodeNames)
+	nodeNamesSet := make(map[string]interface{})
+	for _, item := range nodeNames {
+		nodeNamesSet[item] = nil
+	}
+
 	for _, node := range availableNodes {
 		if _, ok:= nodeNamesSet[node.Name]; ok {
 			driverNodeNames = append(driverNodeNames, node.Name)
@@ -465,14 +469,4 @@ func (s *SparkSchedulerExtender) allNodesGoneOrUnschedulable(ctx context.Context
 func (s *SparkSchedulerExtender) deleteResourceReservation(namespace, name string) error {
 	background := metav1.DeletePropagationBackground
 	return s.resourceReservationClient.ResourceReservations(namespace).Delete(name, &metav1.DeleteOptions{PropagationPolicy: &background})
-}
-
-type set map[string]interface{}
-
-func convertToSet(items []string) map[string]interface{} {
-	itemSet := make(set)
-	for _, item := range items {
-		itemSet[item] = nil
-	}
-	return itemSet
 }
