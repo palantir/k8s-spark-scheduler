@@ -142,16 +142,14 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 		if _, ok := executorNodesSet[n.Name]; ok {
 			executorZone, ok := n.Labels[nodeZoneLabel]
 			if !ok {
-				svc1log.FromContext(ctx).Warn("zone label not found for node",
-					svc1log.SafeParam("nodeName", n.Name))
+				svc1log.FromContext(ctx).Warn("zone label not found for node", svc1log.SafeParam("nodeName", n.Name))
 				return
 			}
 			zonesCounter[executorZone]++
 		} else if n.Name == driverNodeName {
 			driverZone, ok := n.Labels[nodeZoneLabel]
 			if !ok {
-				svc1log.FromContext(ctx).Warn("zone label not found for node",
-					svc1log.SafeParam("nodeName", n.Name))
+				svc1log.FromContext(ctx).Warn("zone label not found for node", svc1log.SafeParam("nodeName", n.Name))
 				return
 			}
 			zonesCounter[driverZone]++
