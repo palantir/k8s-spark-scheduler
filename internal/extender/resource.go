@@ -154,7 +154,7 @@ func failWithMessage(ctx context.Context, args schedulerapi.ExtenderArgs, messag
 func (s *SparkSchedulerExtender) selectNode(ctx context.Context, role string, pod *v1.Pod, nodeNames []string) (string, string, error) {
 	switch role {
 	case Driver:
-		return s.selectDriverNode(ctx, pod, convertToSet(nodeNames))
+		return s.selectDriverNode(ctx, pod, nodeNames)
 	case Executor:
 		return s.selectExecutorNode(ctx, pod, nodeNames)
 	default:
@@ -196,26 +196,13 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 	return true
 }
 
-func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v1.Pod, nodeNames set) (string, string, error) {
+func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v1.Pod, nodeNames []string) (string, string, error) {
 	availableNodes, err := s.nodeLister.List(labels.Set(driver.Spec.NodeSelector).AsSelector())
 	if err != nil {
-		return "", failureInternal, err
-	}
-	sort.Slice(availableNodes, func(i, j int) bool {
-		return availableNodes[j].CreationTimestamp.Before(&availableNodes[i].CreationTimestamp)
-	})
-
-	driverNodeNames := make([]string, 0, len(availableNodes))
-	executorNodeNames := make([]string, 0, len(availableNodes))
-	for _, node := range availableNodes {
-		if _, ok := nodeNames[node.Name]; ok {
-			driverNodeNames = append(driverNodeNames, node.Name)
-		}
-		if !node.Spec.Unschedulable {
-			executorNodeNames = append(executorNodeNames, node.Name)
-		}
+		return "", failureFit, err
 	}
 
+	driverNodeNames, executorNodeNames := s.getPotentialNodes(availableNodes, driver, nodeNames)
 	usages, err := s.usedResources(driverNodeNames)
 	if err != nil {
 		return "", failureInternal, err
@@ -261,6 +248,26 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	}
 	s.removeDemandIfExists(ctx, driver)
 	return s.createResourceReservations(ctx, driver, applicationResources, driverNode, executorNodes)
+}
+
+func (s *SparkSchedulerExtender) getPotentialNodes(availableNodes []*v1.Node, driver *v1.Pod, nodeNames []string) (driverNodes, executorNodes []string) {
+	sort.Slice(availableNodes, func(i, j int) bool {
+		return availableNodes[j].CreationTimestamp.Before(&availableNodes[i].CreationTimestamp)
+	})
+
+	driverNodeNames := make([]string, 0, len(availableNodes))
+	executorNodeNames := make([]string, 0, len(availableNodes))
+
+	nodeNamesSet := convertToSet(nodeNames)
+	for _, node := range availableNodes {
+		if _, ok:= nodeNamesSet[node.Name]; ok {
+			driverNodeNames = append(driverNodeNames, node.Name)
+		}
+		if !node.Spec.Unschedulable {
+			executorNodeNames = append(executorNodeNames, node.Name)
+		}
+	}
+	return driverNodeNames, executorNodeNames
 }
 
 func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executor *v1.Pod, nodeNames []string) (string, string, error) {
