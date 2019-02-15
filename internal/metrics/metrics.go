@@ -34,6 +34,7 @@ const (
 	lifecycleAgeP95          = "foundry.spark.scheduler.pod.lifecycle.p95"
 	lifecycleAgeP50          = "foundry.spark.scheduler.pod.lifecycle.p50"
 	lifecycleCount           = "foundry.spark.scheduler.pod.lifecycle.count"
+	crossAzTraffic           = "foundry.spark.scheduler.az.cross.traffic"
 )
 
 const (
@@ -46,6 +47,7 @@ const (
 	hostTagName           = "nodename"
 	lifecycleTagName      = "lifecycle"
 	sparkSchedulerName    = "spark-scheduler"
+	nodeZoneLabel         = "failure-domain.beta.kubernetes.io/zone"
 )
 
 var (
@@ -126,4 +128,45 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 		schedulingWaitTime, sparkRoleTag, outcomeTag, s.instanceGroupTag).Update(now.Sub(s.podCreationTime).Nanoseconds())
 	metrics.FromContext(ctx).Histogram(
 		schedulingRetryTime, sparkRoleTag, outcomeTag, s.instanceGroupTag, s.retryTag).Update(now.Sub(s.lastSeenTime).Nanoseconds())
+}
+
+// ReportCrossZoneMetric reports metric about cross AZ traffic between pods of a spark application
+func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorNodeNames []string, nodes []*v1.Node) {
+	executorNodesSet := make(map[string]bool)
+	for _, n := range executorNodeNames {
+		executorNodesSet[n] = true
+	}
+
+	zonesCounter := make(map[string]int)
+	for _, n := range nodes {
+		if _, ok := executorNodesSet[n.Name]; ok {
+			executorZone, ok := n.Labels[nodeZoneLabel]
+			if !ok {
+				svc1log.FromContext(ctx).Warn("zone label not found for node", svc1log.SafeParam("nodeName", n.Name))
+				return
+			}
+			zonesCounter[executorZone]++
+		} else if n.Name == driverNodeName {
+			driverZone, ok := n.Labels[nodeZoneLabel]
+			if !ok {
+				svc1log.FromContext(ctx).Warn("zone label not found for node", svc1log.SafeParam("nodeName", n.Name))
+				return
+			}
+			zonesCounter[driverZone]++
+		}
+	}
+
+	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(int64(crossZoneTraffic(zonesCounter, len(executorNodeNames)+1)))
+}
+
+// crossZoneTraffic calculates the total number of pairs of pods, where the 2 pods are in different zones.
+// A pair represents potential cross-zone traffic, which we want to avoid.
+func crossZoneTraffic(zonesCounter map[string]int, totalNumPods int) int {
+	numPodsInDifferentZone := totalNumPods
+	var crossZoneTraffic int
+	for _, numPods := range zonesCounter {
+		numPodsInDifferentZone -= numPods
+		crossZoneTraffic += numPods * numPodsInDifferentZone
+	}
+	return crossZoneTraffic
 }
