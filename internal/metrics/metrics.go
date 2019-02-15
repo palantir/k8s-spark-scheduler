@@ -132,27 +132,22 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 
 // ReportCrossZoneMetric reports metric about cross AZ traffic between pods of a spark application
 func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorNodeNames []string, nodes []*v1.Node) {
-	executorNodesSet := make(map[string]bool)
+	sparkApplicationNodes := map[string]bool{
+		driverNodeName: true,
+	}
 	for _, n := range executorNodeNames {
-		executorNodesSet[n] = true
+		sparkApplicationNodes[n] = true
 	}
 
 	zonesCounter := make(map[string]int)
 	for _, n := range nodes {
-		if _, ok := executorNodesSet[n.Name]; ok {
+		if _, ok := sparkApplicationNodes[n.Name]; ok {
 			executorZone, ok := n.Labels[nodeZoneLabel]
 			if !ok {
 				svc1log.FromContext(ctx).Warn("zone label not found for node", svc1log.SafeParam("nodeName", n.Name))
-				return
+				executorZone = "unknown-zone"
 			}
 			zonesCounter[executorZone]++
-		} else if n.Name == driverNodeName {
-			driverZone, ok := n.Labels[nodeZoneLabel]
-			if !ok {
-				svc1log.FromContext(ctx).Warn("zone label not found for node", svc1log.SafeParam("nodeName", n.Name))
-				return
-			}
-			zonesCounter[driverZone]++
 		}
 	}
 
@@ -164,9 +159,9 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 func crossZoneTraffic(zonesCounter map[string]int, totalNumPods int) int {
 	numPodsInDifferentZone := totalNumPods
 	var crossZoneTraffic int
-	for _, numPods := range zonesCounter {
-		numPodsInDifferentZone -= numPods
-		crossZoneTraffic += numPods * numPodsInDifferentZone
+	for _, numPodsInZone := range zonesCounter {
+		numPodsInDifferentZone -= numPodsInZone
+		crossZoneTraffic += numPodsInZone * numPodsInDifferentZone
 	}
 	return crossZoneTraffic
 }
