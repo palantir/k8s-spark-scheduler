@@ -132,34 +132,34 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 
 // ReportCrossZoneMetric reports metric about cross AZ traffic between pods of a spark application
 func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorNodeNames []string, nodes []*v1.Node) {
-	sparkApplicationNodes := map[string]bool{
-		driverNodeName: true,
+	numPodsPerNode := map[string]int{
+		driverNodeName: 1,
 	}
 	for _, n := range executorNodeNames {
-		sparkApplicationNodes[n] = true
+		numPodsPerNode[n]++
 	}
 
-	zonesCounter := make(map[string]int)
+	numPodsPerZone := make(map[string]int)
 	for _, n := range nodes {
-		if _, ok := sparkApplicationNodes[n.Name]; ok {
+		if numPods, ok := numPodsPerNode[n.Name]; ok {
 			executorZone, ok := n.Labels[nodeZoneLabel]
 			if !ok {
 				svc1log.FromContext(ctx).Warn("zone label not found for node", svc1log.SafeParam("nodeName", n.Name))
 				executorZone = "unknown-zone"
 			}
-			zonesCounter[executorZone]++
+			numPodsPerZone[executorZone] += numPods
 		}
 	}
 
-	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(int64(crossZoneTraffic(zonesCounter, len(executorNodeNames)+1)))
+	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(int64(crossZoneTraffic(numPodsPerZone, len(executorNodeNames)+1)))
 }
 
 // crossZoneTraffic calculates the total number of pairs of pods, where the 2 pods are in different zones.
 // A pair represents potential cross-zone traffic, which we want to avoid.
-func crossZoneTraffic(zonesCounter map[string]int, totalNumPods int) int {
+func crossZoneTraffic(numPodsPerZone map[string]int, totalNumPods int) int {
 	numPodsInDifferentZone := totalNumPods
 	var crossZoneTraffic int
-	for _, numPodsInZone := range zonesCounter {
+	for _, numPodsInZone := range numPodsPerZone {
 		numPodsInDifferentZone -= numPodsInZone
 		crossZoneTraffic += numPodsInZone * numPodsInDifferentZone
 	}
