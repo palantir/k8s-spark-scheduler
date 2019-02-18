@@ -139,7 +139,7 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 		numPodsPerNode[n]++
 	}
 
-	zonesCounter := make(map[string]int)
+	numPodsPerZone := make(map[string]int)
 	for _, n := range nodes {
 		if numPods, ok := numPodsPerNode[n.Name]; ok {
 			executorZone, ok := n.Labels[nodeZoneLabel]
@@ -147,19 +147,19 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 				svc1log.FromContext(ctx).Warn("zone label not found for node", svc1log.SafeParam("nodeName", n.Name))
 				executorZone = "unknown-zone"
 			}
-			zonesCounter[executorZone] += numPods
+			numPodsPerZone[executorZone] += numPods
 		}
 	}
 
-	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(int64(crossZoneTraffic(zonesCounter, len(executorNodeNames)+1)))
+	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(int64(crossZoneTraffic(numPodsPerZone, len(executorNodeNames)+1)))
 }
 
 // crossZoneTraffic calculates the total number of pairs of pods, where the 2 pods are in different zones.
 // A pair represents potential cross-zone traffic, which we want to avoid.
-func crossZoneTraffic(zonesCounter map[string]int, totalNumPods int) int {
+func crossZoneTraffic(numPodsPerZone map[string]int, totalNumPods int) int {
 	numPodsInDifferentZone := totalNumPods
 	var crossZoneTraffic int
-	for _, numPodsInZone := range zonesCounter {
+	for _, numPodsInZone := range numPodsPerZone {
 		numPodsInDifferentZone -= numPodsInZone
 		crossZoneTraffic += numPodsInZone * numPodsInDifferentZone
 	}
