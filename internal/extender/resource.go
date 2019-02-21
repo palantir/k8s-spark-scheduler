@@ -420,14 +420,16 @@ func (s *SparkSchedulerExtender) findUnboundReservations(ctx context.Context, ex
 	if err != nil {
 		return nil, failureInternal, werror.Wrap(err, "failed to list pods")
 	}
-	podNames := make(map[string]bool, len(pods))
+	activePodNames := make(map[string]bool, len(pods))
 	for _, pod := range pods {
-		podNames[pod.Name] = true
+		if !isPodTerminated(pod) {
+			activePodNames[pod.Name] = true
+		}
 	}
 	relocatableReservations := make([]string, 0, len(resourceReservation.Spec.Reservations))
 	for name := range resourceReservation.Spec.Reservations {
 		podIdentifier := resourceReservation.Status.Pods[name]
-		if !podNames[podIdentifier] {
+		if !activePodNames[podIdentifier] {
 			relocatableReservations = append(relocatableReservations, name)
 		}
 	}
@@ -437,6 +439,14 @@ func (s *SparkSchedulerExtender) findUnboundReservations(ctx context.Context, ex
 	}
 	svc1log.FromContext(ctx).Info("found relocatable resource reservations", svc1log.SafeParams(logging.RRSafeParam(resourceReservation)))
 	return relocatableReservations, successRescheduled, nil
+}
+
+func isPodTerminated(pod *v1.Pod) bool {
+	allTerminated := len(pod.Status.ContainerStatuses) > 0
+	for _, status := range pod.Status.ContainerStatuses {
+		allTerminated = allTerminated && status.State.Terminated != nil
+	}
+	return allTerminated
 }
 
 func (s *SparkSchedulerExtender) allNodesGoneOrUnschedulable(ctx context.Context, unboundReservations []string, resourceReservation *v1beta1.ResourceReservation) (bool, error) {
