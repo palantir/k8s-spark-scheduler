@@ -442,7 +442,7 @@ func (s *SparkSchedulerExtender) findUnboundReservations(ctx context.Context, ex
 }
 
 func isPodTerminated(pod *v1.Pod) bool {
-	allTerminated := false
+	allTerminated := len(pod.Status.ContainerStatuses) > 0
 	for _, status := range pod.Status.ContainerStatuses {
 		allTerminated = allTerminated && status.State.Terminated != nil
 	}
