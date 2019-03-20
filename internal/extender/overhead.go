@@ -121,7 +121,7 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 		if _, ok := currentOverhead[p.Spec.NodeName]; !ok {
 			currentOverhead[p.Spec.NodeName] = resources.Zero()
 		}
-		currentOverhead[p.Spec.NodeName].Add(podToResources(p))
+		currentOverhead[p.Spec.NodeName].Add(podToResources(ctx, p))
 	}
 	overhead := Overhead{}
 	for instanceGroup, nodeGroupResources := range rawOverhead {
@@ -156,6 +156,8 @@ func podToResources(ctx context.Context, pod *v1.Pod) *resources.Resources {
 		resourceRequests := c.Resources.Requests
 		if resourceRequests.Cpu().AsDec().Cmp(oneCPU.AsDec()) > 0 || resourceRequests.Memory().AsDec().Cmp(oneGiB.AsDec()) > 0 {
 			svc1log.FromContext(ctx).Info("Pod has high overhead",
+				svc1log.SafeParam("Pod", pod.Name),
+				svc1log.SafeParam("Node", pod.Spec.NodeName),
 				svc1log.SafeParam("CPU", resourceRequests.Cpu()),
 				svc1log.SafeParam("Memory", resourceRequests.Memory()))
 		}
