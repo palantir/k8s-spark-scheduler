@@ -148,7 +148,7 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 }
 
 func podToResources(ctx context.Context, pod *v1.Pod) *resources.Resources {
-	oneCPU := resource.NewMilliQuantity(1, resource.DecimalSI)
+	oneCPU := resource.NewMilliQuantity(1000, resource.DecimalSI)
 	oneGiB := resource.NewQuantity(1*1024*1024*1024, resource.BinarySI)
 
 	res := resources.Zero()
