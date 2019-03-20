@@ -161,7 +161,7 @@ func podToResources(ctx context.Context, pod *v1.Pod) *resources.Resources {
 				svc1log.SafeParam("CPU", resourceRequests.Cpu()),
 				svc1log.SafeParam("Memory", resourceRequests.Memory()))
 		}
-		res.AddFromResourceList(c.Resources.Requests)
+		res.AddFromResourceList(resourceRequests)
 	}
 	return res
 }
