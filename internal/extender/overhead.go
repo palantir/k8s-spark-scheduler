@@ -16,6 +16,7 @@ package extender
 
 import (
 	"context"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"sort"
 	"sync"
 	"time"
@@ -146,9 +147,18 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 	o.overheadLock.Unlock()
 }
 
-func podToResources(pod *v1.Pod) *resources.Resources {
+func podToResources(ctx context.Context, pod *v1.Pod) *resources.Resources {
+	oneCPU := resource.NewMilliQuantity(1, resource.DecimalSI)
+	oneGiB := resource.NewQuantity(1*1024*1024*1024, resource.BinarySI)
+
 	res := resources.Zero()
 	for _, c := range pod.Spec.Containers {
+		resourceRequests := c.Resources.Requests
+		if resourceRequests.Cpu().AsDec().Cmp(oneCPU.AsDec()) > 0 || resourceRequests.Memory().AsDec().Cmp(oneGiB.AsDec()) > 0 {
+			svc1log.FromContext(ctx).Info("Pod has high overhead",
+				svc1log.SafeParam("CPU", resourceRequests.Cpu()),
+				svc1log.SafeParam("Memory", resourceRequests.Memory()))
+		}
 		res.AddFromResourceList(c.Resources.Requests)
 	}
 	return res
