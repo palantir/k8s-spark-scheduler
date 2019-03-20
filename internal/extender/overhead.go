@@ -155,7 +155,7 @@ func podToResources(ctx context.Context, pod *v1.Pod) *resources.Resources {
 	for _, c := range pod.Spec.Containers {
 		resourceRequests := c.Resources.Requests
 		if resourceRequests.Cpu().AsDec().Cmp(oneCPU.AsDec()) > 0 || resourceRequests.Memory().AsDec().Cmp(oneGiB.AsDec()) > 0 {
-			svc1log.FromContext(ctx).Debug("Pod has high overhead",
+			svc1log.FromContext(ctx).Debug("Container with no resource reservation has high resource requests",
 				svc1log.SafeParam("Pod", pod.Name),
 				svc1log.SafeParam("Node", pod.Spec.NodeName),
 				svc1log.SafeParam("CPU", resourceRequests.Cpu()),
