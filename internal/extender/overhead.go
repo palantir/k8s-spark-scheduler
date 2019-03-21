@@ -153,7 +153,6 @@ var (
 )
 
 func podToResources(ctx context.Context, pod *v1.Pod) *resources.Resources {
-
 	res := resources.Zero()
 	for _, c := range pod.Spec.Containers {
 		resourceRequests := c.Resources.Requests
