@@ -25,8 +25,14 @@ import (
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	corelisters "k8s.io/client-go/listers/core/v1"
+)
+
+var (
+	oneCPU = resource.NewMilliQuantity(1000, resource.DecimalSI)
+	oneGiB = resource.NewQuantity(1*1024*1024*1024, resource.BinarySI)
 )
 
 // OverheadComputer computes non spark scheduler managed pods total resources periodically
@@ -120,7 +126,7 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 		if _, ok := currentOverhead[p.Spec.NodeName]; !ok {
 			currentOverhead[p.Spec.NodeName] = resources.Zero()
 		}
-		currentOverhead[p.Spec.NodeName].Add(podToResources(p))
+		currentOverhead[p.Spec.NodeName].Add(podToResources(ctx, p))
 	}
 	overhead := Overhead{}
 	for instanceGroup, nodeGroupResources := range rawOverhead {
@@ -146,10 +152,18 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 	o.overheadLock.Unlock()
 }
 
-func podToResources(pod *v1.Pod) *resources.Resources {
+func podToResources(ctx context.Context, pod *v1.Pod) *resources.Resources {
 	res := resources.Zero()
 	for _, c := range pod.Spec.Containers {
-		res.AddFromResourceList(c.Resources.Requests)
+		resourceRequests := c.Resources.Requests
+		if resourceRequests.Cpu().AsDec().Cmp(oneCPU.AsDec()) > 0 || resourceRequests.Memory().AsDec().Cmp(oneGiB.AsDec()) > 0 {
+			svc1log.FromContext(ctx).Debug("Container with no resource reservation has high resource requests",
+				svc1log.SafeParam("podName", pod.Name),
+				svc1log.SafeParam("nodeName", pod.Spec.NodeName),
+				svc1log.SafeParam("CPU", resourceRequests.Cpu()),
+				svc1log.SafeParam("Memory", resourceRequests.Memory()))
+		}
+		res.AddFromResourceList(resourceRequests)
 	}
 	return res
 }
