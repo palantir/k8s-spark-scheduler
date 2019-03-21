@@ -30,6 +30,11 @@ import (
 	corelisters "k8s.io/client-go/listers/core/v1"
 )
 
+var (
+	oneCPU = resource.NewMilliQuantity(1000, resource.DecimalSI)
+	oneGiB = resource.NewQuantity(1*1024*1024*1024, resource.BinarySI)
+)
+
 // OverheadComputer computes non spark scheduler managed pods total resources periodically
 type OverheadComputer struct {
 	podLister                 corelisters.PodLister
@@ -146,11 +151,6 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 	o.latestOverhead = overhead
 	o.overheadLock.Unlock()
 }
-
-var (
-	oneCPU = resource.NewMilliQuantity(1000, resource.DecimalSI)
-	oneGiB = resource.NewQuantity(1*1024*1024*1024, resource.BinarySI)
-)
 
 func podToResources(ctx context.Context, pod *v1.Pod) *resources.Resources {
 	res := resources.Zero()
