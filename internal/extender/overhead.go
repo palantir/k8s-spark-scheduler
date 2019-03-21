@@ -147,9 +147,12 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 	o.overheadLock.Unlock()
 }
 
+var (
+	oneCPU = resource.NewMilliQuantity(1000, resource.DecimalSI)
+	oneGiB = resource.NewQuantity(1*1024*1024*1024, resource.BinarySI)
+)
+
 func podToResources(ctx context.Context, pod *v1.Pod) *resources.Resources {
-	oneCPU := resource.NewMilliQuantity(1000, resource.DecimalSI)
-	oneGiB := resource.NewQuantity(1*1024*1024*1024, resource.BinarySI)
 
 	res := resources.Zero()
 	for _, c := range pod.Spec.Containers {
