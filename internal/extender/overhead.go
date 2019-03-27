@@ -108,8 +108,8 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 		if podsWithRRs[p.Name] {
 			continue
 		}
-		if p.Spec.NodeName == "" {
-			// pending pod
+		if p.Spec.NodeName == "" || p.Status.Phase == v1.PodSucceeded || p.Status.Phase == v1.PodFailed {
+			// pending pod or pod succeeded or failed
 			continue
 		}
 		node, err := o.nodeLister.Get(p.Spec.NodeName)
