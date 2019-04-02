@@ -26,7 +26,8 @@ var resourceReservationDefinition = &apiextensionsv1beta1.CustomResourceDefiniti
 		Name: resourceReservationCRDName,
 	},
 	Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
-		Group: GroupName,
+		Group:   GroupName,
+		Version: "v1beta1",
 		Versions: []apiextensionsv1beta1.CustomResourceDefinitionVersion{
 			{
 				Name:    "v1beta1",
