@@ -27,6 +27,11 @@ import (
 	corelisters "k8s.io/client-go/listers/core/v1"
 )
 
+const (
+	tickInterval   = 30 * time.Second
+	decayThreshold = 2 * tickInterval
+)
+
 var (
 	lifecycleTags = map[v1.PodConditionType]metrics.Tag{
 		v1.PodScheduled:   metrics.MustNewTag(lifecycleTagName, "queued"),
@@ -53,7 +58,7 @@ func (r *PendingPodQueueReporter) StartReportingQueues(ctx context.Context) {
 }
 
 func (r *PendingPodQueueReporter) doStart(ctx context.Context) error {
-	t := time.NewTicker(30 * time.Second)
+	t := time.NewTicker(tickInterval)
 	for {
 		select {
 		case <-ctx.Done():
@@ -134,7 +139,9 @@ func (p PodHistograms) MarkTimes(ctx context.Context, pod *v1.Pod, now time.Time
 			p.Inc(key)
 			return
 		}
-		p.Mark(key, stateChangedTime.Sub(previousStateTime))
+		if stateChangedTime.Add(decayThreshold).After(now) {
+			p.Mark(key, stateChangedTime.Sub(previousStateTime))
+		}
 		previousStateTime = stateChangedTime
 	}
 }
