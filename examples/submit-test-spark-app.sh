@@ -34,6 +34,10 @@ spec:
     image: nginx
     ports:
     - containerPort: 80
+    resources:
+      requests:
+        cpu: "$DRIVER_CPU"
+        memory: "$DRIVER_MEM"
 EOF)
 
 # wait for driver to be running
@@ -64,6 +68,10 @@ spec:
     image: nginx
     ports:
     - containerPort: 80
+    resources:
+      requests:
+        cpu: "$EXECUTOR_CPU"
+        memory: "$EXECUTOR_MEM"
 EOF)
 done
 

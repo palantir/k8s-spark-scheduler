@@ -1,18 +1,23 @@
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: spark
+---
+apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: spark-scheduler
-  namespace: kube-system
+  namespace: spark
 ---
   apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRoleBinding
   metadata:
     name: spark-scheduler-admin-binding
-    namespace: kube-system
+    namespace: spark
   subjects:
     - kind: ServiceAccount
       name: spark-scheduler
-      namespace: kube-system
+      namespace: default
   roleRef:
     apiGroup: rbac.authorization.k8s.io
     kind: ClusterRole
@@ -22,7 +27,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: spark-scheduler
-  namespace: kube-system
+  namespace: spark
 data:
   policy.cfg : |
     {
@@ -55,7 +60,7 @@ data:
       policy:
         configMap:
           name: spark-scheduler
-          namespace: kube-system
+          namespace: spark
     leaderElection:
       lockObjectName: spark-scheduler
   spark-scheduler-extender-config: |
@@ -72,7 +77,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: spark-scheduler
-  namespace: kube-system
+  namespace: spark
   labels:
     app: spark-scheduler
 spec:
@@ -102,7 +107,7 @@ spec:
         - name: kube-scheduler-config-volume
           mountPath: /etc/config
       - name: spark-scheduler-extender
-        image: palantir/spark-scheduler:latest
+        image: palantirtechnologies/spark-scheduler:latest
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
