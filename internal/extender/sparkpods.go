@@ -83,7 +83,8 @@ func filterToEarliestAndSort(driver *v1.Pod, allDrivers []*v1.Pod) []*v1.Pod {
 		if len(p.Spec.NodeName) == 0 &&
 			p.Spec.SchedulerName == driver.Spec.SchedulerName &&
 			p.Spec.NodeSelector[instanceGroupNodeSelector] == driver.Spec.NodeSelector[instanceGroupNodeSelector] &&
-			p.CreationTimestamp.Before(&driver.CreationTimestamp) {
+			p.CreationTimestamp.Before(&driver.CreationTimestamp) &&
+			p.DeletionTimestamp == nil {
 			earlierDrivers = append(earlierDrivers, p)
 		}
 	}
