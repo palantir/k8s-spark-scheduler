@@ -41,13 +41,14 @@ import (
 )
 
 const (
-	failureUnbound      = "failure-unbound"
-	failureInternal     = "failure-internal"
-	failureFit          = "failure-fit"
-	failureNonSparkPod  = "failure-non-spark-pod"
-	success             = "success"
-	successRescheduled  = "success-rescheduled"
-	successAlreadyBound = "success-already-bound"
+	failureUnbound       = "failure-unbound"
+	failureInternal      = "failure-internal"
+	failureFit           = "failure-fit"
+	failureEarlierDriver = "failure-earlier-driver"
+	failureNonSparkPod   = "failure-non-spark-pod"
+	success              = "success"
+	successRescheduled   = "success-rescheduled"
+	successAlreadyBound  = "success-already-bound"
 )
 
 // SparkSchedulerExtender is a kubernetes scheduler extended responsible for ensuring
@@ -216,7 +217,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		}
 		ok := s.fitEarlierDrivers(ctx, queuedDrivers, driverNodeNames, executorNodeNames, availableResources)
 		if !ok {
-			return "", failureFit, werror.Error("earlier drivers do not fit to the cluster")
+			return "", failureEarlierDriver, werror.Error("earlier drivers do not fit to the cluster")
 		}
 	}
 	applicationResources, err := sparkResources(ctx, driver)
