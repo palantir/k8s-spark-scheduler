@@ -210,6 +210,10 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	}
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
 	availableResources := resources.AvailableForNodes(availableNodes, usages)
+	applicationResources, err := sparkResources(ctx, driver)
+	if err != nil {
+		return "", failureInternal, werror.Wrap(err, "failed to get spark resources")
+	}
 	if s.isFIFO {
 		queuedDrivers, err := s.podLister.ListEarlierDrivers(driver)
 		if err != nil {
@@ -217,12 +221,11 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		}
 		ok := s.fitEarlierDrivers(ctx, queuedDrivers, driverNodeNames, executorNodeNames, availableResources)
 		if !ok {
+			if err := s.createDemandForApplication(ctx, driver, applicationResources); err != nil {
+				return "", failureInternal, werror.Wrap(err, "earlier drivers do not fit to the cluster, but failed to create demand resource")
+			}
 			return "", failureEarlierDriver, werror.Error("earlier drivers do not fit to the cluster")
 		}
-	}
-	applicationResources, err := sparkResources(ctx, driver)
-	if err != nil {
-		return "", failureInternal, werror.Wrap(err, "failed to get spark resources")
 	}
 	driverNode, executorNodes, hasCapacity := s.binpacker.BinpackFunc(
 		ctx,
