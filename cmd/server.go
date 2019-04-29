@@ -24,6 +24,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
+	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	"github.com/palantir/witchcraft-go-server/witchcraft"
 	"github.com/spf13/cobra"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -95,8 +96,20 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	podInformer := kubeInformerFactory.Core().V1().Pods()
 	resourceReservationInformerBeta := sparkSchedulerInformerFactory.Sparkscheduler().V1beta1().ResourceReservations()
 
-	go kubeInformerFactory.Start(ctx.Done())
-	go sparkSchedulerInformerFactory.Start(ctx.Done())
+	go func() {
+		_ = wapp.RunWithFatalLogging(ctx, func(ctx context.Context) error {
+			kubeInformerFactory.Start(ctx.Done())
+			return nil
+		})
+	}()
+
+	go func() {
+		_ = wapp.RunWithFatalLogging(ctx, func(ctx context.Context) error {
+			sparkSchedulerInformerFactory.Start(ctx.Done())
+			return nil
+		})
+	}()
+
 	if ok := cache.WaitForCacheSync(
 		ctx.Done(),
 		nodeInformer.Informer().HasSynced,

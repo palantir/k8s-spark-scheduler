@@ -29,6 +29,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	"github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
+	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	"go.uber.org/atomic"
 	"k8s.io/api/core/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -97,25 +98,30 @@ func NewExtender(
 	}
 }
 
-// Start is responsible for starting background goroutines for the SparkSchedulerExtender
+// Start is responsible for starting background tasks for the SparkSchedulerExtender
 func (s *SparkSchedulerExtender) Start(ctx context.Context) {
 	if s.checkDemandCRDExists(ctx) {
 		return
 	}
+
 	go func() {
-		t := time.NewTicker(time.Minute)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				if s.checkDemandCRDExists(ctx) {
-					return
-				}
+		_ = wapp.RunWithFatalLogging(ctx, s.doStart)
+	}()
+}
+
+func (s *SparkSchedulerExtender) doStart(ctx context.Context) error {
+	t := time.NewTicker(time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-t.C:
+			if s.checkDemandCRDExists(ctx) {
+				return nil
 			}
 		}
-	}()
+	}
 }
 
 // Predicate is responsible for returning a filtered list of nodes that qualify to schedule the pod provided in the
