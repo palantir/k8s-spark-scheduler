@@ -146,7 +146,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	queueReporter := metrics.NewQueueReporter(podInformer.Lister())
 
-	go sparkSchedulerExtender.Start(ctx)
+	sparkSchedulerExtender.Start(ctx)
 	go resourceReporter.StartReportingResourceUsage(ctx)
 	go queueReporter.StartReportingQueues(ctx)
 	go overheadComputer.Start(ctx)

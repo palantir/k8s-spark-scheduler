@@ -100,14 +100,16 @@ func NewExtender(
 
 // Start is responsible for starting background tasks for the SparkSchedulerExtender
 func (s *SparkSchedulerExtender) Start(ctx context.Context) {
-	_ = wapp.RunWithFatalLogging(ctx, s.doStart)
+	if s.checkDemandCRDExists(ctx) {
+		return
+	}
+
+	go func() {
+		_ = wapp.RunWithFatalLogging(ctx, s.doStart)
+	}()
 }
 
 func (s *SparkSchedulerExtender) doStart(ctx context.Context) error {
-	if s.checkDemandCRDExists(ctx) {
-		return nil
-	}
-
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
 	for {
