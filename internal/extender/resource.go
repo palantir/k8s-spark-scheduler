@@ -294,6 +294,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	if err != nil {
 		return "", outcome, err
 	}
+	// the reservation to be selected for the current executor needs to be on a node that the extender has received from kube-scheduler
 	nodeToReservation := make(map[string]string, len(unboundReservations))
 	for _, reservationName := range unboundReservations {
 		nodeToReservation[resourceReservation.Spec.Reservations[reservationName].Node] = reservationName
@@ -308,13 +309,8 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	copyResourceReservation := resourceReservation.DeepCopy()
 
 	if unboundReservation == "" {
-		allNodesGone, err := s.allNodesGoneOrUnschedulable(ctx, unboundReservations, resourceReservation)
-		if err != nil {
-			return "", failureInternal, werror.Wrap(err, "failed to get nodes")
-		}
-		if !allNodesGone {
-			svc1log.FromContext(ctx).Info("there are live nodes that we are not receiving, will try reschedule")
-		}
+		// no nodes for the unbound reservations exists in nodeNames, this might be because the node for the reservations are temrinated
+		// try to reschedule the executor, breaking FIFO, but preventing executor starvation
 		// we are guaranteed len(unboundResourceReservations) > 0
 		unboundReservation = unboundReservations[0]
 		node, outcome, err := s.rescheduleExecutor(ctx, executor, nodeNames, unboundReservation, resourceReservation)
@@ -412,12 +408,14 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 // if err is nil, it is guaranteed to return a non empty array of resource reservations
 func (s *SparkSchedulerExtender) findUnboundReservations(ctx context.Context, executor *v1.Pod, resourceReservation *v1beta1.ResourceReservation) ([]string, string, error) {
 	unboundReservations := make([]string, 0, len(resourceReservation.Spec.Reservations))
+	// first try to find an unbound executor reservation
 	for name := range resourceReservation.Spec.Reservations {
 		podName, ok := resourceReservation.Status.Pods[name]
 		if !ok {
 			unboundReservations = append(unboundReservations, name)
 		}
 		if podName == executor.Name {
+			// binding reservations have to be idempotent. Binding the pod to the node on kube-scheduler might fail, so we can get the same executor pod as a retry.
 			svc1log.FromContext(ctx).Info("found already bound resource reservation for the current pod", svc1log.SafeParam("reservationName", name))
 			return []string{name}, successAlreadyBound, nil
 		}
@@ -425,6 +423,8 @@ func (s *SparkSchedulerExtender) findUnboundReservations(ctx context.Context, ex
 	if len(unboundReservations) > 0 {
 		return unboundReservations, success, nil
 	}
+	// No unbound reservations exist, so iterate over existing reservations to see if any of the reserved pods are dead.
+	// Spark will recreate lost executors, so the replacement executors should be placed on the reserved spaces of dead executors.
 	selector := labels.Set(map[string]string{SparkAppIDLabel: executor.Labels[SparkAppIDLabel]}).AsSelector()
 	pods, err := s.podLister.Pods(executor.Namespace).List(selector)
 	if err != nil {
@@ -457,34 +457,6 @@ func isPodTerminated(pod *v1.Pod) bool {
 		allTerminated = allTerminated && status.State.Terminated != nil
 	}
 	return allTerminated
-}
-
-func (s *SparkSchedulerExtender) allNodesGoneOrUnschedulable(ctx context.Context, unboundReservations []string, resourceReservation *v1beta1.ResourceReservation) (bool, error) {
-	liveNodes := make([]string, 0, len(unboundReservations))
-	unschedulableNodes := make([]string, 0, len(unboundReservations))
-	goneNodes := make([]string, 0, len(unboundReservations))
-	for _, reservationName := range unboundReservations {
-		nodeName := resourceReservation.Spec.Reservations[reservationName].Node
-		nodeObj, err := s.nodeLister.Get(nodeName)
-		if err != nil {
-			if errors.IsNotFound(err) {
-				goneNodes = append(goneNodes, nodeName)
-			} else {
-				return false, err
-			}
-			continue
-		}
-		if nodeObj.Spec.Unschedulable {
-			unschedulableNodes = append(unschedulableNodes, nodeName)
-		} else {
-			liveNodes = append(liveNodes, nodeName)
-		}
-	}
-	svc1log.FromContext(ctx).Info("node status of unbound resource reservations",
-		svc1log.SafeParam("goneNodes", goneNodes),
-		svc1log.SafeParam("liveNodes", liveNodes),
-		svc1log.SafeParam("unschedulableNodes", unschedulableNodes))
-	return len(liveNodes) == 0, nil
 }
 
 func (s *SparkSchedulerExtender) deleteResourceReservation(namespace, name string) error {
