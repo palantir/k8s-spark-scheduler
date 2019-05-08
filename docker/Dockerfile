@@ -19,6 +19,6 @@ EXPOSE 8484
 
 WORKDIR $SERVICE_HOME
 
+USER 5001
 ENTRYPOINT ["service/bin/spark-scheduler"]
 CMD ["server"]
-USER 5001
