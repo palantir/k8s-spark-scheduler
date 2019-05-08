@@ -309,7 +309,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	copyResourceReservation := resourceReservation.DeepCopy()
 
 	if unboundReservation == "" {
-		// no nodes for the unbound reservations exists in nodeNames, this might be because the node for the reservations are temrinated
+		// no nodes for the unbound reservations exists in nodeNames, this might be because the node for the reservations are terminated
 		// try to reschedule the executor, breaking FIFO, but preventing executor starvation
 		// we are guaranteed len(unboundResourceReservations) > 0
 		unboundReservation = unboundReservations[0]
