@@ -53,7 +53,7 @@ data:
         "hardPodAffinitySymmetricWeight": 10
     }
   kube-scheduler-config: |
-    apiVersion: componentconfig/v1alpha1
+    apiVersion: kubescheduler.config.k8s.io/v1alpha1
     kind: KubeSchedulerConfiguration
     schedulerName: spark-scheduler
     algorithmSource:
@@ -93,7 +93,7 @@ spec:
       serviceAccountName: spark-scheduler
       containers:
       - name: kube-scheduler
-        image: gcr.io/google_containers/hyperkube:v1.11.1
+        image: gcr.io/google_containers/hyperkube:v1.13.1
         imagePullPolicy: IfNotPresent
         command:
         - sh
