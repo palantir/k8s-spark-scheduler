@@ -15,9 +15,4 @@ checks:
     exclude:
       paths:
         - 'pkg/client'
-  novendor:
-    filters:
-      - value: "k8s.io/code-generator"
-      - value: "k8s.io/gengo"
-      - value: "golang.org/x/tools"
 

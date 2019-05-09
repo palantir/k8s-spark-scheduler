@@ -16,7 +16,7 @@ package internal
 
 import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 // DemandSafeParamsFromObj gets the safe params for a demand object

@@ -20,7 +20,7 @@ import (
 	"sort"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	corelisters "k8s.io/client-go/listers/core/v1"

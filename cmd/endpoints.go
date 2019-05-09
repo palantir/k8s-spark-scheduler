@@ -19,7 +19,7 @@ import (
 	"net/http"
 
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
-	"github.com/palantir/witchcraft-go-error"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-server/rest"
 	"github.com/palantir/witchcraft-go-server/wrouter"
 	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
