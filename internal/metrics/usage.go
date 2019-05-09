@@ -24,7 +24,7 @@ import (
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	corelisters "k8s.io/client-go/listers/core/v1"

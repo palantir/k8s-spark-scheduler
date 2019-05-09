@@ -21,8 +21,8 @@ import (
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	"github.com/palantir/witchcraft-go-error"
-	"k8s.io/api/core/v1"
+	werror "github.com/palantir/witchcraft-go-error"
+	v1 "k8s.io/api/core/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
