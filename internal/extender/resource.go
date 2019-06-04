@@ -68,7 +68,7 @@ type SparkSchedulerExtender struct {
 	demandCRDInitialized atomic.Bool
 
 	isFIFO           bool
-	binpacker        *binpacker
+	binpacker        *Binpacker
 	overheadComputer *OverheadComputer
 }
 
@@ -82,7 +82,7 @@ func NewExtender(
 	demandClient demandclient.ScalerV1alpha1Interface,
 	apiExtensionsClient apiextensionsclientset.Interface,
 	isFIFO bool,
-	binpackAlgo string,
+	binpacker *Binpacker,
 	overheadComputer *OverheadComputer) *SparkSchedulerExtender {
 	return &SparkSchedulerExtender{
 		nodeLister:                nodeLister,
@@ -93,7 +93,7 @@ func NewExtender(
 		demandClient:              demandClient,
 		apiExtensionsClient:       apiExtensionsClient,
 		isFIFO:                    isFIFO,
-		binpacker:                 selectBinpacker(binpackAlgo),
+		binpacker:                 binpacker,
 		overheadComputer:          overheadComputer,
 	}
 }

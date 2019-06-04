@@ -23,17 +23,19 @@ const (
 	tightlyPack      string = "tightly-pack"
 )
 
-type binpacker struct {
+// Binpacker is a BinpackFunc with a known name
+type Binpacker struct {
 	Name        string
 	BinpackFunc binpack.SparkBinPackFunction
 }
 
-var binpackFunctions = map[string]*binpacker{
+var binpackFunctions = map[string]*Binpacker{
 	tightlyPack:      {tightlyPack, binpack.TightlyPack},
 	distributeEvenly: {distributeEvenly, binpack.DistributeEvenly},
 }
 
-func selectBinpacker(name string) *binpacker {
+// SelectBinpacker selects the binpack function from the given name
+func SelectBinpacker(name string) *Binpacker {
 	binpacker, ok := binpackFunctions[name]
 	if !ok {
 		return binpackFunctions[distributeEvenly]

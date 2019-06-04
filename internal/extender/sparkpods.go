@@ -27,6 +27,8 @@ import (
 )
 
 const (
+	// SparkSchedulerName is the name of the kube-scheduler instance that talks with the extender
+	SparkSchedulerName = "spark-scheduler"
 	// SparkRoleLabel represents the label key for the spark-role of a pod
 	SparkRoleLabel = "spark-role"
 	// SparkAppIDLabel represents the label key for the spark application ID on a pod
