@@ -29,7 +29,9 @@ import (
 )
 
 const (
-	podExceedsClusterCapacity v1.PodConditionType = "PodExceedsClusterCapacity"
+	podExceedsClusterCapacity       v1.PodConditionType = "PodExceedsClusterCapacity"
+	unschedulablePollingInterval    time.Duration       = time.Minute
+	unschedulableInClusterThreshold time.Duration       = 10 * time.Minute
 )
 
 // UnschedulablePodMarker checks for spark scheduler managed pending driver pods
@@ -59,24 +61,24 @@ func NewUnschedulablePodMarker(
 	}
 }
 
-// Start starts periodic scanning for unschedulable pods
+// Start starts periodic scanning for unschedulable applications
 func (u *UnschedulablePodMarker) Start(ctx context.Context) {
 	_ = wapp.RunWithFatalLogging(ctx, u.doStart)
 }
 
 func (u *UnschedulablePodMarker) doStart(ctx context.Context) error {
-	t := time.NewTicker(60 * time.Second)
+	t := time.NewTicker(unschedulablePollingInterval)
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-t.C:
-			u.mark(ctx)
+			u.scanForUnschedulablePods(ctx)
 		}
 	}
 }
 
-func (u *UnschedulablePodMarker) mark(ctx context.Context) {
+func (u *UnschedulablePodMarker) scanForUnschedulablePods(ctx context.Context) {
 	pods, err := u.podLister.List(labels.Everything())
 	if err != nil {
 		svc1log.FromContext(ctx).Error("failed to list pods", svc1log.Stacktrace(err))
@@ -84,27 +86,38 @@ func (u *UnschedulablePodMarker) mark(ctx context.Context) {
 	}
 	now := time.Now()
 	for _, pod := range pods {
-		if pod.Spec.SchedulerName == SparkSchedulerName && // TODO: constant
+		if pod.Spec.SchedulerName == SparkSchedulerName &&
 			len(pod.Spec.NodeName) == 0 &&
 			pod.DeletionTimestamp == nil &&
 			pod.Labels[SparkRoleLabel] == Driver &&
-			pod.CreationTimestamp.Time.Add(10*time.Minute).Before(now) {
-			err := u.markPod(ctx, pod)
+			pod.CreationTimestamp.Time.Add(unschedulableInClusterThreshold).Before(now) {
+
+			exceedsCapacity, err := u.doesPodExceedClusterCapacity(ctx, pod)
 			if err != nil {
 				svc1log.FromContext(ctx).Error("failed to check if pod was unschedulable",
 					svc1log.SafeParam("podName", pod.Name),
 					svc1log.SafeParam("podNamespace", pod.Namespace),
 					svc1log.Stacktrace(err))
+				return
 			}
+
+			err = u.markPodClusterCapacityStatus(ctx, pod, exceedsCapacity)
+			if err != nil {
+				svc1log.FromContext(ctx).Error("failed to mark pod cluster capacity status",
+					svc1log.SafeParam("podName", pod.Name),
+					svc1log.SafeParam("podNamespace", pod.Namespace),
+					svc1log.Stacktrace(err))
+			}
+
 		}
 
 	}
 }
 
-func (u *UnschedulablePodMarker) markPod(ctx context.Context, driver *v1.Pod) error {
+func (u *UnschedulablePodMarker) doesPodExceedClusterCapacity(ctx context.Context, driver *v1.Pod) (bool, error) {
 	nodes, err := u.nodeLister.List(labels.Set(driver.Spec.NodeSelector).AsSelector())
 	if err != nil {
-		return err
+		return false, err
 	}
 	nodeNames := make([]string, 0, len(nodes))
 	for _, node := range nodes {
@@ -113,7 +126,7 @@ func (u *UnschedulablePodMarker) markPod(ctx context.Context, driver *v1.Pod) er
 	availableResources := resources.AvailableForNodes(nodes, u.overheadComputer.GetOverhead(ctx, nodes))
 	applicationResources, err := sparkResources(ctx, driver)
 	if err != nil {
-		return err
+		return false, err
 	}
 	_, _, hasCapacity := u.binpacker.BinpackFunc(
 		ctx,
@@ -122,14 +135,19 @@ func (u *UnschedulablePodMarker) markPod(ctx context.Context, driver *v1.Pod) er
 		applicationResources.executorCount,
 		nodeNames, nodeNames, availableResources)
 
-	exceedsCapacity := v1.ConditionTrue
-	if hasCapacity {
-		exceedsCapacity = v1.ConditionFalse
+	return !hasCapacity, nil
+}
+
+func (u *UnschedulablePodMarker) markPodClusterCapacityStatus(ctx context.Context, driver *v1.Pod, exceedsCapacity bool) error {
+	exceedsCapacityStatus := v1.ConditionFalse
+	if exceedsCapacity {
+		exceedsCapacityStatus = v1.ConditionTrue
 	}
 
-	if !podutil.UpdatePodCondition(&driver.Status, &v1.PodCondition{Type: podExceedsClusterCapacity, Status: exceedsCapacity}) {
+	if !podutil.UpdatePodCondition(&driver.Status, &v1.PodCondition{Type: podExceedsClusterCapacity, Status: exceedsCapacityStatus}) {
 		return nil
 	}
-	_, err = u.coreClient.Pods(driver.Namespace).UpdateStatus(driver)
+
+	_, err := u.coreClient.Pods(driver.Namespace).UpdateStatus(driver)
 	return err
 }
