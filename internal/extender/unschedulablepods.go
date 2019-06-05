@@ -133,7 +133,9 @@ func (u *UnschedulablePodMarker) doesPodExceedClusterCapacity(ctx context.Contex
 		applicationResources.driverResources,
 		applicationResources.executorResources,
 		applicationResources.executorCount,
-		nodeNames, nodeNames, availableResources)
+		nodeNames,
+		nodeNames,
+		availableResources)
 
 	return !hasCapacity, nil
 }
