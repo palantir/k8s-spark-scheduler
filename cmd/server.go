@@ -126,6 +126,8 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		nodeInformer.Lister(),
 	)
 
+	binpacker := extender.SelectBinpacker(install.BinpackAlgo)
+
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeInformer.Lister(),
 		extender.NewSparkPodLister(podInformer.Lister()),
@@ -135,7 +137,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		sparkSchedulerClient.ScalerV1alpha1(),
 		apiExtensionsClient,
 		install.FIFO,
-		install.BinpackAlgo,
+		binpacker,
 		overheadComputer,
 	)
 
@@ -146,10 +148,19 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	queueReporter := metrics.NewQueueReporter(podInformer.Lister())
 
+	unschedulablePodMarker := extender.NewUnschedulablePodMarker(
+		nodeInformer.Lister(),
+		podInformer.Lister(),
+		kubeClient.CoreV1(),
+		overheadComputer,
+		binpacker,
+	)
+
 	sparkSchedulerExtender.Start(ctx)
 	go resourceReporter.StartReportingResourceUsage(ctx)
 	go queueReporter.StartReportingQueues(ctx)
 	go overheadComputer.Start(ctx)
+	go unschedulablePodMarker.Start(ctx)
 
 	if err := registerExtenderEndpoints(info.Router, sparkSchedulerExtender); err != nil {
 		return nil, err
