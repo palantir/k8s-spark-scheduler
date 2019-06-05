@@ -92,11 +92,14 @@ func (u *UnschedulablePodMarker) scanForUnschedulablePods(ctx context.Context) {
 			pod.Labels[SparkRoleLabel] == Driver &&
 			pod.CreationTimestamp.Time.Add(unschedulableInClusterThreshold).Before(now) {
 
+			ctx = svc1log.WithLoggerParams(
+				ctx,
+				svc1log.SafeParam("podName", pod.Name),
+				svc1log.SafeParam("podNamespace", pod.Namespace))
+
 			exceedsCapacity, err := u.doesPodExceedClusterCapacity(ctx, pod)
 			if err != nil {
 				svc1log.FromContext(ctx).Error("failed to check if pod was unschedulable",
-					svc1log.SafeParam("podName", pod.Name),
-					svc1log.SafeParam("podNamespace", pod.Namespace),
 					svc1log.Stacktrace(err))
 				return
 			}
@@ -104,13 +107,9 @@ func (u *UnschedulablePodMarker) scanForUnschedulablePods(ctx context.Context) {
 			err = u.markPodClusterCapacityStatus(ctx, pod, exceedsCapacity)
 			if err != nil {
 				svc1log.FromContext(ctx).Error("failed to mark pod cluster capacity status",
-					svc1log.SafeParam("podName", pod.Name),
-					svc1log.SafeParam("podNamespace", pod.Namespace),
 					svc1log.Stacktrace(err))
 			}
-
 		}
-
 	}
 }
 
