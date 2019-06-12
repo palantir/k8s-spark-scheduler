@@ -17,6 +17,7 @@ package metrics
 import (
 	"context"
 	"time"
+	"math"
 
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -35,6 +36,7 @@ const (
 	lifecycleAgeP50          = "foundry.spark.scheduler.pod.lifecycle.p50"
 	lifecycleCount           = "foundry.spark.scheduler.pod.lifecycle.count"
 	crossAzTraffic           = "foundry.spark.scheduler.az.cross.traffic"
+	crossAzTrafficPct        = "foundry.spark.scheduler.az.cross.traffic.pct"
 )
 
 const (
@@ -151,7 +153,13 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 		}
 	}
 
-	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(int64(crossZoneTraffic(numPodsPerZone, len(executorNodeNames)+1)))
+	totalNumPods := len(executorNodeNames) + 1
+	czTraffic := int64(crossZoneTraffic(numPodsPerZone, totalNumPods))
+	totalTraffic := math.Max(float64(totalNumPods * (totalNumPods - 1) / 2), 1) // no division by zero
+	czTrafficPct := 100 * czTraffic / int64(totalTraffic)
+
+	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(czTraffic)
+	metrics.FromContext(ctx).Histogram(crossAzTrafficPct).Update(czTrafficPct)
 }
 
 // crossZoneTraffic calculates the total number of pairs of pods, where the 2 pods are in different zones.
