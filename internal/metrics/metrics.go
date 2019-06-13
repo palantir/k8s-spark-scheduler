@@ -17,7 +17,6 @@ package metrics
 import (
 	"context"
 	"time"
-	"math"
 
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
