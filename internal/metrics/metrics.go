@@ -155,10 +155,10 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 
 	totalNumPods := len(executorNodeNames) + 1
 	czTraffic := int64(crossZoneTraffic(numPodsPerZone, totalNumPods))
-	totalTraffic := int64(totalNumPods * (totalNumPods - 1) / 2)
+	tTraffic := int64(totalNumPods * (totalNumPods - 1) / 2)
 
 	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(czTraffic)
-	metrics.FromContext(ctx).Histogram(totalTraffic).Update(totalTraffic)
+	metrics.FromContext(ctx).Histogram(totalTraffic).Update(tTraffic)
 }
 
 // crossZoneTraffic calculates the total number of pairs of pods, where the 2 pods are in different zones.
