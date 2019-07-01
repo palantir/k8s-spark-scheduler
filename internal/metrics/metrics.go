@@ -16,11 +16,13 @@ package metrics
 
 import (
 	"context"
+	"net/url"
 	"time"
 
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
+	clientmetrics "k8s.io/client-go/tools/metrics"
 )
 
 const (
@@ -36,6 +38,8 @@ const (
 	lifecycleCount           = "foundry.spark.scheduler.pod.lifecycle.count"
 	crossAzTraffic           = "foundry.spark.scheduler.az.cross.traffic"
 	totalTraffic             = "foundry.spark.scheduler.total.traffic"
+	requestLatency           = "foundry.spark.scheduler.client.request.latency"
+	requestResult            = "foundry.spark.scheduler.client.request.result"
 )
 
 const (
@@ -49,12 +53,19 @@ const (
 	lifecycleTagName      = "lifecycle"
 	sparkSchedulerName    = "spark-scheduler"
 	nodeZoneLabel         = "failure-domain.beta.kubernetes.io/zone"
+	pathTagName           = "requestpath"
+	verbTagName           = "requestverb"
+	statusCodeTagName     = "requeststatuscode"
 )
 
 var (
 	didRetryTag = metrics.MustNewTag("retry", "true")
 	firstTryTag = metrics.MustNewTag("retry", "false")
 )
+
+func init() {
+	clientmetrics.Register(&latencyAdapter{}, &resultAdapter{})
+}
 
 func tagWithDefault(ctx context.Context, key, value, defaultValue string) metrics.Tag {
 	tag, err := metrics.NewTag(key, value)
@@ -86,6 +97,21 @@ func InstanceGroupTag(ctx context.Context, instanceGroup string) metrics.Tag {
 // HostTag returns a host tag
 func HostTag(ctx context.Context, host string) metrics.Tag {
 	return tagWithDefault(ctx, hostTagName, host, "unspecified")
+}
+
+// PathTag returns a url tag
+func PathTag(ctx context.Context, url url.URL) metrics.Tag {
+	return tagWithDefault(ctx, pathTagName, url.Path, "unspecified")
+}
+
+// VerbTag returns a request verb tag
+func VerbTag(ctx context.Context, verb string) metrics.Tag {
+	return tagWithDefault(ctx, verbTagName, verb, "unspecified")
+}
+
+// StatusCodeTag returns a statuc code tag
+func StatusCodeTag(ctx context.Context, statusCode string) metrics.Tag {
+	return tagWithDefault(ctx, statusCodeTagName, statusCode, "unspecified")
 }
 
 // ScheduleTimer marks pod scheduling time metrics
@@ -170,4 +196,23 @@ func crossZoneTraffic(numPodsPerZone map[string]int, totalNumPods int) int {
 		crossZoneTraffic += numPodsInZone * numPodsInDifferentZone
 	}
 	return crossZoneTraffic
+}
+
+type latencyAdapter struct{}
+
+func (l *latencyAdapter) Observe(verb string, u url.URL, latency time.Duration) {
+	ctx := context.Background()
+	pathTag := PathTag(ctx, u)
+	verbTag := VerbTag(ctx, verb)
+	metrics.FromContext(ctx).Histogram(requestLatency, pathTag, verbTag).Update(latency.Nanoseconds())
+}
+
+type resultAdapter struct{}
+
+func (r *resultAdapter) Increment(code, verb, host string) {
+	ctx := context.Background()
+	verbTag := VerbTag(ctx, verb)
+	statusCodeTag := StatusCodeTag(ctx, code)
+	hostTag := HostTag(ctx, host)
+	metrics.FromContext(ctx).Counter(requestResult, verbTag, statusCodeTag, hostTag).Inc(1)
 }

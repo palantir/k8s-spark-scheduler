@@ -857,6 +857,7 @@
     "k8s.io/client-go/rest",
     "k8s.io/client-go/tools/cache",
     "k8s.io/client-go/tools/clientcmd",
+    "k8s.io/client-go/tools/metrics",
     "k8s.io/code-generator/cmd/client-gen",
     "k8s.io/kubernetes/pkg/api/v1/pod",
     "k8s.io/kubernetes/plugin/pkg/scheduler/api",
