@@ -227,9 +227,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		}
 		ok := s.fitEarlierDrivers(ctx, queuedDrivers, driverNodeNames, executorNodeNames, availableResources)
 		if !ok {
-			if err := s.createDemandForApplication(ctx, driver, applicationResources); err != nil {
-				return "", failureInternal, werror.Wrap(err, "earlier drivers do not fit to the cluster, but failed to create demand resource")
-			}
+			go s.createDemandForApplication(ctx, driver, applicationResources)
 			return "", failureEarlierDriver, werror.Error("earlier drivers do not fit to the cluster")
 		}
 	}
@@ -251,12 +249,10 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		svc1log.SafeParam("executorNodes", executorNodes),
 		svc1log.SafeParam("binpacker", s.binpacker.Name))
 	if !hasCapacity {
-		if err := s.createDemandForApplication(ctx, driver, applicationResources); err != nil {
-			return "", failureInternal, werror.Wrap(err, "application does not fit to the cluster, but failed to create demand resource")
-		}
+		go s.createDemandForApplication(ctx, driver, applicationResources)
 		return "", failureFit, werror.Error("application does not fit to the cluster")
 	}
-	s.removeDemandIfExists(ctx, driver)
+	go s.removeDemandIfExists(ctx, driver)
 	metrics.ReportCrossZoneMetric(ctx, driverNode, executorNodes, availableNodes)
 	return s.createResourceReservations(ctx, driver, applicationResources, driverNode, executorNodes)
 }
@@ -334,7 +330,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 			return "", failureInternal, werror.Wrap(createErr, "failed to create v1beta1 resource reservation")
 		}
 	}
-	s.removeDemandIfExists(ctx, executor)
+	go s.removeDemandIfExists(ctx, executor)
 	return copyResourceReservation.Spec.Reservations[unboundReservation].Node, outcome, err
 }
 
@@ -399,9 +395,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 			return name, successRescheduled, nil
 		}
 	}
-	if err := s.createDemandForExecutor(ctx, executor, executorResources); err != nil {
-		return "", failureInternal, werror.Wrap(err, "executor does not fit to the cluster, but failed to create demand resource")
-	}
+	go s.createDemandForExecutor(ctx, executor, executorResources)
 	return "", failureFit, werror.Error("not enough capacity to reschedule the executor")
 }
 
