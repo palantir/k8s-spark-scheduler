@@ -59,9 +59,9 @@ func (s *SparkSchedulerExtender) updatePodStatus(ctx context.Context, pod *v1.Po
 	}
 }
 
-func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources) error {
+func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources) {
 	if !s.demandCRDInitialized.Load() {
-		return nil
+		return
 	}
 	units := []demandapi.DemandUnit{
 		{
@@ -70,35 +70,31 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 			Memory: executorResources.Memory,
 		},
 	}
-	newDemand, err := newDemand(executorPod, units)
-	if err != nil {
-		return err
-	}
-	err = s.createDemand(ctx, newDemand)
-	if err != nil {
-		return err
-	}
-	s.updatePodStatus(ctx, executorPod, demandCreatedCondition)
-	return nil
+	s.createDemand(ctx, executorPod, units)
 }
 
-func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context, driverPod *v1.Pod, applicationResources *sparkApplicationResources) error {
+func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context, driverPod *v1.Pod, applicationResources *sparkApplicationResources) {
 	if !s.demandCRDInitialized.Load() {
-		return nil
+		return
 	}
-	newDemand, err := newDemand(driverPod, demandResources(applicationResources))
-	if err != nil {
-		return err
-	}
-	err = s.createDemand(ctx, newDemand)
-	if err != nil {
-		return err
-	}
-	s.updatePodStatus(ctx, driverPod, demandCreatedCondition)
-	return nil
+	s.createDemand(ctx, driverPod, demandResources(applicationResources))
 }
 
-func (s *SparkSchedulerExtender) createDemand(ctx context.Context, newDemand *demandapi.Demand) error {
+func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, demandUnits []demandapi.DemandUnit) {
+	newDemand, err := newDemand(pod, demandUnits)
+	if err != nil {
+		svc1log.FromContext(ctx).Error("failed to construct demand object", svc1log.Stacktrace(err))
+		return
+	}
+	err = s.doCreateDemand(ctx, newDemand)
+	if err != nil {
+		svc1log.FromContext(ctx).Error("failed to create demand", svc1log.Stacktrace(err))
+		return
+	}
+	s.updatePodStatus(ctx, pod, demandCreatedCondition)
+}
+
+func (s *SparkSchedulerExtender) doCreateDemand(ctx context.Context, newDemand *demandapi.Demand) error {
 	_, ok, err := checkForExistingDemand(ctx, newDemand.Namespace, newDemand.Name, s.demandClient)
 	if err != nil {
 		return err
