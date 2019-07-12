@@ -177,7 +177,7 @@ func (o OverheadComputer) GetOverhead(ctx context.Context, nodes []*v1.Node) res
 		instanceGroup := n.Labels[instanceGroupNodeSelector]
 		instanceGroupOverhead := o.latestOverhead[instanceGroup]
 		if instanceGroupOverhead == nil {
-			svc1log.FromContext(ctx).Warn("overhead for instance group does not exists", svc1log.SafeParam("instanceGroup", instanceGroup))
+			svc1log.FromContext(ctx).Warn("overhead for instance group does not exist", svc1log.SafeParam("instanceGroup", instanceGroup))
 			continue
 		}
 		if nodeOverhead, ok := instanceGroupOverhead.overhead[n.Name]; ok {
