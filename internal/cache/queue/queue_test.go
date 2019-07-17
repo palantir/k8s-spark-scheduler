@@ -1,4 +1,4 @@
-package cache
+package queue
 
 import (
 	"encoding/json"
@@ -18,13 +18,13 @@ func createObject(uid string, labelValue string) metav1.Object {
 func TestQueue(t *testing.T) {
 	tests := []struct {
 		name             string
-		queue            *modifiableQueue
-		body             func(q *modifiableQueue)
+		queue            ModifiableQueue
+		body             func(q ModifiableQueue)
 		expectedElements map[types.UID]WriteRequest
 	}{{
 		name:  "updates enqueued elements",
 		queue: NewModifiableQueue(1),
-		body: func(q *modifiableQueue) {
+		body: func(q ModifiableQueue) {
 			q.AddOrUpdate(CreateRequest(createObject("1", "value1")))
 			q.AddOrUpdate(UpdateRequest(createObject("1", "value2")))
 			q.Get(0)

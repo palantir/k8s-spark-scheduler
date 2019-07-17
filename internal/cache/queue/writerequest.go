@@ -1,4 +1,4 @@
-package cache
+package queue
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,7 +13,7 @@ const (
 )
 
 type WriteRequest interface {
-	GetType() RequestType
+	Type() RequestType
 	SetObject(metav1.Object)
 	Object() metav1.Object
 }
@@ -35,7 +35,7 @@ type request struct {
 	_type RequestType
 }
 
-func (r *request) GetType() RequestType {
+func (r *request) Type() RequestType {
 	return r._type
 }
 

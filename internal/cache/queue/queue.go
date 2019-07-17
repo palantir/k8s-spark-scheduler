@@ -1,4 +1,4 @@
-package cache
+package queue
 
 import (
 	"hash/fnv"
@@ -9,12 +9,13 @@ import (
 
 type ModifiableQueue interface {
 	AddOrUpdate(WriteRequest)
-	UpdateIfExists(metav1.Object)
+	UpdateIfExists(metav1.Object) bool
 	Get(int) WriteRequest
+	Buckets() int
 }
 
 type modifiableQueue struct {
-	Buckets int
+	buckets int
 	queues  []chan types.UID
 	store   map[types.UID]WriteRequest
 	lock    sync.Mutex
@@ -22,16 +23,20 @@ type modifiableQueue struct {
 
 // NewModifiableQueue creates a bucketed queue with modifiable
 // items.
-func NewModifiableQueue(buckets int) *modifiableQueue {
+func NewModifiableQueue(buckets int) ModifiableQueue {
 	queues := make([]chan types.UID, 0, buckets)
 	for i := 0; i < buckets; i++ {
 		queues = append(queues, make(chan types.UID, 100))
 	}
 	return &modifiableQueue{
-		Buckets: buckets,
+		buckets: buckets,
 		queues:  queues,
 		store:   make(map[types.UID]WriteRequest),
 	}
+}
+
+func (q *modifiableQueue) Buckets() int {
+	return q.buckets
 }
 
 // AddOrUpdate adds a request to be queued, it is thread safe.

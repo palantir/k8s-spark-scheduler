@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/cache/queue"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	rest "k8s.io/client-go/rest"
@@ -16,7 +17,7 @@ type asyncClient struct {
 	client             rest.Interface
 	resourceName       string
 	emptyObjectCreator func() object
-	queue              *modifiableQueue
+	queue              queue.ModifiableQueue
 	createCallback     func(metav1.Object, error)
 	updateCallback     func(metav1.Object, error)
 	deleteCallback     func(metav1.Object, error)
@@ -29,7 +30,7 @@ func NewAsyncClient(
 	createCallback func(metav1.Object, error),
 	updateCallback func(metav1.Object, error),
 	deleteCallback func(metav1.Object, error),
-	queue *modifiableQueue) *asyncClient {
+	queue queue.ModifiableQueue) *asyncClient {
 	return &asyncClient{
 		client:             client,
 		resourceName:       resourceName,
@@ -42,7 +43,7 @@ func NewAsyncClient(
 }
 
 func (as *asyncClient) Run(ctx context.Context) {
-	for i := 0; i < as.queue.Buckets; i++ {
+	for i := 0; i < as.queue.Buckets(); i++ {
 		go as.runWorker(ctx, i)
 	}
 }
@@ -55,12 +56,12 @@ func (as *asyncClient) runWorker(ctx context.Context, idx int) {
 		default:
 		}
 		r := as.queue.Get(idx)
-		switch r.GetType() {
-		case CreateRequestType:
+		switch r.Type() {
+		case queue.CreateRequestType:
 			as.doCreate(ctx, r.Object())
-		case UpdateRequestType:
+		case queue.UpdateRequestType:
 			as.doUpdate(ctx, r.Object())
-		case DeleteRequestType:
+		case queue.DeleteRequestType:
 			as.doDelete(ctx, r.Object())
 		}
 	}
