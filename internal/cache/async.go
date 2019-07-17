@@ -55,13 +55,13 @@ func (as *asyncClient) runWorker(ctx context.Context, idx int) {
 		default:
 		}
 		r := as.queue.Get(idx)
-		switch r._type {
-		case createRequest:
-			as.doCreate(ctx, r)
-		case updateRequest:
-			as.doUpdate(ctx, r)
-		case deleteRequest:
-			as.doDelete(ctx, r)
+		switch r.GetType() {
+		case CreateRequestType:
+			as.doCreate(ctx, r.Object())
+		case UpdateRequestType:
+			as.doUpdate(ctx, r.Object())
+		case DeleteRequestType:
+			as.doDelete(ctx, r.Object())
 		}
 	}
 }
