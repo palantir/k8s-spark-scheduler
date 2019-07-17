@@ -43,26 +43,26 @@ func NewAsyncClient(
 }
 
 func (as *asyncClient) Run(ctx context.Context) {
-	for i := 0; i < as.queue.Buckets(); i++ {
-		go as.runWorker(ctx, i)
+	for _, q := range as.queue.GetConsumers() {
+		go as.runWorker(ctx, q)
 	}
 }
 
-func (as *asyncClient) runWorker(ctx context.Context, idx int) {
+func (as *asyncClient) runWorker(ctx context.Context, requests <-chan func() queue.WriteRequest) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-		}
-		r := as.queue.Get(idx)
-		switch r.Type() {
-		case queue.CreateRequestType:
-			as.doCreate(ctx, r.Object())
-		case queue.UpdateRequestType:
-			as.doUpdate(ctx, r.Object())
-		case queue.DeleteRequestType:
-			as.doDelete(ctx, r.Object())
+		case requestGetter := <-requests:
+			r := requestGetter()
+			switch r.Type() {
+			case queue.CreateRequestType:
+				as.doCreate(ctx, r.Object())
+			case queue.UpdateRequestType:
+				as.doUpdate(ctx, r.Object())
+			case queue.DeleteRequestType:
+				as.doDelete(ctx, r.Object())
+			}
 		}
 	}
 }
