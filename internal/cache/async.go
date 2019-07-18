@@ -69,7 +69,7 @@ func (as *asyncClient) doCreate(ctx context.Context, obj metav1.Object) {
 		Do().
 		Into(result)
 	if err != nil {
-		as.objectStore.Put(obj)
+		as.objectStore.PutIfNewer(obj)
 	}
 	//as.createCallback(result, err) // TODO: if any update request is enqueued, update resource version
 }
@@ -84,7 +84,7 @@ func (as *asyncClient) doUpdate(ctx context.Context, obj metav1.Object) {
 		Do().
 		Into(result)
 	if err != nil {
-		as.objectStore.Put(obj)
+		as.objectStore.PutIfNewer(obj)
 	}
 	//as.updateCallback(result, err) // TODO: if any update request is enqueued, update resource version
 }
