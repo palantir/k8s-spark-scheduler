@@ -2,7 +2,7 @@ package cache
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal/cache/queue"
+	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	rest "k8s.io/client-go/rest"
@@ -17,27 +17,19 @@ type asyncClient struct {
 	client             rest.Interface
 	resourceName       string
 	emptyObjectCreator func() object
-	queue              queue.ModifiableQueue
-	createCallback     func(metav1.Object, error)
-	updateCallback     func(metav1.Object, error)
-	deleteCallback     func(metav1.Object, error)
+	queue              store.ShardedUniqueQueue
+	objectStore        store.ObjectStore
 }
 
 func NewAsyncClient(
 	client rest.Interface,
 	resourceName string,
 	emptyObjectCreator func() object,
-	createCallback func(metav1.Object, error),
-	updateCallback func(metav1.Object, error),
-	deleteCallback func(metav1.Object, error),
-	queue queue.ModifiableQueue) *asyncClient {
+	queue store.ShardedUniqueQueue) *asyncClient {
 	return &asyncClient{
 		client:             client,
 		resourceName:       resourceName,
 		emptyObjectCreator: emptyObjectCreator,
-		createCallback:     createCallback,
-		updateCallback:     updateCallback,
-		deleteCallback:     deleteCallback,
 		queue:              queue,
 	}
 }
@@ -48,20 +40,21 @@ func (as *asyncClient) Run(ctx context.Context) {
 	}
 }
 
-func (as *asyncClient) runWorker(ctx context.Context, requests <-chan func() queue.WriteRequest) {
+func (as *asyncClient) runWorker(ctx context.Context, requests <-chan func() store.Request) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case requestGetter := <-requests:
 			r := requestGetter()
-			switch r.Type() {
-			case queue.CreateRequestType:
-				as.doCreate(ctx, r.Object())
-			case queue.UpdateRequestType:
-				as.doUpdate(ctx, r.Object())
-			case queue.DeleteRequestType:
-				as.doDelete(ctx, r.Object())
+			obj := as.objectStore.Get(r.Key.Namespace, r.Key.Name)
+			switch r.Type {
+			case store.CreateRequest:
+				as.doCreate(ctx, obj)
+			case store.UpdateRequest:
+				as.doUpdate(ctx, obj)
+			case store.DeleteRequest:
+				as.doDelete(ctx, obj)
 			}
 		}
 	}
@@ -75,7 +68,10 @@ func (as *asyncClient) doCreate(ctx context.Context, obj metav1.Object) {
 		Body(obj).
 		Do().
 		Into(result)
-	as.createCallback(result, err) // TODO: if any update request is enqueued, update resource version
+	if err != nil {
+		as.objectStore.Put(obj)
+	}
+	//as.createCallback(result, err) // TODO: if any update request is enqueued, update resource version
 }
 
 func (as *asyncClient) doUpdate(ctx context.Context, obj metav1.Object) {
@@ -87,7 +83,10 @@ func (as *asyncClient) doUpdate(ctx context.Context, obj metav1.Object) {
 		Body(obj).
 		Do().
 		Into(result)
-	as.updateCallback(result, err) // TODO: if any update request is enqueued, update resource version
+	if err != nil {
+		as.objectStore.Put(obj)
+	}
+	//as.updateCallback(result, err) // TODO: if any update request is enqueued, update resource version
 }
 
 func (as *asyncClient) doDelete(ctx context.Context, obj metav1.Object) {
@@ -97,5 +96,8 @@ func (as *asyncClient) doDelete(ctx context.Context, obj metav1.Object) {
 		Name(obj.GetName()).
 		Do().
 		Error()
-	as.deleteCallback(obj, err)
+	if err != nil {
+		as.objectStore.Delete(obj.GetNamespace(), obj.GetName())
+	}
+	//as.deleteCallback(obj, err)
 }

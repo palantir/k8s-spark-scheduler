@@ -1,28 +1,35 @@
-package cache
+package store
 
 import (
-	"fmt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sync"
 )
 
+type Key struct {
+	Namespace string
+	Name      string
+}
+
+type ObjectStore interface {
+	Put(metav1.Object)
+	PutIfAbsent(metav1.Object)
+	Get(string, string) metav1.Object
+	Delete(string, string) metav1.Object
+}
+
 type objectStore struct {
-	store map[string]metav1.Object
+	store map[Key]metav1.Object
 	lock  sync.RWMutex
 }
 
 func NewStore() *objectStore {
 	return &objectStore{
-		store: make(map[string]metav1.Object),
+		store: make(map[Key]metav1.Object),
 	}
 }
 
-func key(obj metav1.Object) string {
-	return keyFromNamespaceName(obj.GetNamespace(), obj.GetName())
-}
-
-func keyFromNamespaceName(namespace, name string) string {
-	return fmt.Sprintf("%v/%v", namespace, name)
+func key(obj metav1.Object) Key {
+	return Key{obj.GetNamespace(), obj.GetName()}
 }
 
 func (s *objectStore) Put(obj metav1.Object) {
@@ -34,15 +41,16 @@ func (s *objectStore) Put(obj metav1.Object) {
 func (s *objectStore) PutIfAbsent(obj metav1.Object) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	if _, ok := s.store[key(obj)]; !ok {
-		s.store[key(obj)] = obj
+	k := key(obj)
+	if _, ok := s.store[k]; !ok {
+		s.store[k] = obj
 	}
 }
 
 func (s *objectStore) Get(namespace, name string) metav1.Object {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
-	return s.store[keyFromNamespaceName(namespace, name)]
+	return s.store[Key{namespace, name}]
 }
 
 func (s *objectStore) Delete(namespace, name string) metav1.Object {
@@ -52,7 +60,7 @@ func (s *objectStore) Delete(namespace, name string) metav1.Object {
 	}
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	delete(s.store, keyFromNamespaceName(namespace, name))
+	delete(s.store, Key{namespace, name})
 	return obj
 }
 
