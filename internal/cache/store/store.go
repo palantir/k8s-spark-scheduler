@@ -15,7 +15,7 @@ type ObjectStore interface {
 	Put(metav1.Object)
 	PutIfNewer(metav1.Object) bool
 	PutIfAbsent(metav1.Object) bool
-	Get(string, string) metav1.Object
+	Get(string, string) (metav1.Object, bool)
 	Delete(string, string) metav1.Object
 	List() []metav1.Object
 }
@@ -58,21 +58,23 @@ func (s *objectStore) PutIfAbsent(obj metav1.Object) bool {
 	defer s.lock.Unlock()
 	k := key(obj)
 	_, ok := s.store[k]
-	if !ok {
-		s.store[k] = obj
+	if ok {
+		return false
 	}
-	return !ok
+	s.store[k] = obj
+	return true
 }
 
-func (s *objectStore) Get(namespace, name string) metav1.Object {
+func (s *objectStore) Get(namespace, name string) (metav1.Object, bool) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
-	return s.store[Key{namespace, name}]
+	obj, exists := s.store[Key{namespace, name}]
+	return obj, exists
 }
 
 func (s *objectStore) Delete(namespace, name string) metav1.Object {
-	obj := s.Get(namespace, name)
-	if obj == nil {
+	obj, ok := s.Get(namespace, name)
+	if !ok {
 		return nil
 	}
 	s.lock.Lock()

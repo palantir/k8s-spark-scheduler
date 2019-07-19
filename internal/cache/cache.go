@@ -5,7 +5,7 @@ import (
 	//"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	//demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
 	//sparkschedulerclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1"
-	//"k8s.io/apimachinery/pkg/api/errors"
+	werror "github.com/palantir/witchcraft-go-error"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	//"k8s.io/apimachinery/pkg/types"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
@@ -44,18 +44,25 @@ func (c *cache) Create(obj metav1.Object) bool {
 	return true
 }
 
-func (c *cache) Get(namespace, name string) metav1.Object {
+func (c *cache) Get(namespace, name string) (metav1.Object, bool) {
 	return c.store.Get(namespace, name)
 }
 
 func (c *cache) Update(obj metav1.Object) error {
+	currentObj, ok := c.store.Get(obj.GetNamespace(), obj.GetName())
+	if !ok {
+		return werror.Error("object does not exists")
+	}
+	if currentObj.GetResourceVersion() != obj.GetResourceVersion() {
+		return werror.Error("object is stale")
+	}
 	c.store.Put(obj)
 	c.queue.AddIfAbsent(store.UpdateRequest(obj))
 	return nil
 }
 
 func (c *cache) Delete(obj metav1.Object) error {
-	c.store.Delete(obj.GetNamespace(), obj.GetName())
+	c.store.Delete(obj.GetNamespace(), obj.GetName()) // TODO: errors
 	c.queue.AddIfAbsent(store.DeleteRequest(obj))
 	return nil
 }
