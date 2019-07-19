@@ -12,10 +12,12 @@ type Key struct {
 }
 
 type ObjectStore interface {
+	Put(metav1.Object)
 	PutIfNewer(metav1.Object) bool
 	PutIfAbsent(metav1.Object) bool
 	Get(string, string) metav1.Object
 	Delete(string, string) metav1.Object
+	List() []metav1.Object
 }
 
 type objectStore struct {
@@ -31,6 +33,12 @@ func NewStore() *objectStore {
 
 func key(obj metav1.Object) Key {
 	return Key{obj.GetNamespace(), obj.GetName()}
+}
+
+func (s *objectStore) Put(obj metav1.Object) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.store[key(obj)] = obj
 }
 
 func (s *objectStore) PutIfNewer(obj metav1.Object) bool {

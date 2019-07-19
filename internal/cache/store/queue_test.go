@@ -24,28 +24,40 @@ func TestQueue(t *testing.T) {
 		name:  "updates enqueued elements",
 		queue: NewShardedUniqueQueue(1),
 		body: func(q ShardedUniqueQueue) {
-			q.AddIfAbsent(Request{Key{"ns", "1"}, CreateRequest})
-			q.AddIfAbsent(Request{Key{"ns", "1"}, UpdateRequest})
-			q.AddIfAbsent(Request{Key{"ns", "2"}, UpdateRequest})
-			q.AddIfAbsent(Request{Key{"ns", "2"}, UpdateRequest})
+			q.AddIfAbsent(Request{Key{"ns", "1"}, CreateRequestType})
+			q.AddIfAbsent(Request{Key{"ns", "1"}, UpdateRequestType})
+			q.AddIfAbsent(Request{Key{"ns", "2"}, UpdateRequestType})
+			q.AddIfAbsent(Request{Key{"ns", "2"}, UpdateRequestType})
 		},
 		expectedElements: []Request{
-			Request{Key{"ns", "1"}, CreateRequest},
-			Request{Key{"ns", "2"}, UpdateRequest},
+			Request{Key{"ns", "1"}, CreateRequestType},
+			Request{Key{"ns", "2"}, UpdateRequestType},
 		},
 	}, {
 		name:  "updates enqueued elements on partitioned queues",
 		queue: NewShardedUniqueQueue(10),
 		body: func(q ShardedUniqueQueue) {
-			q.AddIfAbsent(Request{Key{"ns", "1"}, CreateRequest})
-			q.AddIfAbsent(Request{Key{"ns", "2"}, UpdateRequest})
-			q.AddIfAbsent(Request{Key{"ns", "3"}, UpdateRequest})
-			q.AddIfAbsent(Request{Key{"ns", "3"}, UpdateRequest})
+			q.AddIfAbsent(Request{Key{"ns", "1"}, CreateRequestType})
+			q.AddIfAbsent(Request{Key{"ns", "2"}, UpdateRequestType})
+			q.AddIfAbsent(Request{Key{"ns", "3"}, UpdateRequestType})
+			q.AddIfAbsent(Request{Key{"ns", "3"}, UpdateRequestType})
 		},
 		expectedElements: []Request{
-			Request{Key{"ns", "2"}, UpdateRequest},
-			Request{Key{"ns", "3"}, UpdateRequest},
-			Request{Key{"ns", "1"}, CreateRequest},
+			Request{Key{"ns", "2"}, UpdateRequestType},
+			Request{Key{"ns", "3"}, UpdateRequestType},
+			Request{Key{"ns", "1"}, CreateRequestType},
+		},
+	}, {
+		name:  "deletions are enqueued even if their key is present",
+		queue: NewShardedUniqueQueue(1),
+		body: func(q ShardedUniqueQueue) {
+			q.AddIfAbsent(Request{Key{"ns", "1"}, CreateRequestType})
+			q.AddIfAbsent(Request{Key{"ns", "1"}, UpdateRequestType})
+			q.AddIfAbsent(Request{Key{"ns", "1"}, DeleteRequestType})
+		},
+		expectedElements: []Request{
+			Request{Key{"ns", "1"}, CreateRequestType},
+			Request{Key{"ns", "1"}, DeleteRequestType},
 		},
 	}}
 

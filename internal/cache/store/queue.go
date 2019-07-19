@@ -2,15 +2,16 @@ package store
 
 import (
 	"hash/fnv"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sync"
 )
 
 type RequestType int
 
 const (
-	CreateRequest RequestType = 0
-	UpdateRequest RequestType = 1
-	DeleteRequest RequestType = 2
+	CreateRequestType RequestType = 0
+	UpdateRequestType RequestType = 1
+	DeleteRequestType RequestType = 2
 )
 
 type Request struct {
@@ -42,12 +43,9 @@ func NewShardedUniqueQueue(buckets int) ShardedUniqueQueue {
 	}
 }
 
-// AddOrUpdate adds a request to be queued, it is thread safe.
-// If the object in the request exists in the queue, then its
-// object would be overridden
 func (q *shardedUniqueQueue) AddIfAbsent(r Request) {
-	added := q.addIfAbsent(r.Key)
-	if added {
+	added := q.addToInflightIfAbsent(r.Key)
+	if added || r.Type == DeleteRequestType {
 		q.queues[q.bucket(r.Key)] <- func() Request {
 			q.deleteFromStore(r.Key)
 			return r
@@ -69,7 +67,7 @@ func (q *shardedUniqueQueue) bucket(key Key) uint32 {
 	return h.Sum32() % uint32(len(q.queues))
 }
 
-func (q *shardedUniqueQueue) addIfAbsent(key Key) bool {
+func (q *shardedUniqueQueue) addToInflightIfAbsent(key Key) bool {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 	if _, ok := q.inflight[key]; ok {
@@ -83,4 +81,16 @@ func (q *shardedUniqueQueue) deleteFromStore(key Key) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
 	delete(q.inflight, key)
+}
+
+func CreateRequest(obj metav1.Object) Request {
+	return Request{Key{obj.GetNamespace(), obj.GetName()}, CreateRequestType}
+}
+
+func UpdateRequest(obj metav1.Object) Request {
+	return Request{Key{obj.GetNamespace(), obj.GetName()}, UpdateRequestType}
+}
+
+func DeleteRequest(obj metav1.Object) Request {
+	return Request{Key{obj.GetNamespace(), obj.GetName()}, DeleteRequestType}
 }

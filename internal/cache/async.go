@@ -47,20 +47,20 @@ func (as *asyncClient) runWorker(ctx context.Context, requests <-chan func() sto
 			return
 		case requestGetter := <-requests:
 			r := requestGetter()
-			obj := as.objectStore.Get(r.Key.Namespace, r.Key.Name)
 			switch r.Type {
-			case store.CreateRequest:
-				as.doCreate(ctx, obj)
-			case store.UpdateRequest:
-				as.doUpdate(ctx, obj)
-			case store.DeleteRequest:
-				as.doDelete(ctx, obj)
+			case store.CreateRequestType:
+				as.doCreate(ctx, r.Key)
+			case store.UpdateRequestType:
+				as.doUpdate(ctx, r.Key)
+			case store.DeleteRequestType:
+				as.doDelete(ctx, r.Key)
 			}
 		}
 	}
 }
 
-func (as *asyncClient) doCreate(ctx context.Context, obj metav1.Object) {
+func (as *asyncClient) doCreate(ctx context.Context, key store.Key) {
+	obj := as.objectStore.Get(key.Namespace, key.Name)
 	result := as.emptyObjectCreator()
 	err := as.client.Post().
 		Namespace(obj.GetNamespace()).
@@ -71,10 +71,11 @@ func (as *asyncClient) doCreate(ctx context.Context, obj metav1.Object) {
 	if err != nil {
 		as.objectStore.PutIfNewer(obj)
 	}
-	//as.createCallback(result, err) // TODO: if any update request is enqueued, update resource version
+	// TODO errors
 }
 
-func (as *asyncClient) doUpdate(ctx context.Context, obj metav1.Object) {
+func (as *asyncClient) doUpdate(ctx context.Context, key store.Key) {
+	obj := as.objectStore.Get(key.Namespace, key.Name)
 	result := as.emptyObjectCreator()
 	err := as.client.Put().
 		Namespace(obj.GetNamespace()).
@@ -86,18 +87,18 @@ func (as *asyncClient) doUpdate(ctx context.Context, obj metav1.Object) {
 	if err != nil {
 		as.objectStore.PutIfNewer(obj)
 	}
-	//as.updateCallback(result, err) // TODO: if any update request is enqueued, update resource version
+	// TODO errors
 }
 
-func (as *asyncClient) doDelete(ctx context.Context, obj metav1.Object) {
+func (as *asyncClient) doDelete(ctx context.Context, key store.Key) {
 	err := as.client.Delete().
-		Namespace(obj.GetNamespace()).
+		Namespace(key.Namespace).
 		Resource(as.resourceName).
-		Name(obj.GetName()).
+		Name(key.Name).
 		Do().
 		Error()
 	if err != nil {
-		as.objectStore.Delete(obj.GetNamespace(), obj.GetName())
+		as.objectStore.Delete(key.Namespace, key.Name)
 	}
-	//as.deleteCallback(obj, err)
+	// TODO errors
 }
