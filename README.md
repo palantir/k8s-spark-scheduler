@@ -59,7 +59,7 @@ As of [f6cc354d83](https://github.com/apache/spark/commit/f6cc354d83), spark sup
 `k8s-spark-scheduler-extender` is a witchcraft service, and supports configuration options detailed in the [github documentation](https://github.com/palantir/witchcraft-go-server#configuration). Additional configuration options are:
  - fifo: a boolean flag to turn on FIFO processing of spark drivers. With this turned on, younger spark drivers will be blocked from scheduling until the cluster has space for the oldest spark driver. Executor scheduling is unaffected from this.
  - kube-config: path to a [kube-config file](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/)
- - binpack: the algorithm to binpack pods in a spark application over the free space in the cluster. Currently available options are `distribute-evenly` and `tightly-pack`, the former being the default. They differ on how they distribute the executors, `distribute-evenly` round-robin's available nodes, wheres `tightly-pack` fills one node before moving to the next.
+ - binpack: the algorithm to binpack pods in a spark application over the free space in the cluster. Currently available options are `distribute-evenly` and `tightly-pack`, the former being the default. They differ on how they distribute the executors, `distribute-evenly` round-robin's available nodes, whereas `tightly-pack` fills one node before moving to the next.
  - qps and burst: These are parameters for rate limiting kubernetes clients, used directly in client construction.
 
 ## Development
