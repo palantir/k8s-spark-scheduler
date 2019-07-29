@@ -60,7 +60,7 @@ func (as *asyncClient) runWorker(ctx context.Context, requests <-chan func() sto
 }
 
 func (as *asyncClient) doCreate(ctx context.Context, key store.Key) {
-	obj := as.objectStore.Get(key.Namespace, key.Name)
+	obj, _ := as.objectStore.Get(key) // TODO: null
 	result := as.emptyObjectCreator()
 	err := as.client.Post().
 		Namespace(obj.GetNamespace()).
@@ -69,13 +69,13 @@ func (as *asyncClient) doCreate(ctx context.Context, key store.Key) {
 		Do().
 		Into(result)
 	if err != nil {
-		as.objectStore.PutIfNewer(obj)
+		as.objectStore.PutIfNewer(nil, obj) // TODO: ctx
 	}
 	// TODO errors
 }
 
 func (as *asyncClient) doUpdate(ctx context.Context, key store.Key) {
-	obj := as.objectStore.Get(key.Namespace, key.Name)
+	obj, _ := as.objectStore.Get(key) // TODO: null
 	result := as.emptyObjectCreator()
 	err := as.client.Put().
 		Namespace(obj.GetNamespace()).
@@ -85,7 +85,7 @@ func (as *asyncClient) doUpdate(ctx context.Context, key store.Key) {
 		Do().
 		Into(result)
 	if err != nil {
-		as.objectStore.PutIfNewer(obj)
+		as.objectStore.PutIfNewer(nil, obj) // TODO: ctx
 	}
 	// TODO errors
 }
@@ -98,7 +98,7 @@ func (as *asyncClient) doDelete(ctx context.Context, key store.Key) {
 		Do().
 		Error()
 	if err != nil {
-		as.objectStore.Delete(key.Namespace, key.Name)
+		as.objectStore.Delete(key)
 	}
 	// TODO errors
 }

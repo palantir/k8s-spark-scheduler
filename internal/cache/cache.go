@@ -45,11 +45,11 @@ func (c *cache) Create(obj metav1.Object) bool {
 }
 
 func (c *cache) Get(namespace, name string) (metav1.Object, bool) {
-	return c.store.Get(namespace, name)
+	return c.store.Get(store.Key{namespace, name})
 }
 
 func (c *cache) Update(obj metav1.Object) error {
-	currentObj, ok := c.store.Get(obj.GetNamespace(), obj.GetName())
+	currentObj, ok := c.store.Get(store.KeyOf(obj))
 	if !ok {
 		return werror.Error("object does not exists")
 	}
@@ -62,7 +62,7 @@ func (c *cache) Update(obj metav1.Object) error {
 }
 
 func (c *cache) Delete(obj metav1.Object) error {
-	c.store.Delete(obj.GetNamespace(), obj.GetName()) // TODO: errors
+	c.store.Delete(store.KeyOf(obj)) // TODO: errors
 	c.queue.AddIfAbsent(store.DeleteRequest(obj))
 	return nil
 }
@@ -77,8 +77,7 @@ func (c *cache) onObjAdd(obj interface{}) {
 		// TODO log
 		return
 	}
-	// TODO: compare resourceVersions?
-	c.store.PutIfNewer(typedObject)
+	c.store.PutIfNewer(nil, typedObject) // TODO: ctx
 }
 
 func (c *cache) onObjUpdate(oldObj interface{}, newObj interface{}) {
@@ -87,7 +86,7 @@ func (c *cache) onObjUpdate(oldObj interface{}, newObj interface{}) {
 		// TODO log
 		return
 	}
-	c.store.PutIfNewer(typedObject)
+	c.store.PutIfNewer(nil, typedObject) // TODO: ctx
 }
 
 func (c *cache) onObjDelete(obj interface{}) {
@@ -96,8 +95,7 @@ func (c *cache) onObjDelete(obj interface{}) {
 		// TODO log
 		return
 	}
-	// TODO: compare resourceVersions?
-	c.store.Delete(typedObject.GetNamespace(), typedObject.GetName())
+	c.store.Delete(store.KeyOf(typedObject))
 }
 
 /*

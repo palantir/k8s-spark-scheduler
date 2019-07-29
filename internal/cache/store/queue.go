@@ -2,36 +2,20 @@ package store
 
 import (
 	"hash/fnv"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sync"
 )
 
-type RequestType int
-
-const (
-	CreateRequestType RequestType = 0
-	UpdateRequestType RequestType = 1
-	DeleteRequestType RequestType = 2
-)
-
-type Request struct {
-	Key  Key
-	Type RequestType
-}
-
+// ShardedUniqueQueue is a queue of write requests
+// for objects. It compacts consecutive create and update
+// requests, provides a slice of channels for consumers.
+// Requests consumed from these channels are mutually
+// exclusive
 type ShardedUniqueQueue interface {
 	AddIfAbsent(Request)
 	GetConsumers() []<-chan func() Request
 }
 
-type shardedUniqueQueue struct {
-	queues   []chan func() Request
-	inflight map[Key]bool
-	lock     sync.Mutex
-}
-
-// NewModifiableQueue creates a bucketed queue with modifiable
-// items.
+// NewShardedUniqueQueue creates a sharded queue of write requests
 func NewShardedUniqueQueue(buckets int) ShardedUniqueQueue {
 	queues := make([]chan func() Request, 0, buckets)
 	for i := 0; i < buckets; i++ {
@@ -43,6 +27,16 @@ func NewShardedUniqueQueue(buckets int) ShardedUniqueQueue {
 	}
 }
 
+type shardedUniqueQueue struct {
+	queues   []chan func() Request
+	inflight map[Key]bool
+	lock     sync.Mutex
+}
+
+// AddIfAbsent puts a request to the queue if it is absent,
+// or if it is a delete request. Deletes are not compacted
+// to prior update or create requests, so all input objects
+// can be created
 func (q *shardedUniqueQueue) AddIfAbsent(r Request) {
 	added := q.addToInflightIfAbsent(r.Key)
 	if added || r.Type == DeleteRequestType {
@@ -53,6 +47,8 @@ func (q *shardedUniqueQueue) AddIfAbsent(r Request) {
 	}
 }
 
+// GetConsumers returns a slice of receive only channels for consumers.
+// requests for the same object will always end up in the same consumer.
 func (q *shardedUniqueQueue) GetConsumers() []<-chan func() Request {
 	res := make([]<-chan func() Request, 0, len(q.queues))
 	for _, queue := range q.queues {
@@ -61,36 +57,25 @@ func (q *shardedUniqueQueue) GetConsumers() []<-chan func() Request {
 	return res
 }
 
-func (q *shardedUniqueQueue) bucket(key Key) uint32 {
+func (q *shardedUniqueQueue) bucket(k Key) uint32 {
 	h := fnv.New32a()
-	h.Write([]byte(key.Name))
+	h.Write([]byte(k.Namespace))
+	h.Write([]byte(k.Name))
 	return h.Sum32() % uint32(len(q.queues))
 }
 
-func (q *shardedUniqueQueue) addToInflightIfAbsent(key Key) bool {
+func (q *shardedUniqueQueue) addToInflightIfAbsent(k Key) bool {
 	q.lock.Lock()
 	defer q.lock.Unlock()
-	if _, ok := q.inflight[key]; ok {
+	if _, ok := q.inflight[k]; ok {
 		return false
 	}
-	q.inflight[key] = true
+	q.inflight[k] = true
 	return true
 }
 
-func (q *shardedUniqueQueue) deleteFromStore(key Key) {
+func (q *shardedUniqueQueue) deleteFromStore(k Key) {
 	q.lock.Lock()
 	defer q.lock.Unlock()
-	delete(q.inflight, key)
-}
-
-func CreateRequest(obj metav1.Object) Request {
-	return Request{Key{obj.GetNamespace(), obj.GetName()}, CreateRequestType}
-}
-
-func UpdateRequest(obj metav1.Object) Request {
-	return Request{Key{obj.GetNamespace(), obj.GetName()}, UpdateRequestType}
-}
-
-func DeleteRequest(obj metav1.Object) Request {
-	return Request{Key{obj.GetNamespace(), obj.GetName()}, DeleteRequestType}
+	delete(q.inflight, k)
 }

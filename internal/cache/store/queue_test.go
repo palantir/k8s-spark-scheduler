@@ -44,8 +44,8 @@ func TestQueue(t *testing.T) {
 		},
 		expectedElements: []Request{
 			Request{Key{"ns", "2"}, UpdateRequestType},
-			Request{Key{"ns", "3"}, UpdateRequestType},
 			Request{Key{"ns", "1"}, CreateRequestType},
+			Request{Key{"ns", "3"}, UpdateRequestType},
 		},
 	}, {
 		name:  "deletions are enqueued even if their key is present",
