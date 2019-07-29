@@ -21,7 +21,7 @@ func TestStore(t *testing.T) {
 		body            func(context.Context, ObjectStore)
 		expectedObjects map[string]metav1.Object
 	}{{
-		name: "Put overrides",
+		name: "Put does not override resourceVersion",
 		body: func(ctx context.Context, s ObjectStore) {
 			s.Put(createObjectFromRV("a", "a", ""))
 			s.Put(createObjectFromRV("a", "a", "1"))
@@ -29,8 +29,8 @@ func TestStore(t *testing.T) {
 			s.Put(createObjectFromRV("b", "b", ""))
 		},
 		expectedObjects: map[string]metav1.Object{
-			"a": createObjectFromRV("a", "a", "1"),
-			"b": createObjectFromRV("b", "b", ""),
+			"a": createObjectFromRV("a", "a", ""),
+			"b": createObjectFromRV("b", "b", "2"),
 		},
 	}, {
 		name: "PutIfAbsent does not override",
