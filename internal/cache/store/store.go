@@ -10,7 +10,7 @@ import (
 
 type ObjectStore interface {
 	Put(metav1.Object)
-	PutIfNewer(context.Context, metav1.Object) bool
+	OverrideResourceVersionIfNewer(context.Context, metav1.Object) bool
 	PutIfAbsent(metav1.Object) bool
 	Get(Key) (metav1.Object, bool)
 	Delete(Key)
@@ -34,7 +34,7 @@ func (s *objectStore) Put(obj metav1.Object) {
 	s.store[KeyOf(obj)] = obj
 }
 
-func (s *objectStore) PutIfNewer(ctx context.Context, obj metav1.Object) bool {
+func (s *objectStore) OverrideResourceVersionIfNewer(ctx context.Context, obj metav1.Object) bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	key := KeyOf(obj)
@@ -42,7 +42,7 @@ func (s *objectStore) PutIfNewer(ctx context.Context, obj metav1.Object) bool {
 	if ok && resourceVersion(ctx, currentObj) >= resourceVersion(ctx, obj) {
 		return false
 	}
-	s.store[key] = obj
+	currentObj.SetResourceVersion(obj.GetResourceVersion())
 	return true
 }
 

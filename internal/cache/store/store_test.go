@@ -44,10 +44,11 @@ func TestStore(t *testing.T) {
 	}, {
 		name: "PutIfNewer overrides if newer",
 		body: func(ctx context.Context, s ObjectStore) {
-			s.PutIfNewer(ctx, createObjectFromRV("a", "a", ""))
-			s.PutIfNewer(ctx, createObjectFromRV("a", "a", "1"))
-			s.PutIfNewer(ctx, createObjectFromRV("a", "a", "1"))
-			s.PutIfNewer(ctx, createObjectFromRV("a", "a", "0"))
+			s.PutIfAbsent(createObjectFromRV("a", "a", ""))
+			s.OverrideResourceVersionIfNewer(ctx, createObjectFromRV("a", "a", ""))
+			s.OverrideResourceVersionIfNewer(ctx, createObjectFromRV("a", "a", "1"))
+			s.OverrideResourceVersionIfNewer(ctx, createObjectFromRV("a", "a", "1"))
+			s.OverrideResourceVersionIfNewer(ctx, createObjectFromRV("a", "a", "0"))
 		},
 		expectedObjects: map[string]metav1.Object{
 			"a": createObjectFromRV("a", "a", "1"),
@@ -56,16 +57,16 @@ func TestStore(t *testing.T) {
 		name: "Delete ignores absent",
 		body: func(ctx context.Context, s ObjectStore) {
 			s.Delete(Key{"a", "a"})
-			s.PutIfNewer(ctx, createObjectFromRV("a", "a", "1"))
+			s.PutIfAbsent(createObjectFromRV("a", "a", "1"))
 			s.Delete(Key{"a", "a"})
-			s.PutIfNewer(ctx, createObjectFromRV("a", "a", ""))
-			s.PutIfAbsent(createObjectFromRV("a", "a", "2"))
+			s.PutIfAbsent(createObjectFromRV("a", "a", ""))
+			s.OverrideResourceVersionIfNewer(ctx, createObjectFromRV("a", "a", "2"))
 			s.PutIfAbsent(createObjectFromRV("b", "b", ""))
 			s.Delete(Key{"b", "b"})
 			s.Delete(Key{"c", "c"})
 		},
 		expectedObjects: map[string]metav1.Object{
-			"a": createObjectFromRV("a", "a", ""),
+			"a": createObjectFromRV("a", "a", "2"),
 		},
 	}}
 

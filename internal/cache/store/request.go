@@ -43,3 +43,17 @@ func UpdateRequest(obj metav1.Object) Request {
 func DeleteRequest(obj metav1.Object) Request {
 	return Request{KeyOf(obj), DeleteRequestType}
 }
+
+func ObjectSafeParams(obj metav1.Object) map[string]interface{} {
+	return map[string]interface{}{
+		"objectName":      obj.GetName(),
+		"objectNamespace": obj.GetNamespace(),
+	}
+}
+
+func KeySafeParams(k Key) map[string]interface{} {
+	return map[string]interface{}{
+		"objectName":      k.Name,
+		"objectNamespace": k.Namespace,
+	}
+}

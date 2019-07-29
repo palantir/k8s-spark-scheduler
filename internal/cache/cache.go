@@ -77,7 +77,7 @@ func (c *cache) onObjAdd(obj interface{}) {
 		// TODO log
 		return
 	}
-	c.store.PutIfNewer(nil, typedObject) // TODO: ctx
+	c.store.OverrideResourceVersionIfNewer(nil, typedObject) // TODO: ctx
 }
 
 func (c *cache) onObjUpdate(oldObj interface{}, newObj interface{}) {
@@ -86,7 +86,7 @@ func (c *cache) onObjUpdate(oldObj interface{}, newObj interface{}) {
 		// TODO log
 		return
 	}
-	c.store.PutIfNewer(nil, typedObject) // TODO: ctx
+	c.store.OverrideResourceVersionIfNewer(nil, typedObject) // TODO: ctx
 }
 
 func (c *cache) onObjDelete(obj interface{}) {
