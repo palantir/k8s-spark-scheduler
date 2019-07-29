@@ -1,14 +1,10 @@
 package cache
 
 import (
-	//demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
-	//"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
-	//demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
-	//sparkschedulerclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1"
-	werror "github.com/palantir/witchcraft-go-error"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	//"k8s.io/apimachinery/pkg/types"
+	"context"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
+	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientcache "k8s.io/client-go/tools/cache"
 )
 
@@ -48,23 +44,19 @@ func (c *cache) Get(namespace, name string) (metav1.Object, bool) {
 	return c.store.Get(store.Key{namespace, name})
 }
 
-func (c *cache) Update(obj metav1.Object) error {
-	currentObj, ok := c.store.Get(store.KeyOf(obj))
+func (c *cache) Update(obj metav1.Object) bool {
+	_, ok := c.store.Get(store.KeyOf(obj))
 	if !ok {
-		return werror.Error("object does not exists")
-	}
-	if currentObj.GetResourceVersion() != obj.GetResourceVersion() {
-		return werror.Error("object is stale")
+		return false
 	}
 	c.store.Put(obj)
 	c.queue.AddIfAbsent(store.UpdateRequest(obj))
-	return nil
+	return true
 }
 
-func (c *cache) Delete(obj metav1.Object) error {
-	c.store.Delete(store.KeyOf(obj)) // TODO: errors
+func (c *cache) Delete(obj metav1.Object) {
+	c.store.Delete(store.KeyOf(obj))
 	c.queue.AddIfAbsent(store.DeleteRequest(obj))
-	return nil
 }
 
 func (c *cache) List() []metav1.Object {
@@ -72,67 +64,30 @@ func (c *cache) List() []metav1.Object {
 }
 
 func (c *cache) onObjAdd(obj interface{}) {
+	ctx := context.Background()
 	typedObject, ok := obj.(metav1.Object)
 	if !ok {
-		// TODO log
+		svc1log.FromContext(ctx).Warn("failed to parse object")
 		return
 	}
-	c.store.OverrideResourceVersionIfNewer(nil, typedObject) // TODO: ctx
+	c.store.OverrideResourceVersionIfNewer(ctx, typedObject)
 }
 
 func (c *cache) onObjUpdate(oldObj interface{}, newObj interface{}) {
+	ctx := context.Background()
 	typedObject, ok := newObj.(metav1.Object)
 	if !ok {
-		// TODO log
+		svc1log.FromContext(ctx).Warn("failed to parse object")
 		return
 	}
-	c.store.OverrideResourceVersionIfNewer(nil, typedObject) // TODO: ctx
+	c.store.OverrideResourceVersionIfNewer(ctx, typedObject)
 }
 
 func (c *cache) onObjDelete(obj interface{}) {
 	typedObject, ok := obj.(metav1.Object)
 	if !ok {
-		// TODO log
+		svc1log.FromContext(context.Background()).Warn("failed to parse object")
 		return
 	}
 	c.store.Delete(store.KeyOf(typedObject))
 }
-
-/*
- *type ResourceReservationCache struct {
- *  cache                       cache
- *  resourceReservationClient   sparkschedulerclient.SparkschedulerV1beta1Interface
- *  resourceReservationInformer clientcache.SharedIndexInformer
- *}
- *
- *func (rrc *ResourceReservationCache) Create(rr *v1beta1.ResourceReservation) {
- *  rrc.cache.Create(rr)
- *}
- *
- *func (rrc *ResourceReservationCache) Get(namespace, name string) *v1beta1.ResourceReservation {
- *  return rrc.cache.Get(namespace, name).(*v1beta1.ResourceReservation)
- *}
- *
- *func (rrc *ResourceReservationCache) List() []*v1beta1.ResourceReservation {
- *  objects := rrc.cache.List()
- *  res := make([]*v1beta1.ResourceReservation, 0, len(objects))
- *  for _, o := range objects {
- *    res = append(res, o.(*v1beta1.ResourceReservation))
- *  }
- *  return res
- *}
- *
- *type DemandCache struct {
- *  cache          cache
- *  demandClient   demandclient.ScalerV1alpha1Interface
- *  demandInformer clientcache.SharedIndexInformer
- *}
- *
- *func (dc *DemandCache) Create(d *demandapi.Demand) {
- *  dc.cache.Create(d)
- *}
- *
- *func (dc *DemandCache) Get(namespace, name string) *demandapi.Demand {
- *  return dc.cache.Get(namespace, name).(*demandapi.Demand)
- *}
- */
