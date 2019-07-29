@@ -23,19 +23,6 @@ type asyncClient struct {
 	objectStore        store.ObjectStore
 }
 
-func NewAsyncClient(
-	client rest.Interface,
-	resourceName string,
-	emptyObjectCreator func() object,
-	queue store.ShardedUniqueQueue) *asyncClient {
-	return &asyncClient{
-		client:             client,
-		resourceName:       resourceName,
-		emptyObjectCreator: emptyObjectCreator,
-		queue:              queue,
-	}
-}
-
 func (as *asyncClient) Run(ctx context.Context) {
 	for _, q := range as.queue.GetConsumers() {
 		go as.runWorker(ctx, q)
@@ -129,7 +116,7 @@ func (as *asyncClient) doDelete(ctx context.Context, key store.Key) {
 	case err == nil:
 		as.objectStore.Delete(key)
 	case isRetryableError(ctx, err):
-		as.queue.AddIfAbsent(store.Request{key, store.DeleteRequestType})
+		as.queue.AddIfAbsent(store.Request{Key: key, Type: store.DeleteRequestType})
 	default:
 		logAndIgnore(ctx, err)
 	}

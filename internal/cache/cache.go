@@ -13,7 +13,7 @@ type cache struct {
 	queue store.ShardedUniqueQueue
 }
 
-func NewCache(
+func newCache(
 	queue store.ShardedUniqueQueue,
 	store store.ObjectStore,
 	informer clientcache.SharedIndexInformer) *cache {
@@ -41,7 +41,7 @@ func (c *cache) Create(obj metav1.Object) bool {
 }
 
 func (c *cache) Get(namespace, name string) (metav1.Object, bool) {
-	return c.store.Get(store.Key{namespace, name})
+	return c.store.Get(store.Key{Namespace: namespace, Name: name})
 }
 
 func (c *cache) Update(obj metav1.Object) bool {

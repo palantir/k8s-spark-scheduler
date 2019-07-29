@@ -8,6 +8,7 @@ import (
 	"sync"
 )
 
+// ObjectStore is a thread safe store for kubernetes resources
 type ObjectStore interface {
 	Put(metav1.Object)
 	OverrideResourceVersionIfNewer(context.Context, metav1.Object) bool
@@ -22,7 +23,8 @@ type objectStore struct {
 	lock  sync.RWMutex
 }
 
-func NewStore() *objectStore {
+// NewStore creates an empty store
+func NewStore() ObjectStore {
 	return &objectStore{
 		store: make(map[Key]metav1.Object),
 	}

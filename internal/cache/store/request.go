@@ -4,6 +4,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// Key is used to identify objects in store
 type Key struct {
 	Namespace string
 	Name      string
@@ -18,8 +19,11 @@ func KeyOf(obj metav1.Object) Key {
 type RequestType int
 
 const (
+	// CreateRequestType denotes create requests
 	CreateRequestType RequestType = 0
+	// UpdateRequestType denotes update requests
 	UpdateRequestType RequestType = 1
+	// DeleteRequestType denotes delete requests
 	DeleteRequestType RequestType = 2
 )
 
@@ -44,13 +48,7 @@ func DeleteRequest(obj metav1.Object) Request {
 	return Request{KeyOf(obj), DeleteRequestType}
 }
 
-func ObjectSafeParams(obj metav1.Object) map[string]interface{} {
-	return map[string]interface{}{
-		"objectName":      obj.GetName(),
-		"objectNamespace": obj.GetNamespace(),
-	}
-}
-
+// KeySafeParams returns safe logging params for a key object
 func KeySafeParams(k Key) map[string]interface{} {
 	return map[string]interface{}{
 		"objectName":      k.Name,
