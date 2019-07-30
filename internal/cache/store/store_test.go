@@ -16,9 +16,10 @@ package store
 
 import (
 	"context"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"reflect"
 	"testing"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func createObjectFromRV(name, namespace, resourceVersion string) metav1.Object {

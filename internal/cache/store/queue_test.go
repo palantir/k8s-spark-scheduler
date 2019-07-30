@@ -15,10 +15,11 @@
 package store
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"reflect"
 	"testing"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func createObject(uid string, labelValue string) metav1.Object {
@@ -44,8 +45,8 @@ func TestQueue(t *testing.T) {
 			q.AddIfAbsent(Request{Key{"ns", "2"}, UpdateRequestType})
 		},
 		expectedElements: []Request{
-			Request{Key{"ns", "1"}, CreateRequestType},
-			Request{Key{"ns", "2"}, UpdateRequestType},
+			{Key{"ns", "1"}, CreateRequestType},
+			{Key{"ns", "2"}, UpdateRequestType},
 		},
 	}, {
 		name:  "updates enqueued elements on partitioned queues",
@@ -57,9 +58,9 @@ func TestQueue(t *testing.T) {
 			q.AddIfAbsent(Request{Key{"ns", "3"}, UpdateRequestType})
 		},
 		expectedElements: []Request{
-			Request{Key{"ns", "2"}, UpdateRequestType},
-			Request{Key{"ns", "1"}, CreateRequestType},
-			Request{Key{"ns", "3"}, UpdateRequestType},
+			{Key{"ns", "2"}, UpdateRequestType},
+			{Key{"ns", "1"}, CreateRequestType},
+			{Key{"ns", "3"}, UpdateRequestType},
 		},
 	}, {
 		name:  "deletions are enqueued even if their key is present",
@@ -70,8 +71,8 @@ func TestQueue(t *testing.T) {
 			q.AddIfAbsent(Request{Key{"ns", "1"}, DeleteRequestType})
 		},
 		expectedElements: []Request{
-			Request{Key{"ns", "1"}, CreateRequestType},
-			Request{Key{"ns", "1"}, DeleteRequestType},
+			{Key{"ns", "1"}, CreateRequestType},
+			{Key{"ns", "1"}, DeleteRequestType},
 		},
 	}}
 

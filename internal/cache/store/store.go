@@ -16,10 +16,11 @@ package store
 
 import (
 	"context"
-	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strconv"
 	"sync"
+
+	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // ObjectStore is a thread safe store for kubernetes resources
