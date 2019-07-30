@@ -4,13 +4,15 @@ import (
 	"context"
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
 	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
+	demandinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/scaler/v1alpha1"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
-	clientcache "k8s.io/client-go/tools/cache"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 // DemandCache is a cache for demands. It assumes it is the only
 // client that creates demands. Externally created demands will not be
-// included in the cache.
+// included in the cache. Deletions from all clients are valid and are
+// reflected in the cache.
 type DemandCache struct {
 	cache       *cache
 	asyncClient *asyncClient
@@ -18,12 +20,19 @@ type DemandCache struct {
 
 // NewDemandCache creates a new cache
 func NewDemandCache(
-	demandInformer clientcache.SharedIndexInformer,
+	demandInformer demandinformers.DemandInformer,
 	demandClient demandclient.ScalerV1alpha1Interface,
-) *DemandCache {
+) (*DemandCache, error) {
+	ds, err := demandInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
 	objectStore := store.NewStore()
+	for _, d := range ds {
+		objectStore.Put(d)
+	}
 	queue := store.NewShardedUniqueQueue(5)
-	cache := newCache(queue, objectStore, demandInformer)
+	cache := newCache(queue, objectStore, demandInformer.Informer())
 	asyncClient := &asyncClient{
 		client:             demandClient.RESTClient(),
 		resourceName:       demandapi.DemandCustomResourceDefinition().Spec.Names.Plural,
@@ -34,7 +43,7 @@ func NewDemandCache(
 	return &DemandCache{
 		cache:       cache,
 		asyncClient: asyncClient,
-	}
+	}, nil
 }
 
 // Run starts the async clients of this cache

@@ -4,14 +4,15 @@ import (
 	"context"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	sparkschedulerclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1"
+	rrinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
-	clientcache "k8s.io/client-go/tools/cache"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 // ResourceReservationCache is a cache for resource reservations.
 // It assumes it is the only client that issues write requests for
 // resource reservations. Any external update and creation will be
-// ignored.
+// ignored, but deletions will be reflected in the cache.
 type ResourceReservationCache struct {
 	cache       *cache
 	asyncClient *asyncClient
@@ -19,12 +20,19 @@ type ResourceReservationCache struct {
 
 // NewResourceReservationCache creates a new cache.
 func NewResourceReservationCache(
-	resourceReservationInformer clientcache.SharedIndexInformer,
+	resourceReservationInformer rrinformers.ResourceReservationInformer,
 	resourceReservationClient sparkschedulerclient.SparkschedulerV1beta1Interface,
-) *ResourceReservationCache {
+) (*ResourceReservationCache, error) {
+	rrs, err := resourceReservationInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
 	objectStore := store.NewStore()
+	for _, rr := range rrs {
+		objectStore.Put(rr)
+	}
 	queue := store.NewShardedUniqueQueue(5)
-	cache := newCache(queue, objectStore, resourceReservationInformer)
+	cache := newCache(queue, objectStore, resourceReservationInformer.Informer())
 	asyncClient := &asyncClient{
 		client:             resourceReservationClient.RESTClient(),
 		resourceName:       v1beta1.ResourceReservationPlural,
@@ -35,7 +43,7 @@ func NewResourceReservationCache(
 	return &ResourceReservationCache{
 		cache:       cache,
 		asyncClient: asyncClient,
-	}
+	}, nil
 }
 
 // Run starts the async clients of this cache
