@@ -8,13 +8,16 @@ import (
 	clientcache "k8s.io/client-go/tools/cache"
 )
 
-// ResourceReservationCache is a cache for resource reservations
+// ResourceReservationCache is a cache for resource reservations.
+// It assumes it is the only client that issues write requests for
+// resource reservations. Any external update and creation will be
+// ignored.
 type ResourceReservationCache struct {
 	cache       *cache
 	asyncClient *asyncClient
 }
 
-// NewResourceReservationCache creates a new cache
+// NewResourceReservationCache creates a new cache.
 func NewResourceReservationCache(
 	resourceReservationInformer clientcache.SharedIndexInformer,
 	resourceReservationClient sparkschedulerclient.SparkschedulerV1beta1Interface,

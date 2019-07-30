@@ -8,7 +8,9 @@ import (
 	clientcache "k8s.io/client-go/tools/cache"
 )
 
-// DemandCache is a cache for demands
+// DemandCache is a cache for demands. It assumes it is the only
+// client that creates demands. Externally created demands will not be
+// included in the cache.
 type DemandCache struct {
 	cache       *cache
 	asyncClient *asyncClient
@@ -45,11 +47,6 @@ func (dc *DemandCache) Create(rr *demandapi.Demand) bool {
 	return dc.cache.Create(rr)
 }
 
-// Update enqueues an update request and updates the object in store
-func (dc *DemandCache) Update(rr *demandapi.Demand) bool {
-	return dc.cache.Update(rr)
-}
-
 // Delete enqueues a deletion request and removes the object from store
 func (dc *DemandCache) Delete(rr *demandapi.Demand) {
 	dc.cache.Delete(rr)
@@ -59,14 +56,4 @@ func (dc *DemandCache) Delete(rr *demandapi.Demand) {
 func (dc *DemandCache) Get(namespace, name string) (*demandapi.Demand, bool) {
 	obj, ok := dc.cache.Get(namespace, name)
 	return obj.(*demandapi.Demand), ok
-}
-
-// List returns all known objects in the store
-func (dc *DemandCache) List() []*demandapi.Demand {
-	objects := dc.cache.List()
-	res := make([]*demandapi.Demand, 0, len(objects))
-	for _, o := range objects {
-		res = append(res, o.(*demandapi.Demand))
-	}
-	return res
 }

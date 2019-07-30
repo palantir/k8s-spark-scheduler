@@ -8,6 +8,11 @@ import (
 	clientcache "k8s.io/client-go/tools/cache"
 )
 
+// cache manages a store of object, and reflects
+// in flight write requests as they are completed
+// successfully. It ignores external updates and external
+// creates to avoid conflicts. Users of this need to be
+// the only writing entity for the cached elements.
 type cache struct {
 	store store.ObjectStore
 	queue store.ShardedUniqueQueue
