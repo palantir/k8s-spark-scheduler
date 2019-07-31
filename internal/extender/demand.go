@@ -17,16 +17,13 @@ package extender
 import (
 	"context"
 	"encoding/json"
-	"time"
 
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
-	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 )
@@ -34,7 +31,6 @@ import (
 const (
 	instanceGroupNodeSelector = "resource_channel"
 	instanceGroupLabel        = "instance-group"
-	maxRetries                = 3
 )
 
 const (
@@ -107,7 +103,6 @@ func (s *SparkSchedulerExtender) doCreateDemand(ctx context.Context, newDemand *
 			svc1log.FromContext(ctx).Info("demand object already exists for pod so no action will be taken")
 			return nil
 		}
-		return err
 	}
 	return err
 }
@@ -118,14 +113,8 @@ func (s *SparkSchedulerExtender) removeDemandIfExists(ctx context.Context, pod *
 		return
 	}
 	demandName := demandResourceName(pod)
-	err := s.demands.Delete(pod.Namespace, demandName)
-	removed, err := doRemoveDemandIfExists(ctx, pod.Namespace, demandName, s.demandClient)
-	if err != nil {
-		svc1log.FromContext(ctx).Info("Failed to remove existing demand resource - continuing anyways",
-			svc1log.Stacktrace(err))
-	} else if removed {
-		svc1log.FromContext(ctx).Info("Removed demand object because capacity exists for pod", svc1log.SafeParams(internal.DemandSafeParams(demandName, pod.Namespace)))
-	}
+	s.demands.Delete(pod.Namespace, demandName)
+	svc1log.FromContext(ctx).Info("Removed demand object because capacity exists for pod", svc1log.SafeParams(internal.DemandSafeParams(demandName, pod.Namespace)))
 }
 
 func (s *SparkSchedulerExtender) checkDemandCRDExists(ctx context.Context) bool {
@@ -170,58 +159,6 @@ func newDemand(pod *v1.Pod, units []demandapi.DemandUnit) (*demandapi.Demand, er
 	}, nil
 }
 
-func doRemoveDemandIfExists(ctx context.Context, namespace, name string, client demandclient.ScalerV1alpha1Interface) (bool, error) {
-	demand, exists, err := checkForExistingDemand(ctx, namespace, name, client)
-	if err != nil {
-		return false, err
-	}
-	if !exists {
-		return false, nil
-	}
-	safeParams := internal.DemandSafeParamsFromObj(demand)
-	for i := 0; i < maxRetries; i++ {
-		err = client.Demands(demand.Namespace).Delete(name, nil)
-		switch {
-		case err == nil:
-			return true, nil
-		case errors.IsGone(err):
-			return true, nil
-		case isRetryableError(err):
-			if i == maxRetries-1 {
-				return false, werror.Wrap(err, "failed to delete demand object after multiple retries",
-					werror.SafeParams(safeParams))
-			}
-			svc1log.FromContext(ctx).Info("attempt to delete demand failed due to retryable error. Attempting to retry",
-				svc1log.SafeParam("attempt", i+1),
-				svc1log.SafeParams(safeParams),
-				svc1log.SafeParam("error", err.Error()))
-			time.Sleep(time.Second * 3)
-		default:
-			// error isn't retryable. Immediately give up
-			break
-		}
-	}
-	return false, werror.Wrap(err, "Failed to delete demand resource", werror.SafeParams(safeParams))
-}
-
-func checkForExistingDemand(ctx context.Context, namespace, demandName string, client demandclient.ScalerV1alpha1Interface) (*demandapi.Demand, bool, error) {
-	safeParams := map[string]interface{}{
-		"demandName": demandName,
-		"namespace":  namespace,
-	}
-	existingDemand, err := client.Demands(namespace).Get(demandName, metav1.GetOptions{})
-
-	switch {
-	case err == nil:
-		return existingDemand, true, nil
-	case errors.IsNotFound(err):
-		return nil, false, nil
-	default:
-		return nil, false, werror.Wrap(err, "Failed to check if demand object exists", werror.SafeParams(safeParams))
-	}
-
-}
-
 func demandResources(applicationResources *sparkApplicationResources) []demandapi.DemandUnit {
 	return []demandapi.DemandUnit{
 		{
@@ -239,9 +176,4 @@ func demandResources(applicationResources *sparkApplicationResources) []demandap
 
 func demandResourceName(pod *v1.Pod) string {
 	return "demand-" + pod.Name
-}
-
-func isRetryableError(err error) bool {
-	return errors.IsServerTimeout(err) || errors.IsServiceUnavailable(err) ||
-		errors.IsTooManyRequests(err) || errors.IsTimeout(err)
 }
