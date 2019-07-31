@@ -824,6 +824,8 @@
     "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1",
     "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1",
     "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions",
+    "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/scaler/v1alpha1",
+    "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/sparkscheduler/v1beta1",
     "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/listers/sparkscheduler/v1beta1",
     "github.com/palantir/k8s-spark-scheduler-lib/pkg/logging",
     "github.com/palantir/k8s-spark-scheduler-lib/pkg/resources",
