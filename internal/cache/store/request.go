@@ -57,11 +57,6 @@ func UpdateRequest(obj metav1.Object) Request {
 	return Request{KeyOf(obj), UpdateRequestType}
 }
 
-// DeleteRequest creates a delete request for an object
-func DeleteRequest(obj metav1.Object) Request {
-	return Request{KeyOf(obj), DeleteRequestType}
-}
-
 // KeySafeParams returns safe logging params for a key object
 func KeySafeParams(k Key) map[string]interface{} {
 	return map[string]interface{}{

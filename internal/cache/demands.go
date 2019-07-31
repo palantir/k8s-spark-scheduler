@@ -78,7 +78,7 @@ func (dc *DemandCache) Create(rr *demandapi.Demand) error {
 }
 
 // Delete enqueues a deletion request and removes the object from store
-func (dc *DemandCache) Delete(rr *demandapi.Demand) {
+func (dc *DemandCache) Delete(namespace, name string) {
 	dc.cache.Delete(rr)
 }
 
