@@ -155,7 +155,6 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		nodeInformer.Lister(),
 		extender.NewSparkPodLister(podInformer.Lister()),
 		resourceReservationCache,
-		sparkSchedulerClient.SparkschedulerV1beta1(),
 		kubeClient.CoreV1(),
 		demandCache,
 		apiExtensionsClient,
