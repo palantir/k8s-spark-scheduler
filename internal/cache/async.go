@@ -90,21 +90,18 @@ func (ac *asyncClient) doUpdate(ctx context.Context, key store.Key) {
 	}
 
 	result, err := ac.client.Update(obj)
-	if err != nil {
-		ac.objectStore.OverrideResourceVersionIfNewer(ctx, result)
-	}
 	switch {
 	case err == nil:
-		ac.objectStore.OverrideResourceVersionIfNewer(ctx, obj)
+		ac.objectStore.OverrideResourceVersionIfNewer(ctx, result)
 	case isRetryableError(err):
 		svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(err))
 		ac.queue.AddIfAbsent(store.UpdateRequest(obj))
 	case errors.IsConflict(err):
 		svc1log.FromContext(ctx).Warn("got conflict, will try updating resource version", svc1log.Stacktrace(err))
-		obj, getErr := ac.client.Get(key.Namespace, key.Name)
+		newObj, getErr := ac.client.Get(key.Namespace, key.Name)
 		switch {
 		case getErr == nil:
-			ac.objectStore.OverrideResourceVersionIfNewer(ctx, obj)
+			ac.objectStore.OverrideResourceVersionIfNewer(ctx, newObj)
 			ac.doUpdate(ctx, key)
 		case isRetryableError(getErr):
 			svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(getErr))
@@ -119,12 +116,9 @@ func (ac *asyncClient) doUpdate(ctx context.Context, key store.Key) {
 
 func (ac *asyncClient) doDelete(ctx context.Context, key store.Key) {
 	err := ac.client.Delete(key.Namespace, key.Name)
-	if err != nil {
-		ac.objectStore.Delete(key)
-	}
 	switch {
 	case err == nil:
-		ac.objectStore.Delete(key)
+		return
 	case isRetryableError(err):
 		svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(err))
 		ac.queue.AddIfAbsent(store.Request{Key: key, Type: store.DeleteRequestType})
