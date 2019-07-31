@@ -24,6 +24,13 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 )
 
+const (
+	// demandClients denotes the number of
+	// kube clients that will issue write requests for
+	// demands in parallel.
+	demandClients = 5
+)
+
 // DemandCache is a cache for demands. It assumes it is the only
 // client that creates demands. Externally created demands will not be
 // included in the cache. Deletions from all clients are valid and are
@@ -46,7 +53,7 @@ func NewDemandCache(
 	for _, d := range ds {
 		objectStore.Put(d)
 	}
-	queue := store.NewShardedUniqueQueue(5)
+	queue := store.NewShardedUniqueQueue(demandClients)
 	cache := newCache(queue, objectStore, demandInformer.Informer())
 	asyncClient := &asyncClient{
 		client:             demandClient.RESTClient(),
@@ -67,7 +74,7 @@ func (dc *DemandCache) Run(ctx context.Context) {
 }
 
 // Create enqueues a creation request and puts the object into the store
-func (dc *DemandCache) Create(rr *demandapi.Demand) bool {
+func (dc *DemandCache) Create(rr *demandapi.Demand) error {
 	return dc.cache.Create(rr)
 }
 

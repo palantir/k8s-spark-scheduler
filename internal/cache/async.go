@@ -38,13 +38,13 @@ type asyncClient struct {
 	objectStore        store.ObjectStore
 }
 
-func (as *asyncClient) Run(ctx context.Context) {
-	for _, q := range as.queue.GetConsumers() {
-		go as.runWorker(ctx, q)
+func (ac *asyncClient) Run(ctx context.Context) {
+	for _, q := range ac.queue.GetConsumers() {
+		go ac.runWorker(ctx, q)
 	}
 }
 
-func (as *asyncClient) runWorker(ctx context.Context, requests <-chan func() store.Request) {
+func (ac *asyncClient) runWorker(ctx context.Context, requests <-chan func() store.Request) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -53,100 +53,99 @@ func (as *asyncClient) runWorker(ctx context.Context, requests <-chan func() sto
 			r := requestGetter()
 			switch r.Type {
 			case store.CreateRequestType:
-				as.doCreate(requestCtx(ctx, r.Key, "create"), r.Key)
+				ac.doCreate(requestCtx(ctx, r.Key, "create"), r.Key)
 			case store.UpdateRequestType:
-				as.doUpdate(requestCtx(ctx, r.Key, "update"), r.Key)
+				ac.doUpdate(requestCtx(ctx, r.Key, "update"), r.Key)
 			case store.DeleteRequestType:
-				as.doDelete(requestCtx(ctx, r.Key, "delete"), r.Key)
+				ac.doDelete(requestCtx(ctx, r.Key, "delete"), r.Key)
 			}
 		}
 	}
 }
 
-func (as *asyncClient) doCreate(ctx context.Context, key store.Key) {
-	obj, ok := as.objectStore.Get(key)
+func (ac *asyncClient) doCreate(ctx context.Context, key store.Key) {
+	obj, ok := ac.objectStore.Get(key)
 	if !ok {
 		svc1log.FromContext(ctx).Info("Ignoring request for deleted object")
 		return
 	}
-	result := as.emptyObjectCreator()
-	err := as.client.Post().
+	result := ac.emptyObjectCreator()
+	err := ac.client.Post().
 		Namespace(obj.GetNamespace()).
-		Resource(as.resourceName).
+		Resource(ac.resourceName).
 		Body(obj).
 		Do().
 		Into(result)
 	switch {
 	case err == nil:
-		as.objectStore.OverrideResourceVersionIfNewer(ctx, obj)
-	case isRetryableError(ctx, err):
-		as.queue.AddIfAbsent(store.CreateRequest(obj))
+		ac.objectStore.OverrideResourceVersionIfNewer(ctx, obj)
+	case isRetryableError(err):
+		svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(err))
+		ac.queue.AddIfAbsent(store.CreateRequest(obj))
 	default:
-		logAndIgnore(ctx, err)
+		logNonRetryableError(ctx, err)
 	}
 }
 
-func (as *asyncClient) doUpdate(ctx context.Context, key store.Key) {
-	obj, ok := as.objectStore.Get(key)
+func (ac *asyncClient) doUpdate(ctx context.Context, key store.Key) {
+	obj, ok := ac.objectStore.Get(key)
 	if !ok {
 		svc1log.FromContext(ctx).Info("Ignoring request for deleted object")
 		return
 	}
 
-	result := as.emptyObjectCreator()
-	err := as.client.Put().
+	result := ac.emptyObjectCreator()
+	err := ac.client.Put().
 		Namespace(obj.GetNamespace()).
-		Resource(as.resourceName).
+		Resource(ac.resourceName).
 		Name(obj.GetName()).
 		Body(obj).
 		Do().
 		Into(result)
 	if err != nil {
-		as.objectStore.OverrideResourceVersionIfNewer(ctx, obj)
+		ac.objectStore.OverrideResourceVersionIfNewer(ctx, obj)
 	}
 	switch {
 	case err == nil:
-		as.objectStore.OverrideResourceVersionIfNewer(ctx, obj)
-	case isRetryableError(ctx, err):
-		as.queue.AddIfAbsent(store.UpdateRequest(obj))
+		ac.objectStore.OverrideResourceVersionIfNewer(ctx, obj)
+	case isRetryableError(err):
+		svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(err))
+		ac.queue.AddIfAbsent(store.UpdateRequest(obj))
 	case errors.IsConflict(err):
 		svc1log.FromContext(ctx).Warn("got conflict, will retry", svc1log.Stacktrace(err))
-		as.queue.AddIfAbsent(store.UpdateRequest(obj))
+		ac.queue.AddIfAbsent(store.UpdateRequest(obj))
 	default:
-		logAndIgnore(ctx, err)
+		logNonRetryableError(ctx, err)
 	}
 }
 
-func (as *asyncClient) doDelete(ctx context.Context, key store.Key) {
-	err := as.client.Delete().
+func (ac *asyncClient) doDelete(ctx context.Context, key store.Key) {
+	err := ac.client.Delete().
 		Namespace(key.Namespace).
-		Resource(as.resourceName).
+		Resource(ac.resourceName).
 		Name(key.Name).
 		Do().
 		Error()
 	if err != nil {
-		as.objectStore.Delete(key)
+		ac.objectStore.Delete(key)
 	}
 	switch {
 	case err == nil:
-		as.objectStore.Delete(key)
-	case isRetryableError(ctx, err):
-		as.queue.AddIfAbsent(store.Request{Key: key, Type: store.DeleteRequestType})
-	default:
-		logAndIgnore(ctx, err)
-	}
-}
-
-func isRetryableError(ctx context.Context, err error) bool {
-	isRetryable := errors.IsServerTimeout(err) || errors.IsServiceUnavailable(err) ||
-		errors.IsTooManyRequests(err) || errors.IsTimeout(err)
-	if isRetryable {
+		ac.objectStore.Delete(key)
+	case isRetryableError(err):
 		svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(err))
+		ac.queue.AddIfAbsent(store.Request{Key: key, Type: store.DeleteRequestType})
+	default:
+		logNonRetryableError(ctx, err)
 	}
-	return isRetryable
 }
 
-func logAndIgnore(ctx context.Context, err error) {
+func isRetryableError(err error) bool {
+	return errors.IsServerTimeout(err) || errors.IsServiceUnavailable(err) ||
+		errors.IsTooManyRequests(err) || errors.IsTimeout(err)
+}
+
+func logNonRetryableError(ctx context.Context, err error) {
 	svc1log.FromContext(ctx).Error("got non retryable error, giving up", svc1log.Stacktrace(err))
 }
 

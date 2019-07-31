@@ -19,11 +19,18 @@ import (
 	"sync"
 )
 
+const (
+	// asyncRequestBufferSize is the maximum number of requests
+	// to be queued, after this number requests to add more elements
+	// will start to block callers.
+	asyncRequestBufferSize = 100
+)
+
 // ShardedUniqueQueue is a queue of write requests
 // for objects. It compacts consecutive create and update
 // requests, provides a slice of channels for consumers.
-// Requests consumed from these channels are mutually
-// exclusive
+// No two requests for the same object will end up in
+// different consumers.
 type ShardedUniqueQueue interface {
 	AddIfAbsent(Request)
 	GetConsumers() []<-chan func() Request
@@ -33,7 +40,7 @@ type ShardedUniqueQueue interface {
 func NewShardedUniqueQueue(buckets int) ShardedUniqueQueue {
 	queues := make([]chan func() Request, 0, buckets)
 	for i := 0; i < buckets; i++ {
-		queues = append(queues, make(chan func() Request, 100))
+		queues = append(queues, make(chan func() Request, asyncRequestBufferSize))
 	}
 	return &shardedUniqueQueue{
 		queues:   queues,

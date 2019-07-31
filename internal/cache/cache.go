@@ -18,6 +18,7 @@ import (
 	"context"
 
 	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientcache "k8s.io/client-go/tools/cache"
@@ -51,27 +52,27 @@ func newCache(
 	return c
 }
 
-func (c *cache) Create(obj metav1.Object) bool {
+func (c *cache) Create(obj metav1.Object) error {
 	created := c.store.PutIfAbsent(obj)
 	if !created {
-		return false
+		return werror.Error("object already exists")
 	}
 	c.queue.AddIfAbsent(store.CreateRequest(obj))
-	return true
+	return nil
 }
 
 func (c *cache) Get(namespace, name string) (metav1.Object, bool) {
 	return c.store.Get(store.Key{Namespace: namespace, Name: name})
 }
 
-func (c *cache) Update(obj metav1.Object) bool {
+func (c *cache) Update(obj metav1.Object) error {
 	_, ok := c.store.Get(store.KeyOf(obj))
 	if !ok {
-		return false
+		return werror.Error("object does not exist")
 	}
 	c.store.Put(obj)
 	c.queue.AddIfAbsent(store.UpdateRequest(obj))
-	return true
+	return nil
 }
 
 func (c *cache) Delete(obj metav1.Object) {
@@ -85,22 +86,12 @@ func (c *cache) List() []metav1.Object {
 
 func (c *cache) onObjAdd(obj interface{}) {
 	ctx := context.Background()
-	typedObject, ok := obj.(metav1.Object)
-	if !ok {
-		svc1log.FromContext(ctx).Warn("failed to parse object")
-		return
-	}
-	c.store.OverrideResourceVersionIfNewer(ctx, typedObject)
+	c.tryOverrideResourceVersion(ctx, obj)
 }
 
 func (c *cache) onObjUpdate(oldObj interface{}, newObj interface{}) {
 	ctx := context.Background()
-	typedObject, ok := newObj.(metav1.Object)
-	if !ok {
-		svc1log.FromContext(ctx).Warn("failed to parse object")
-		return
-	}
-	c.store.OverrideResourceVersionIfNewer(ctx, typedObject)
+	c.tryOverrideResourceVersion(ctx, newObj)
 }
 
 func (c *cache) onObjDelete(obj interface{}) {
@@ -110,4 +101,13 @@ func (c *cache) onObjDelete(obj interface{}) {
 		return
 	}
 	c.store.Delete(store.KeyOf(typedObject))
+}
+
+func (c *cache) tryOverrideResourceVersion(ctx context.Context, obj interface{}) {
+	typedObject, ok := obj.(metav1.Object)
+	if !ok {
+		svc1log.FromContext(ctx).Warn("failed to parse object")
+		return
+	}
+	c.store.OverrideResourceVersionIfNewer(ctx, typedObject)
 }

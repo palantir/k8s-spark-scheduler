@@ -24,6 +24,13 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 )
 
+const (
+	// resourceReservationClients denotes the number of
+	// kube clients that will issue write requests for
+	// resource reservations in parallel.
+	resourceReservationClients = 5
+)
+
 // ResourceReservationCache is a cache for resource reservations.
 // It assumes it is the only client that issues write requests for
 // resource reservations. Any external update and creation will be
@@ -46,7 +53,7 @@ func NewResourceReservationCache(
 	for _, rr := range rrs {
 		objectStore.Put(rr)
 	}
-	queue := store.NewShardedUniqueQueue(5)
+	queue := store.NewShardedUniqueQueue(resourceReservationClients)
 	cache := newCache(queue, objectStore, resourceReservationInformer.Informer())
 	asyncClient := &asyncClient{
 		client:             resourceReservationClient.RESTClient(),
@@ -67,12 +74,12 @@ func (rrc *ResourceReservationCache) Run(ctx context.Context) {
 }
 
 // Create enqueues a creation request and puts the object into the store
-func (rrc *ResourceReservationCache) Create(rr *v1beta1.ResourceReservation) bool {
+func (rrc *ResourceReservationCache) Create(rr *v1beta1.ResourceReservation) error {
 	return rrc.cache.Create(rr)
 }
 
 // Update enqueues an update request and updates the object in store
-func (rrc *ResourceReservationCache) Update(rr *v1beta1.ResourceReservation) bool {
+func (rrc *ResourceReservationCache) Update(rr *v1beta1.ResourceReservation) error {
 	return rrc.cache.Update(rr)
 }
 
