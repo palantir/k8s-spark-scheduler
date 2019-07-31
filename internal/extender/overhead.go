@@ -38,7 +38,7 @@ var (
 // OverheadComputer computes non spark scheduler managed pods total resources periodically
 type OverheadComputer struct {
 	podLister            corelisters.PodLister
-	resourceReservations cache.ResourceReservationCache
+	resourceReservations *cache.ResourceReservationCache
 	nodeLister           corelisters.NodeLister
 	latestOverhead       Overhead
 	overheadLock         *sync.RWMutex
@@ -57,7 +57,7 @@ type InstanceGroupOverhead struct {
 func NewOverheadComputer(
 	ctx context.Context,
 	podLister corelisters.PodLister,
-	resourceReservations cache.ResourceReservationCache,
+	resourceReservations *cache.ResourceReservationCache,
 	nodeLister corelisters.NodeLister) *OverheadComputer {
 	computer := &OverheadComputer{
 		podLister:            podLister,

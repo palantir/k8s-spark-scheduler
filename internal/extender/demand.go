@@ -95,20 +95,21 @@ func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, 
 }
 
 func (s *SparkSchedulerExtender) doCreateDemand(ctx context.Context, newDemand *demandapi.Demand) error {
-	_, ok, err := checkForExistingDemand(ctx, newDemand.Namespace, newDemand.Name, s.demandClient)
-	if err != nil {
-		return err
-	}
-	if ok {
-		svc1log.FromContext(ctx).Info("demand object already exists for pod so no action will be taken")
-		return nil
-	}
 	demandObjectBytes, err := json.Marshal(newDemand)
 	if err != nil {
 		return werror.Wrap(err, "failed to marshal demand object")
 	}
 	svc1log.FromContext(ctx).Info("Creating demand object", svc1log.SafeParams(internal.DemandSafeParamsFromObj(newDemand)), svc1log.SafeParam("demandObjectBytes", string(demandObjectBytes)))
-	return createDemandResource(ctx, newDemand, s.demandClient)
+	err = s.demands.Create(newDemand)
+	if err != nil {
+		_, ok := s.demands.Get(newDemand.Namespace, newDemand.Name)
+		if ok {
+			svc1log.FromContext(ctx).Info("demand object already exists for pod so no action will be taken")
+			return nil
+		}
+		return err
+	}
+	return err
 }
 
 // removeDemandIfExists removes a demand object if it exists. Returns whether or not the demand was removed.
@@ -117,6 +118,7 @@ func (s *SparkSchedulerExtender) removeDemandIfExists(ctx context.Context, pod *
 		return
 	}
 	demandName := demandResourceName(pod)
+	err := s.demands.Delete(pod.Namespace, demandName)
 	removed, err := doRemoveDemandIfExists(ctx, pod.Namespace, demandName, s.demandClient)
 	if err != nil {
 		svc1log.FromContext(ctx).Info("Failed to remove existing demand resource - continuing anyways",
@@ -166,32 +168,6 @@ func newDemand(pod *v1.Pod, units []demandapi.DemandUnit) (*demandapi.Demand, er
 			Units:         units,
 		},
 	}, nil
-}
-
-func createDemandResource(ctx context.Context, demand *demandapi.Demand, client demandclient.ScalerV1alpha1Interface) error {
-	safeParams := internal.DemandSafeParamsFromObj(demand)
-	var err error
-	for i := 0; i < maxRetries; i++ {
-		_, err = client.Demands(demand.Namespace).Create(demand)
-		switch {
-		case err == nil:
-			return nil
-		case isRetryableError(err):
-			if i == maxRetries-1 {
-				return werror.Wrap(err, "failed to update demand object after multiple retries",
-					werror.SafeParams(safeParams))
-			}
-			svc1log.FromContext(ctx).Info("attempt to update demand failed due to retryable error. Attempting to retry",
-				svc1log.SafeParam("attempt", i+1),
-				svc1log.SafeParams(safeParams),
-				svc1log.SafeParam("error", err.Error()))
-			time.Sleep(time.Second * 3)
-		default:
-			// error isn't retryable. Immediately give up
-			break
-		}
-	}
-	return werror.Wrap(err, "Failed to update demand resource", werror.SafeParams(safeParams))
 }
 
 func doRemoveDemandIfExists(ctx context.Context, namespace, name string, client demandclient.ScalerV1alpha1Interface) (bool, error) {

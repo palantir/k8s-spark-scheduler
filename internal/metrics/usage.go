@@ -33,13 +33,13 @@ import (
 // ResourceUsageReporter reports resource usage periodically
 type ResourceUsageReporter struct {
 	nodeLister           corelisters.NodeLister
-	resourceReservations cache.ResourceReservationCache
+	resourceReservations *cache.ResourceReservationCache
 }
 
 // NewResourceReporter returns a new ResourceUsageReporter instance
 func NewResourceReporter(
 	nodeLister corelisters.NodeLister,
-	resourceReservations cache.ResourceReservationCache) *ResourceUsageReporter {
+	resourceReservations *cache.ResourceReservationCache) *ResourceUsageReporter {
 	return &ResourceUsageReporter{
 		nodeLister:           nodeLister,
 		resourceReservations: resourceReservations,

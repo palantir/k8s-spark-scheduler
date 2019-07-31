@@ -122,8 +122,8 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		return nil, nil
 	}
 
-	resourceReservationCache := cache.NewResourceReservationCache(
-		resourceReservationInformerBeta.Informer(),
+	resourceReservationCache, err := cache.NewResourceReservationCache(
+		resourceReservationInformerBeta,
 		sparkSchedulerClient.SparkschedulerV1beta1(),
 	)
 
@@ -133,7 +133,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	}
 
 	demandCache, err := cache.NewDemandCache(
-		demandInformer.Informer(),
+		demandInformer,
 		sparkSchedulerClient.ScalerV1alpha1(),
 	)
 
@@ -142,7 +142,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		return nil, err
 	}
 
-	overheadComputer, err := extender.NewOverheadComputer(
+	overheadComputer := extender.NewOverheadComputer(
 		ctx,
 		podInformer.Lister(),
 		resourceReservationCache,
@@ -154,10 +154,10 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeInformer.Lister(),
 		extender.NewSparkPodLister(podInformer.Lister()),
-		resourceReservationInformerBeta.Lister(),
+		resourceReservationCache,
 		sparkSchedulerClient.SparkschedulerV1beta1(),
 		kubeClient.CoreV1(),
-		sparkSchedulerClient.ScalerV1alpha1(),
+		demandCache,
 		apiExtensionsClient,
 		install.FIFO,
 		binpacker,

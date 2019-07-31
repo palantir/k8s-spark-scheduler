@@ -38,8 +38,8 @@ func SyncResourceReservationsAndDemands(
 	ctx context.Context,
 	podLister corelisters.PodLister,
 	nodeLister corelisters.NodeLister,
-	resourceReservations cache.ResourceReservationCache,
-	demands cache.DemandCache,
+	resourceReservations *cache.ResourceReservationCache,
+	demands *cache.DemandCache,
 	overheadComputer *OverheadComputer) error {
 
 	pods, err := podLister.List(labels.Everything())
