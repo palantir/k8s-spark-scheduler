@@ -101,5 +101,9 @@ func (client *demandClient) Update(obj metav1.Object) (metav1.Object, error) {
 }
 
 func (client *demandClient) Delete(namespace, name string) error {
-	return client.Demands(namespace).Delete(name, nil) // TODO options
+	return client.Demands(namespace).Delete(name, nil)
+}
+
+func (client *demandClient) Get(namespace, name string) (metav1.Object, error) {
+	return client.Demands(namespace).Get(name, metav1.GetOptions{})
 }

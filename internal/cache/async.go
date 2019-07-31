@@ -30,6 +30,7 @@ type Client interface {
 	Create(metav1.Object) (metav1.Object, error)
 	Update(metav1.Object) (metav1.Object, error)
 	Delete(namespace, name string) error
+	Get(namespace, name string) (metav1.Object, error)
 }
 
 type asyncClient struct {
@@ -99,8 +100,18 @@ func (ac *asyncClient) doUpdate(ctx context.Context, key store.Key) {
 		svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(err))
 		ac.queue.AddIfAbsent(store.UpdateRequest(obj))
 	case errors.IsConflict(err):
-		svc1log.FromContext(ctx).Warn("got conflict, will retry", svc1log.Stacktrace(err))
-		ac.queue.AddIfAbsent(store.UpdateRequest(obj))
+		svc1log.FromContext(ctx).Warn("got conflict, will try updating resource version", svc1log.Stacktrace(err))
+		obj, getErr := ac.client.Get(key.Namespace, key.Name)
+		switch {
+		case getErr == nil:
+			ac.objectStore.OverrideResourceVersionIfNewer(ctx, obj)
+			ac.doUpdate(ctx, key)
+		case isRetryableError(getErr):
+			svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(getErr))
+			ac.queue.AddIfAbsent(store.UpdateRequest(obj))
+		default:
+			logNonRetryableError(ctx, err)
+		}
 	default:
 		logNonRetryableError(ctx, err)
 	}

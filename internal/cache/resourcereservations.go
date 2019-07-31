@@ -119,3 +119,7 @@ func (client *resourceReservationClient) Update(obj metav1.Object) (metav1.Objec
 func (client *resourceReservationClient) Delete(namespace, name string) error {
 	return client.ResourceReservations(namespace).Delete(name, nil) // TODO options
 }
+
+func (client *resourceReservationClient) Get(namespace, name string) (metav1.Object, error) {
+	return client.ResourceReservations(namespace).Get(name, metav1.GetOptions{})
+}
