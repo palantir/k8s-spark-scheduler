@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
-	sparkschedulerlisters "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/listers/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
@@ -32,17 +32,17 @@ import (
 
 // ResourceUsageReporter reports resource usage periodically
 type ResourceUsageReporter struct {
-	nodeLister                corelisters.NodeLister
-	resourceReservationLister sparkschedulerlisters.ResourceReservationLister
+	nodeLister           corelisters.NodeLister
+	resourceReservations cache.ResourceReservationCache
 }
 
 // NewResourceReporter returns a new ResourceUsageReporter instance
 func NewResourceReporter(
 	nodeLister corelisters.NodeLister,
-	resourceReservationLister sparkschedulerlisters.ResourceReservationLister) *ResourceUsageReporter {
+	resourceReservations cache.ResourceReservationCache) *ResourceUsageReporter {
 	return &ResourceUsageReporter{
-		nodeLister:                nodeLister,
-		resourceReservationLister: resourceReservationLister,
+		nodeLister:           nodeLister,
+		resourceReservations: resourceReservations,
 	}
 }
 
@@ -73,11 +73,7 @@ func (r *ResourceUsageReporter) doStart(ctx context.Context) error {
 			for _, n := range nodes {
 				nodeNames = append(nodeNames, n.Name)
 			}
-			rrs, err := r.resourceReservationLister.List(labels.Everything())
-			if err != nil {
-				svc1log.FromContext(ctx).Error("failed to list resource reservations", svc1log.Stacktrace(err))
-				break
-			}
+			rrs := r.resourceReservations.List()
 			r.report(ctx, nodes, rrs)
 		}
 	}

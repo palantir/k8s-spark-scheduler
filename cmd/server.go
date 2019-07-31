@@ -21,6 +21,7 @@ import (
 	clientset "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler/config"
+	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -31,7 +32,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
+	clientcache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -95,6 +96,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	nodeInformer := kubeInformerFactory.Core().V1().Nodes()
 	podInformer := kubeInformerFactory.Core().V1().Pods()
 	resourceReservationInformerBeta := sparkSchedulerInformerFactory.Sparkscheduler().V1beta1().ResourceReservations()
+	demandInformer := sparkSchedulerInformerFactory.Scaler().V1alpha1().Demands()
 
 	go func() {
 		_ = wapp.RunWithFatalLogging(ctx, func(ctx context.Context) error {
@@ -110,19 +112,40 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		})
 	}()
 
-	if ok := cache.WaitForCacheSync(
+	if ok := clientcache.WaitForCacheSync(
 		ctx.Done(),
 		nodeInformer.Informer().HasSynced,
 		podInformer.Informer().HasSynced,
-		resourceReservationInformerBeta.Informer().HasSynced); !ok {
+		resourceReservationInformerBeta.Informer().HasSynced,
+		demandInformer.Informer().HasSynced); !ok {
 		svc1log.FromContext(ctx).Error("Error waiting for cache to sync")
 		return nil, nil
 	}
 
-	overheadComputer := extender.NewOverheadComputer(
+	resourceReservationCache := cache.NewResourceReservationCache(
+		resourceReservationInformerBeta.Informer(),
+		sparkSchedulerClient.SparkschedulerV1beta1(),
+	)
+
+	if err != nil {
+		svc1log.FromContext(ctx).Error("Error constructing resource reservation cache", svc1log.Stacktrace(err))
+		return nil, err
+	}
+
+	demandCache, err := cache.NewDemandCache(
+		demandInformer.Informer(),
+		sparkSchedulerClient.ScalerV1alpha1(),
+	)
+
+	if err != nil {
+		svc1log.FromContext(ctx).Error("Error constructing demand cache", svc1log.Stacktrace(err))
+		return nil, err
+	}
+
+	overheadComputer, err := extender.NewOverheadComputer(
 		ctx,
 		podInformer.Lister(),
-		resourceReservationInformerBeta.Lister(),
+		resourceReservationCache,
 		nodeInformer.Lister(),
 	)
 
@@ -143,7 +166,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	resourceReporter := metrics.NewResourceReporter(
 		nodeInformer.Lister(),
-		resourceReservationInformerBeta.Lister(),
+		resourceReservationCache,
 	)
 
 	queueReporter := metrics.NewQueueReporter(podInformer.Lister())
@@ -156,7 +179,17 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		binpacker,
 	)
 
+	resourceReservationCache.Run(ctx)
+	demandCache.Run(ctx)
 	sparkSchedulerExtender.Start(ctx)
+	extender.SyncResourceReservationsAndDemands(
+		ctx,
+		podInformer.Lister(),
+		nodeInformer.Lister(),
+		resourceReservationCache,
+		demandCache,
+		overheadComputer,
+	)
 	go resourceReporter.StartReportingResourceUsage(ctx)
 	go queueReporter.StartReportingQueues(ctx)
 	go overheadComputer.Start(ctx)
