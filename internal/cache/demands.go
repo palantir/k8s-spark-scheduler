@@ -21,6 +21,7 @@ import (
 	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
 	demandinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/scaler/v1alpha1"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
@@ -43,7 +44,7 @@ type DemandCache struct {
 // NewDemandCache creates a new cache
 func NewDemandCache(
 	demandInformer demandinformers.DemandInformer,
-	demandClient demandclient.ScalerV1alpha1Interface,
+	demandKubeClient demandclient.ScalerV1alpha1Interface,
 ) (*DemandCache, error) {
 	ds, err := demandInformer.Lister().List(labels.Everything())
 	if err != nil {
@@ -56,11 +57,9 @@ func NewDemandCache(
 	queue := store.NewShardedUniqueQueue(demandClients)
 	cache := newCache(queue, objectStore, demandInformer.Informer())
 	asyncClient := &asyncClient{
-		client:             demandClient.RESTClient(),
-		resourceName:       demandapi.DemandCustomResourceDefinition().Spec.Names.Plural,
-		emptyObjectCreator: func() object { return &demandapi.Demand{} },
-		queue:              queue,
-		objectStore:        objectStore,
+		client:      &demandClient{demandKubeClient},
+		queue:       queue,
+		objectStore: objectStore,
 	}
 	return &DemandCache{
 		cache:       cache,
@@ -87,4 +86,20 @@ func (dc *DemandCache) Delete(rr *demandapi.Demand) {
 func (dc *DemandCache) Get(namespace, name string) (*demandapi.Demand, bool) {
 	obj, ok := dc.cache.Get(namespace, name)
 	return obj.(*demandapi.Demand), ok
+}
+
+type demandClient struct {
+	demandclient.ScalerV1alpha1Interface
+}
+
+func (client *demandClient) Create(obj metav1.Object) (metav1.Object, error) {
+	return client.Demands(obj.GetNamespace()).Create(obj.(*demandapi.Demand))
+}
+
+func (client *demandClient) Update(obj metav1.Object) (metav1.Object, error) {
+	return client.Demands(obj.GetNamespace()).Update(obj.(*demandapi.Demand))
+}
+
+func (client *demandClient) Delete(namespace, name string) error {
+	return client.Demands(namespace).Delete(name, nil) // TODO options
 }

@@ -21,6 +21,7 @@ import (
 	sparkschedulerclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1"
 	rrinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
@@ -36,6 +37,7 @@ const (
 // resource reservations. Any external update and creation will be
 // ignored, but deletions will be reflected in the cache.
 type ResourceReservationCache struct {
+	client      sparkschedulerclient.SparkschedulerV1beta1Interface
 	cache       *cache
 	asyncClient *asyncClient
 }
@@ -43,7 +45,7 @@ type ResourceReservationCache struct {
 // NewResourceReservationCache creates a new cache.
 func NewResourceReservationCache(
 	resourceReservationInformer rrinformers.ResourceReservationInformer,
-	resourceReservationClient sparkschedulerclient.SparkschedulerV1beta1Interface,
+	resourceReservationKubeClient sparkschedulerclient.SparkschedulerV1beta1Interface,
 ) (*ResourceReservationCache, error) {
 	rrs, err := resourceReservationInformer.Lister().List(labels.Everything())
 	if err != nil {
@@ -56,11 +58,9 @@ func NewResourceReservationCache(
 	queue := store.NewShardedUniqueQueue(resourceReservationClients)
 	cache := newCache(queue, objectStore, resourceReservationInformer.Informer())
 	asyncClient := &asyncClient{
-		client:             resourceReservationClient.RESTClient(),
-		resourceName:       v1beta1.ResourceReservationPlural,
-		emptyObjectCreator: func() object { return &v1beta1.ResourceReservation{} },
-		queue:              queue,
-		objectStore:        objectStore,
+		client:      &resourceReservationClient{resourceReservationKubeClient},
+		queue:       queue,
+		objectStore: objectStore,
 	}
 	return &ResourceReservationCache{
 		cache:       cache,
@@ -102,4 +102,20 @@ func (rrc *ResourceReservationCache) List() []*v1beta1.ResourceReservation {
 		res = append(res, o.(*v1beta1.ResourceReservation))
 	}
 	return res
+}
+
+type resourceReservationClient struct {
+	sparkschedulerclient.SparkschedulerV1beta1Interface
+}
+
+func (client *resourceReservationClient) Create(obj metav1.Object) (metav1.Object, error) {
+	return client.ResourceReservations(obj.GetNamespace()).Create(obj.(*v1beta1.ResourceReservation))
+}
+
+func (client *resourceReservationClient) Update(obj metav1.Object) (metav1.Object, error) {
+	return client.ResourceReservations(obj.GetNamespace()).Update(obj.(*v1beta1.ResourceReservation))
+}
+
+func (client *resourceReservationClient) Delete(namespace, name string) error {
+	return client.ResourceReservations(namespace).Delete(name, nil) // TODO options
 }

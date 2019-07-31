@@ -21,21 +21,21 @@ import (
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	rest "k8s.io/client-go/rest"
 )
 
-type object interface {
-	metav1.Object
-	runtime.Object
+// Client is a generic representation of a kube client
+// that acts on metav1.Object, asyncClient can be used
+// for multiple k8s resources.
+type Client interface {
+	Create(metav1.Object) (metav1.Object, error)
+	Update(metav1.Object) (metav1.Object, error)
+	Delete(namespace, name string) error
 }
 
 type asyncClient struct {
-	client             rest.Interface
-	resourceName       string
-	emptyObjectCreator func() object
-	queue              store.ShardedUniqueQueue
-	objectStore        store.ObjectStore
+	client      Client
+	queue       store.ShardedUniqueQueue
+	objectStore store.ObjectStore
 }
 
 func (ac *asyncClient) Run(ctx context.Context) {
@@ -69,16 +69,10 @@ func (ac *asyncClient) doCreate(ctx context.Context, key store.Key) {
 		svc1log.FromContext(ctx).Info("Ignoring request for deleted object")
 		return
 	}
-	result := ac.emptyObjectCreator()
-	err := ac.client.Post().
-		Namespace(obj.GetNamespace()).
-		Resource(ac.resourceName).
-		Body(obj).
-		Do().
-		Into(result)
+	result, err := ac.client.Create(obj)
 	switch {
 	case err == nil:
-		ac.objectStore.OverrideResourceVersionIfNewer(ctx, obj)
+		ac.objectStore.OverrideResourceVersionIfNewer(ctx, result)
 	case isRetryableError(err):
 		svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(err))
 		ac.queue.AddIfAbsent(store.CreateRequest(obj))
@@ -94,16 +88,9 @@ func (ac *asyncClient) doUpdate(ctx context.Context, key store.Key) {
 		return
 	}
 
-	result := ac.emptyObjectCreator()
-	err := ac.client.Put().
-		Namespace(obj.GetNamespace()).
-		Resource(ac.resourceName).
-		Name(obj.GetName()).
-		Body(obj).
-		Do().
-		Into(result)
+	result, err := ac.client.Update(obj)
 	if err != nil {
-		ac.objectStore.OverrideResourceVersionIfNewer(ctx, obj)
+		ac.objectStore.OverrideResourceVersionIfNewer(ctx, result)
 	}
 	switch {
 	case err == nil:
@@ -120,12 +107,7 @@ func (ac *asyncClient) doUpdate(ctx context.Context, key store.Key) {
 }
 
 func (ac *asyncClient) doDelete(ctx context.Context, key store.Key) {
-	err := ac.client.Delete().
-		Namespace(key.Namespace).
-		Resource(ac.resourceName).
-		Name(key.Name).
-		Do().
-		Error()
+	err := ac.client.Delete(key.Namespace, key.Name)
 	if err != nil {
 		ac.objectStore.Delete(key)
 	}
