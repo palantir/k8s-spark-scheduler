@@ -79,7 +79,7 @@ func (dc *DemandCache) Create(rr *demandapi.Demand) error {
 
 // Delete enqueues a deletion request and removes the object from store
 func (dc *DemandCache) Delete(namespace, name string) {
-	dc.cache.Delete(rr)
+	dc.cache.Delete(namespace, name)
 }
 
 // Get returns the object from the store if it exists

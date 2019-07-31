@@ -84,8 +84,8 @@ func (rrc *ResourceReservationCache) Update(rr *v1beta1.ResourceReservation) err
 }
 
 // Delete enqueues a deletion request and removes the object from store
-func (rrc *ResourceReservationCache) Delete(rr *v1beta1.ResourceReservation) {
-	rrc.cache.Delete(rr)
+func (rrc *ResourceReservationCache) Delete(namespace, name string) {
+	rrc.cache.Delete(namespace, name)
 }
 
 // Get returns the object from the store if it exists
