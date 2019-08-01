@@ -56,7 +56,7 @@ func (s *SparkSchedulerExtender) updatePodStatus(ctx context.Context, pod *v1.Po
 }
 
 func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources) {
-	if !s.demandCRDInitialized.Load() {
+	if !s.demands.IsLoaded() {
 		return
 	}
 	units := []demandapi.DemandUnit{
@@ -70,7 +70,7 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 }
 
 func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context, driverPod *v1.Pod, applicationResources *sparkApplicationResources) {
-	if !s.demandCRDInitialized.Load() {
+	if !s.demands.IsLoaded() {
 		return
 	}
 	s.createDemand(ctx, driverPod, demandResources(applicationResources))
@@ -109,25 +109,12 @@ func (s *SparkSchedulerExtender) doCreateDemand(ctx context.Context, newDemand *
 
 // removeDemandIfExists removes a demand object if it exists. Returns whether or not the demand was removed.
 func (s *SparkSchedulerExtender) removeDemandIfExists(ctx context.Context, pod *v1.Pod) {
-	if !s.demandCRDInitialized.Load() {
+	if !s.demands.IsLoaded() {
 		return
 	}
 	demandName := demandResourceName(pod)
 	s.demands.Delete(pod.Namespace, demandName)
 	svc1log.FromContext(ctx).Info("Removed demand object because capacity exists for pod", svc1log.SafeParams(internal.DemandSafeParams(demandName, pod.Namespace)))
-}
-
-func (s *SparkSchedulerExtender) checkDemandCRDExists(ctx context.Context) bool {
-	_, ready, err := checkCRDExists(demandapi.DemandCustomResourceDefinitionName(), s.apiExtensionsClient)
-	if err != nil {
-		svc1log.FromContext(ctx).Info("failed to determine if demand CRD exists", svc1log.Stacktrace(err))
-		return false
-	}
-	if ready {
-		svc1log.FromContext(ctx).Info("demand CRD has been initialized. Demand resources can now be created")
-		s.demandCRDInitialized.Store(true)
-	}
-	return ready
 }
 
 func newDemand(pod *v1.Pod, units []demandapi.DemandUnit) (*demandapi.Demand, error) {

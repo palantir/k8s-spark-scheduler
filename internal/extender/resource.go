@@ -17,7 +17,6 @@ package extender
 import (
 	"context"
 	"sort"
-	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/logging"
@@ -27,8 +26,6 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
-	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/labels"
@@ -57,10 +54,8 @@ type SparkSchedulerExtender struct {
 	resourceReservations *cache.ResourceReservationCache
 	coreClient           corev1.CoreV1Interface
 
-	demands             *cache.DemandCache
+	demands             *cache.SafeDemandCache
 	apiExtensionsClient apiextensionsclientset.Interface
-
-	demandCRDInitialized atomic.Bool
 
 	isFIFO           bool
 	binpacker        *Binpacker
@@ -73,7 +68,7 @@ func NewExtender(
 	podLister *SparkPodLister,
 	resourceReservations *cache.ResourceReservationCache,
 	coreClient corev1.CoreV1Interface,
-	demands *cache.DemandCache,
+	demands *cache.SafeDemandCache,
 	apiExtensionsClient apiextensionsclientset.Interface,
 	isFIFO bool,
 	binpacker *Binpacker,
@@ -88,32 +83,6 @@ func NewExtender(
 		isFIFO:               isFIFO,
 		binpacker:            binpacker,
 		overheadComputer:     overheadComputer,
-	}
-}
-
-// Start is responsible for starting background tasks for the SparkSchedulerExtender
-func (s *SparkSchedulerExtender) Start(ctx context.Context) {
-	if s.checkDemandCRDExists(ctx) {
-		return
-	}
-
-	go func() {
-		_ = wapp.RunWithFatalLogging(ctx, s.doStart)
-	}()
-}
-
-func (s *SparkSchedulerExtender) doStart(ctx context.Context) error {
-	t := time.NewTicker(time.Minute)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-t.C:
-			if s.checkDemandCRDExists(ctx) {
-				return nil
-			}
-		}
 	}
 }
 

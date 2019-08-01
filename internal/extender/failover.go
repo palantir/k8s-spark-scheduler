@@ -41,7 +41,7 @@ func SyncResourceReservationsAndDemands(
 	podLister corelisters.PodLister,
 	nodeLister corelisters.NodeLister,
 	resourceReservations *cache.ResourceReservationCache,
-	demands *cache.DemandCache,
+	demands *cache.SafeDemandCache,
 	overheadComputer *OverheadComputer) error {
 	pods, err := podLister.List(labels.Everything())
 	if err != nil {
@@ -76,7 +76,7 @@ type sparkPods struct {
 type reconciliator struct {
 	podLister            corelisters.PodLister
 	resourceReservations *cache.ResourceReservationCache
-	demands              *cache.DemandCache
+	demands              *cache.SafeDemandCache
 	availableResources   map[string]resources.NodeGroupResources
 	orderedNodes         map[string][]*v1.Node
 }

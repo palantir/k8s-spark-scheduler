@@ -22,6 +22,7 @@ import (
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
+	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -84,7 +85,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		svc1log.FromContext(ctx).Error("Error building api extensions clientset: %s", svc1log.Stacktrace(err))
 		return nil, err
 	}
-	err = extender.EnsureResourceReservationsCRD(apiExtensionsClient, install.ResourceReservationCRDAnnotations)
+	err = crd.EnsureResourceReservationsCRD(apiExtensionsClient, install.ResourceReservationCRDAnnotations)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error ensuring resource reservations CRD exists: %s", svc1log.Stacktrace(err))
 		return nil, err
@@ -96,7 +97,6 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	nodeInformer := kubeInformerFactory.Core().V1().Nodes()
 	podInformer := kubeInformerFactory.Core().V1().Pods()
 	resourceReservationInformerBeta := sparkSchedulerInformerFactory.Sparkscheduler().V1beta1().ResourceReservations()
-	demandInformer := sparkSchedulerInformerFactory.Scaler().V1alpha1().Demands()
 
 	go func() {
 		_ = wapp.RunWithFatalLogging(ctx, func(ctx context.Context) error {
@@ -116,8 +116,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		ctx.Done(),
 		nodeInformer.Informer().HasSynced,
 		podInformer.Informer().HasSynced,
-		resourceReservationInformerBeta.Informer().HasSynced,
-		demandInformer.Informer().HasSynced); !ok {
+		resourceReservationInformerBeta.Informer().HasSynced); !ok {
 		svc1log.FromContext(ctx).Error("Error waiting for cache to sync")
 		return nil, nil
 	}
@@ -132,8 +131,9 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		return nil, err
 	}
 
-	demandCache, err := cache.NewDemandCache(
-		demandInformer,
+	demandCache := cache.NewSafeDemandCache(
+		sparkSchedulerInformerFactory,
+		apiExtensionsClient,
 		sparkSchedulerClient.ScalerV1alpha1(),
 	)
 
@@ -180,7 +180,6 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	resourceReservationCache.Run(ctx)
 	demandCache.Run(ctx)
-	sparkSchedulerExtender.Start(ctx)
 	err = extender.SyncResourceReservationsAndDemands(
 		ctx,
 		podInformer.Lister(),
