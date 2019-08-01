@@ -16,6 +16,7 @@ package internal
 
 import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -32,6 +33,14 @@ func DemandSafeParams(demandName string, demandNamespace string) map[string]inte
 	return map[string]interface{}{
 		"demandName":      demandName,
 		"demandNamespace": demandNamespace,
+	}
+}
+
+// ResourceReservationSafeParamsFromObj gets the safe params for a resource reservation object
+func ResourceReservationSafeParamsFromObj(rr *v1beta1.ResourceReservation) map[string]interface{} {
+	return map[string]interface{}{
+		"resourceReservationName":      rr.Name,
+		"resourceReservationNamespace": rr.Namespace,
 	}
 }
 

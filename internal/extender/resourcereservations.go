@@ -122,7 +122,7 @@ func newResourceReservation(driverNode string, executorNodes []string, driver *v
 		Memory: driverResources.Memory,
 	}
 	for idx, nodeName := range executorNodes {
-		reservations[fmt.Sprintf("executor-%d", idx+1)] = v1beta1.Reservation{
+		reservations[executorReservationName(idx)] = v1beta1.Reservation{
 			Node:   nodeName,
 			CPU:    executorResources.CPU,
 			Memory: executorResources.Memory,
@@ -144,4 +144,8 @@ func newResourceReservation(driverNode string, executorNodes []string, driver *v
 			Pods: map[string]string{"driver": driver.Name},
 		},
 	}
+}
+
+func executorReservationName(i int) string {
+	return fmt.Sprintf("executor-%d", i+1)
 }

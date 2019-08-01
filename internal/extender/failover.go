@@ -16,11 +16,13 @@ package extender
 
 import (
 	"context"
+	"sort"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -41,7 +43,6 @@ func SyncResourceReservationsAndDemands(
 	resourceReservations *cache.ResourceReservationCache,
 	demands *cache.DemandCache,
 	overheadComputer *OverheadComputer) error {
-
 	pods, err := podLister.List(labels.Everything())
 	if err != nil {
 		return err
@@ -51,23 +52,15 @@ func SyncResourceReservationsAndDemands(
 		return err
 	}
 	rrs := resourceReservations.List()
-	availableResources := availableResourcesPerInstanceGroup(ctx, rrs, nodes, overheadComputer.GetOverhead(ctx, nodes))
-	staleSparkPods := sparkPodsByAppID(ctx, rrs, pods, nodeLister)
+	availableResources, orderedNodes := availableResourcesPerInstanceGroup(ctx, rrs, nodes, overheadComputer.GetOverhead(ctx, nodes))
+	staleSparkPods := sparkPodsByAppID(ctx, rrs, pods)
 
+	r := &reconciliator{podLister, resourceReservations, demands, availableResources, orderedNodes}
 	for _, sp := range staleSparkPods {
-		if sp.rr != nil {
-			// resource reservation was created, but does not have all executors in its status
-			patchedRR := syncResourceReservation(ctx, sp, podLister)
-			resourceReservations.Update(patchedRR)
-		} else {
-			newRR, newAvailableResources := createResourceReservation(sp, availableResources[sp.instanceGroup])
-			availableResources[sp.instanceGroup] = newAvailableResources
-			// resource reservation was never created, need to re-binpack executors
-			resourceReservations.Create(newRR)
-		}
-		// TODO: delete demands if they exist
+		r.syncResourceReservation(ctx, sp)
+		r.syncDemand(ctx, sp)
 	}
-	// recompute overhead to accommodate for newly created resource reservations
+	// recompute overhead to account for newly created resource reservations
 	overheadComputer.compute(ctx)
 	return nil
 }
@@ -76,22 +69,78 @@ func SyncResourceReservationsAndDemands(
 // pods from a spark application that do not have a claimed resource reservation,
 // and the last known state of the resource reservation object
 type sparkPods struct {
-	driver        *v1.Pod
-	executors     []*v1.Pod
-	rr            *v1beta1.ResourceReservation
-	instanceGroup string
+	driver    *v1.Pod
+	executors []*v1.Pod
+}
+
+type reconciliator struct {
+	podLister            corelisters.PodLister
+	resourceReservations *cache.ResourceReservationCache
+	demands              *cache.DemandCache
+	availableResources   map[string]resources.NodeGroupResources
+	orderedNodes         map[string][]*v1.Node
+}
+
+func (r *reconciliator) syncResourceReservation(ctx context.Context, sp *sparkPods) {
+	// if the driver is nil it already has an associated reservation, get the resource
+	// reservation object and update it so it has reservations for each stale executor
+	if sp.driver == nil && len(sp.executors) > 0 {
+		exec := sp.executors[0]
+		rr, ok := r.resourceReservations.Get(exec.Namespace, exec.Labels[SparkAppIDLabel])
+		if !ok {
+			logRR(ctx, "resource reservation deleted, ignoring", exec.Namespace, exec.Labels[SparkAppIDLabel])
+			return
+		}
+		err := r.patchResourceReservation(sp.executors, rr.DeepCopy())
+		if err != nil {
+			logRR(ctx, "resource reservation deleted, ignoring", exec.Namespace, exec.Labels[SparkAppIDLabel])
+			return
+		}
+	} else if sp.driver != nil {
+		// the driver is stale, a new resource reservation object needs to be created
+		instanceGroup := sp.driver.Spec.NodeSelector[instanceGroupNodeSelector]
+		newRR, reservedResources, err := r.constructResourceReservation(ctx, sp.driver, sp.executors, instanceGroup)
+		if err != nil {
+			svc1log.FromContext(ctx).Error("failed to construct resource reservation", svc1log.Stacktrace(err))
+			return
+		}
+		err = r.resourceReservations.Create(newRR)
+		if err != nil {
+			logRR(ctx, "resource reservation already exists, force updating", sp.driver.Namespace, sp.driver.Labels[SparkAppIDLabel])
+			updateErr := r.resourceReservations.Update(newRR)
+			if updateErr != nil {
+				logRR(ctx, "resource reservation deleted, ignoring", sp.driver.Namespace, sp.driver.Labels[SparkAppIDLabel])
+				return
+			}
+		}
+		r.availableResources[instanceGroup].Sub(reservedResources)
+	}
+}
+
+func (r *reconciliator) syncDemand(ctx context.Context, sp *sparkPods) {
+	// TODO check if demand crd exists
+	if sp.driver != nil {
+		r.deleteDemandIfExists(sp.driver.Namespace, demandResourceName(sp.driver))
+	}
+	for _, e := range sp.executors {
+		r.deleteDemandIfExists(e.Namespace, demandResourceName(e))
+	}
+}
+
+func (r *reconciliator) deleteDemandIfExists(namespace, name string) {
+	_, ok := r.demands.Get(namespace, name)
+	if ok {
+		r.demands.Delete(namespace, name)
+	}
 }
 
 func sparkPodsByAppID(
 	ctx context.Context,
 	rrs []*v1beta1.ResourceReservation,
 	pods []*v1.Pod,
-	nodeLister corelisters.NodeLister,
 ) map[string]*sparkPods {
 	podsWithRRs := make(map[string]bool, len(rrs))
-	appIDToRR := make(map[string]*v1beta1.ResourceReservation)
 	for _, rr := range rrs {
-		appIDToRR[rr.Labels[v1beta1.AppIDLabel]] = rr
 		for _, podName := range rr.Status.Pods {
 			podsWithRRs[podName] = true
 		}
@@ -107,19 +156,9 @@ func sparkPodsByAppID(
 			continue
 		}
 		appID := pod.Labels[SparkAppIDLabel]
-		node, err := nodeLister.Get(pod.Spec.NodeName)
-		if err != nil {
-			svc1log.FromContext(ctx).Warn("node does not exist in cache",
-				svc1log.SafeParam("nodeName", pod.Spec.NodeName),
-				svc1log.SafeParams(internal.PodSafeParams(*pod)))
-			continue
-		}
 		sp, ok := appIDToPods[appID]
 		if !ok {
-			sp = &sparkPods{
-				rr:            appIDToRR[appID],
-				instanceGroup: node.Labels[instanceGroupNodeSelector],
-			}
+			sp = &sparkPods{}
 		}
 		switch pod.Labels[SparkRoleLabel] {
 		case Driver:
@@ -138,7 +177,11 @@ func availableResourcesPerInstanceGroup(
 	ctx context.Context,
 	rrs []*v1beta1.ResourceReservation,
 	nodes []*v1.Node,
-	overhead resources.NodeGroupResources) map[string]resources.NodeGroupResources {
+	overhead resources.NodeGroupResources) (map[string]resources.NodeGroupResources, map[string][]*v1.Node) {
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[j].CreationTimestamp.Before(&nodes[i].CreationTimestamp)
+	})
+
 	schedulableNodes := make(map[string][]*v1.Node)
 	for _, n := range nodes {
 		if n.Spec.Unschedulable {
@@ -153,38 +196,101 @@ func availableResourcesPerInstanceGroup(
 	for instanceGroup, ns := range schedulableNodes {
 		availableResources[instanceGroup] = resources.AvailableForNodes(ns, usages)
 	}
-	return availableResources
+	return availableResources, schedulableNodes
 }
 
-// syncResourceReservation gets a stale resource reservation and updates its status to reflect all pods in the given sparkPods object
-func syncResourceReservation(ctx context.Context, sparkPods *sparkPods, podLister corelisters.PodLister) *v1beta1.ResourceReservation {
-	if sparkPods.driver != nil {
-		svc1log.FromContext(ctx).Error("resource reservation does not have a driver entry",
-			svc1log.SafeParams(internal.PodSafeParams(*sparkPods.driver)))
-		sparkPods.rr.Status.Pods["driver"] = sparkPods.driver.Name
-	}
-	for _, e := range sparkPods.executors {
-		for name, r := range sparkPods.rr.Spec.Reservations {
-			if r.Node != e.Spec.NodeName {
+// syncResourceReservation gets a stale resource reservation and updates its status to reflect all given executors
+func (r *reconciliator) patchResourceReservation(execs []*v1.Pod, rr *v1beta1.ResourceReservation) error {
+	for _, e := range execs {
+		for name, reservation := range rr.Spec.Reservations {
+			if reservation.Node != e.Spec.NodeName {
 				continue
 			}
-			currentPodName, ok := sparkPods.rr.Status.Pods[name]
+			currentPodName, ok := rr.Status.Pods[name]
 			if !ok {
-				sparkPods.rr.Status.Pods[name] = e.Name
+				rr.Status.Pods[name] = e.Name
 				break
 			}
-			pod, err := podLister.Pods(e.Namespace).Get(currentPodName)
+			pod, err := r.podLister.Pods(e.Namespace).Get(currentPodName)
 			if errors.IsNotFound(err) || (err == nil && isPodTerminated(pod)) {
-				sparkPods.rr.Status.Pods[name] = e.Name
+				rr.Status.Pods[name] = e.Name
 				break
 			}
 		}
 	}
-	return sparkPods.rr
+	return r.resourceReservations.Update(rr)
 }
 
-func createResourceReservation(
-	sparkPods *sparkPods,
-	availableResources resources.NodeGroupResources) (*v1beta1.ResourceReservation, resources.NodeGroupResources) {
-	return nil, nil
+func (r *reconciliator) constructResourceReservation(
+	ctx context.Context,
+	driver *v1.Pod,
+	executors []*v1.Pod,
+	instanceGroup string) (*v1beta1.ResourceReservation, resources.NodeGroupResources, error) {
+	applicationResources, err := sparkResources(ctx, driver)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	nodes, nodesFound := r.orderedNodes[instanceGroup]
+	availableResources, resourcesFound := r.availableResources[instanceGroup]
+	if !nodesFound || !resourcesFound {
+		return nil, nil, werror.Error("instance group not found", werror.SafeParam("instanceGroup", instanceGroup))
+	}
+
+	executorCountToReserve := applicationResources.executorCount - len(executors)
+	reservedNodeNames, reservedResources := findNodes(executorCountToReserve, applicationResources.executorResources, availableResources, nodes)
+	if len(reservedNodeNames) < executorCountToReserve {
+		svc1log.FromContext(ctx).Error("could not reserve space for all executors",
+			svc1log.SafeParams(internal.PodSafeParams(*driver)))
+	}
+	executorNodes := make([]string, 0, applicationResources.executorCount)
+	for _, e := range executors {
+		executorNodes = append(executorNodes, e.Spec.NodeName)
+	}
+	executorNodes = append(executorNodes, reservedNodeNames...)
+	rr := newResourceReservation(
+		driver.Spec.NodeName,
+		executorNodes,
+		driver,
+		applicationResources.driverResources,
+		applicationResources.executorResources)
+	for i, e := range executors {
+		rr.Status.Pods[executorReservationName(i)] = e.Name
+	}
+	return rr, reservedResources, nil
+}
+
+// findNodes reserves space for n executors, picks nodes by the iterating
+// through nodes with the given order.
+// TODO: replace this with the binpack function once it can return partial results
+func findNodes(
+	executorCount int,
+	executorResources *resources.Resources,
+	availableResources resources.NodeGroupResources,
+	orderedNodes []*v1.Node,
+) ([]string, resources.NodeGroupResources) {
+	executorNodeNames := make([]string, 0, executorCount)
+	reserved := resources.NodeGroupResources{}
+	for _, n := range orderedNodes {
+		if reserved[n.Name] == nil {
+			reserved[n.Name] = resources.Zero()
+		}
+		for {
+			reserved[n.Name].Add(executorResources)
+			if reserved[n.Name].GreaterThan(availableResources[n.Name]) {
+				break
+			}
+			executorNodeNames = append(executorNodeNames, n.Name)
+			if len(executorNodeNames) == executorCount {
+				return executorNodeNames, reserved
+			}
+		}
+	}
+	return executorNodeNames, reserved
+}
+
+func logRR(ctx context.Context, msg, name, namespace string) {
+	svc1log.FromContext(ctx).Error(msg,
+		svc1log.SafeParam("resourceReservationNamespace", namespace),
+		svc1log.SafeParam("resourceReservationName", name))
 }
