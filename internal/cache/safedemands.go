@@ -151,8 +151,8 @@ func (sdc *SafeDemandCache) Get(namespace, name string) (*demandapi.Demand, bool
 	return sdc.DemandCache.Get(namespace, name)
 }
 
-// CachedElements returns the number of elements in the cache
-func (sdc *SafeDemandCache) CachedElements() int {
+// CacheSize returns the number of elements in the cache
+func (sdc *SafeDemandCache) CacheSize() int {
 	return len(sdc.cache.List())
 }
 

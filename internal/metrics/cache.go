@@ -80,7 +80,7 @@ func (c *CacheMetrics) doStart(ctx context.Context) error {
 				continue
 			}
 			demandsInflight := c.demands.InflightRequestCount()
-			demandsCached := c.demands.CachedElements()
+			demandsCached := c.demands.CacheSize()
 			metrics.FromContext(ctx).Gauge(cachedObjectCount, demandTag, cacheTag).Update(int64(demandsCached))
 			metrics.FromContext(ctx).Gauge(inflightRequestCount, demandTag).Update(int64(demandsInflight))
 		}
