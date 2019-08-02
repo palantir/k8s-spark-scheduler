@@ -20,21 +20,15 @@ import (
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
-	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
-	sparkschedulerclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1"
-	sparkschedulerlisters "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/listers/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/logging"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
+	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
-	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
@@ -50,77 +44,51 @@ const (
 	success              = "success"
 	successRescheduled   = "success-rescheduled"
 	successAlreadyBound  = "success-already-bound"
+	// TODO: make this configurable
+	// leaderElectionInterval is the default LeaseDuration for core clients.
+	// obtained from k8s.io/component-base/config/v1alpha1
+	leaderElectionInterval = 15 * time.Second
 )
 
 // SparkSchedulerExtender is a kubernetes scheduler extended responsible for ensuring
 // a spark driver and all of the executors can be scheduled together given current
 // resources available across the nodes
 type SparkSchedulerExtender struct {
-	nodeLister                corelisters.NodeLister
-	podLister                 *SparkPodLister
-	resourceReservationLister sparkschedulerlisters.ResourceReservationLister
-	resourceReservationClient sparkschedulerclient.SparkschedulerV1beta1Interface
-	coreClient                corev1.CoreV1Interface
+	nodeLister           corelisters.NodeLister
+	podLister            *SparkPodLister
+	resourceReservations *cache.ResourceReservationCache
+	coreClient           corev1.CoreV1Interface
 
-	demandClient        demandclient.ScalerV1alpha1Interface
+	demands             *cache.SafeDemandCache
 	apiExtensionsClient apiextensionsclientset.Interface
-
-	demandCRDInitialized atomic.Bool
 
 	isFIFO           bool
 	binpacker        *Binpacker
 	overheadComputer *OverheadComputer
+	lastRequest      time.Time
 }
 
 // NewExtender is responsible for creating and initializing a SparkSchedulerExtender
 func NewExtender(
 	nodeLister corelisters.NodeLister,
 	podLister *SparkPodLister,
-	resourceReservationLister sparkschedulerlisters.ResourceReservationLister,
-	resourceReservationClient sparkschedulerclient.SparkschedulerV1beta1Interface,
+	resourceReservations *cache.ResourceReservationCache,
 	coreClient corev1.CoreV1Interface,
-	demandClient demandclient.ScalerV1alpha1Interface,
+	demands *cache.SafeDemandCache,
 	apiExtensionsClient apiextensionsclientset.Interface,
 	isFIFO bool,
 	binpacker *Binpacker,
 	overheadComputer *OverheadComputer) *SparkSchedulerExtender {
 	return &SparkSchedulerExtender{
-		nodeLister:                nodeLister,
-		podLister:                 podLister,
-		resourceReservationLister: resourceReservationLister,
-		resourceReservationClient: resourceReservationClient,
-		coreClient:                coreClient,
-		demandClient:              demandClient,
-		apiExtensionsClient:       apiExtensionsClient,
-		isFIFO:                    isFIFO,
-		binpacker:                 binpacker,
-		overheadComputer:          overheadComputer,
-	}
-}
-
-// Start is responsible for starting background tasks for the SparkSchedulerExtender
-func (s *SparkSchedulerExtender) Start(ctx context.Context) {
-	if s.checkDemandCRDExists(ctx) {
-		return
-	}
-
-	go func() {
-		_ = wapp.RunWithFatalLogging(ctx, s.doStart)
-	}()
-}
-
-func (s *SparkSchedulerExtender) doStart(ctx context.Context) error {
-	t := time.NewTicker(time.Minute)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-t.C:
-			if s.checkDemandCRDExists(ctx) {
-				return nil
-			}
-		}
+		nodeLister:           nodeLister,
+		podLister:            podLister,
+		resourceReservations: resourceReservations,
+		coreClient:           coreClient,
+		demands:              demands,
+		apiExtensionsClient:  apiExtensionsClient,
+		isFIFO:               isFIFO,
+		binpacker:            binpacker,
+		overheadComputer:     overheadComputer,
 	}
 }
 
@@ -136,6 +104,14 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 
 	timer := metrics.NewScheduleTimer(ctx, &args.Pod)
 	logger.Info("starting scheduling pod")
+
+	err := s.reconcileIfNeeded(ctx, timer)
+	if err != nil {
+		msg := "failed to reconcile"
+		logger.Error(msg, svc1log.Stacktrace(err))
+		return failWithMessage(ctx, args, msg)
+	}
+
 	nodeName, outcome, err := s.selectNode(ctx, args.Pod.Labels[SparkRoleLabel], &args.Pod, *args.NodeNames)
 	timer.Mark(ctx, role, outcome)
 	if err != nil {
@@ -156,6 +132,19 @@ func failWithMessage(ctx context.Context, args schedulerapi.ExtenderArgs, messag
 		failedNodes[name] = message
 	}
 	return &schedulerapi.ExtenderFilterResult{FailedNodes: failedNodes}
+}
+
+func (s *SparkSchedulerExtender) reconcileIfNeeded(ctx context.Context, timer *metrics.ScheduleTimer) error {
+	now := time.Now()
+	if s.lastRequest.Add(leaderElectionInterval).After(now) {
+		err := s.syncResourceReservationsAndDemands(ctx)
+		if err != nil {
+			return err
+		}
+		timer.MarkReconciliationFinished(ctx)
+	}
+	s.lastRequest = now
+	return nil
 }
 
 func (s *SparkSchedulerExtender) selectNode(ctx context.Context, role string, pod *v1.Pod, nodeNames []string) (string, string, error) {
@@ -282,9 +271,9 @@ func (s *SparkSchedulerExtender) potentialNodes(availableNodes []*v1.Node, drive
 }
 
 func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executor *v1.Pod, nodeNames []string) (string, string, error) {
-	resourceReservation, err := s.resourceReservationLister.ResourceReservations(executor.Namespace).Get(executor.Labels[SparkAppIDLabel])
-	if err != nil {
-		return "", failureInternal, werror.Wrap(err, "failed to get resource reservations")
+	resourceReservation, ok := s.resourceReservations.Get(executor.Namespace, executor.Labels[SparkAppIDLabel])
+	if !ok {
+		return "", failureInternal, werror.Error("failed to get resource reservations")
 	}
 	unboundReservations, outcome, err := s.findUnboundReservations(ctx, executor, resourceReservation)
 	if err != nil {
@@ -320,15 +309,9 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	}
 
 	copyResourceReservation.Status.Pods[unboundReservation] = executor.Name
-	_, err = s.resourceReservationClient.ResourceReservations(copyResourceReservation.Namespace).Update(copyResourceReservation)
+	err = s.resourceReservations.Update(copyResourceReservation)
 	if err != nil {
-		_, createErr := s.resourceReservationClient.ResourceReservations(copyResourceReservation.Namespace).Create(copyResourceReservation)
-		if createErr != nil {
-			if errors.IsAlreadyExists(createErr) {
-				return "", failureInternal, werror.Wrap(err, "failed to update resource reservation")
-			}
-			return "", failureInternal, werror.Wrap(createErr, "failed to create v1beta1 resource reservation")
-		}
+		return "", failureInternal, werror.Wrap(err, "failed to update resource reservation")
 	}
 	go s.removeDemandIfExists(ctx, executor)
 	return copyResourceReservation.Spec.Reservations[unboundReservation].Node, outcome, err
@@ -349,11 +332,7 @@ func (s *SparkSchedulerExtender) getNodes(ctx context.Context, nodeNames []strin
 }
 
 func (s *SparkSchedulerExtender) usedResources(nodeNames []string) (resources.NodeGroupResources, error) {
-	// TODO: add instancegroup tag after migration
-	resourceReservations, err := s.resourceReservationLister.List(labels.Everything())
-	if err != nil {
-		return nil, werror.Wrap(err, "Failed to list resource resevations")
-	}
+	resourceReservations := s.resourceReservations.List()
 	return resources.UsageForNodes(resourceReservations), nil
 }
 
@@ -365,14 +344,11 @@ func (s *SparkSchedulerExtender) createResourceReservations(
 	executorNodes []string) (string, string, error) {
 	logger := svc1log.FromContext(ctx)
 	rr := newResourceReservation(driverNode, executorNodes, driver, applicationResources.driverResources, applicationResources.executorResources)
-	_, err := s.resourceReservationClient.ResourceReservations(driver.Namespace).Create(rr)
+	err := s.resourceReservations.Create(rr)
 	if err != nil {
-		if !errors.IsAlreadyExists(err) {
-			return "", failureInternal, werror.Wrap(err, "failed to create driver resource reservation")
-		}
-		existingRR, getErr := s.resourceReservationClient.ResourceReservations(driver.Namespace).Get(rr.Name, metav1.GetOptions{})
-		if getErr != nil {
-			return "", failureInternal, werror.Wrap(getErr, "failed to get existing resource reservation")
+		existingRR, ok := s.resourceReservations.Get(rr.Namespace, rr.Name)
+		if !ok {
+			return "", failureInternal, werror.Error("failed to get existing resource reservation")
 		}
 		return existingRR.Spec.Reservations["driver"].Node, success, nil
 	}
@@ -451,9 +427,4 @@ func isPodTerminated(pod *v1.Pod) bool {
 		allTerminated = allTerminated && status.State.Terminated != nil
 	}
 	return allTerminated
-}
-
-func (s *SparkSchedulerExtender) deleteResourceReservation(namespace, name string) error {
-	background := metav1.DeletePropagationBackground
-	return s.resourceReservationClient.ResourceReservations(namespace).Delete(name, &metav1.DeleteOptions{PropagationPolicy: &background})
 }

@@ -20,8 +20,8 @@ import (
 	"sync"
 	"time"
 
-	sparkschedulerlisters "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/listers/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	v1 "k8s.io/api/core/v1"
@@ -37,11 +37,11 @@ var (
 
 // OverheadComputer computes non spark scheduler managed pods total resources periodically
 type OverheadComputer struct {
-	podLister                 corelisters.PodLister
-	resourceReservationLister sparkschedulerlisters.ResourceReservationLister
-	nodeLister                corelisters.NodeLister
-	latestOverhead            Overhead
-	overheadLock              *sync.RWMutex
+	podLister            corelisters.PodLister
+	resourceReservations *cache.ResourceReservationCache
+	nodeLister           corelisters.NodeLister
+	latestOverhead       Overhead
+	overheadLock         *sync.RWMutex
 }
 
 // Overhead represents the overall overhead in the cluster, indexed by instance groups
@@ -57,13 +57,13 @@ type InstanceGroupOverhead struct {
 func NewOverheadComputer(
 	ctx context.Context,
 	podLister corelisters.PodLister,
-	resourceReservationLister sparkschedulerlisters.ResourceReservationLister,
+	resourceReservations *cache.ResourceReservationCache,
 	nodeLister corelisters.NodeLister) *OverheadComputer {
 	computer := &OverheadComputer{
-		podLister:                 podLister,
-		resourceReservationLister: resourceReservationLister,
-		nodeLister:                nodeLister,
-		overheadLock:              &sync.RWMutex{},
+		podLister:            podLister,
+		resourceReservations: resourceReservations,
+		nodeLister:           nodeLister,
+		overheadLock:         &sync.RWMutex{},
 	}
 	computer.compute(ctx)
 	return computer
@@ -92,11 +92,7 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 		svc1log.FromContext(ctx).Error("failed to list pods", svc1log.Stacktrace(err))
 		return
 	}
-	rrs, err := o.resourceReservationLister.List(labels.Everything())
-	if err != nil {
-		svc1log.FromContext(ctx).Error("failed to list resource reservations", svc1log.Stacktrace(err))
-		return
-	}
+	rrs := o.resourceReservations.List()
 	podsWithRRs := make(map[string]bool, len(rrs))
 	for _, rr := range rrs {
 		for _, podName := range rr.Status.Pods {
@@ -181,7 +177,7 @@ func (o OverheadComputer) GetOverhead(ctx context.Context, nodes []*v1.Node) res
 		instanceGroup := n.Labels[instanceGroupNodeSelector]
 		instanceGroupOverhead := o.latestOverhead[instanceGroup]
 		if instanceGroupOverhead == nil {
-			svc1log.FromContext(ctx).Warn("overhead for instance group does not exists", svc1log.SafeParam("instanceGroup", instanceGroup))
+			svc1log.FromContext(ctx).Warn("overhead for instance group does not exist", svc1log.SafeParam("instanceGroup", instanceGroup))
 			continue
 		}
 		if nodeOverhead, ok := instanceGroupOverhead.overhead[n.Name]; ok {
