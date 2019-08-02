@@ -21,6 +21,8 @@ import (
 	clientset "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler/config"
+	"github.com/palantir/k8s-spark-scheduler/internal/cache"
+	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -31,7 +33,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
+	clientcache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -83,7 +85,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		svc1log.FromContext(ctx).Error("Error building api extensions clientset: %s", svc1log.Stacktrace(err))
 		return nil, err
 	}
-	err = extender.EnsureResourceReservationsCRD(apiExtensionsClient, install.ResourceReservationCRDAnnotations)
+	err = crd.EnsureResourceReservationsCRD(apiExtensionsClient, install.ResourceReservationCRDAnnotations)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error ensuring resource reservations CRD exists: %s", svc1log.Stacktrace(err))
 		return nil, err
@@ -110,7 +112,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		})
 	}()
 
-	if ok := cache.WaitForCacheSync(
+	if ok := clientcache.WaitForCacheSync(
 		ctx.Done(),
 		nodeInformer.Informer().HasSynced,
 		podInformer.Informer().HasSynced,
@@ -119,10 +121,31 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		return nil, nil
 	}
 
+	resourceReservationCache, err := cache.NewResourceReservationCache(
+		resourceReservationInformerBeta,
+		sparkSchedulerClient.SparkschedulerV1beta1(),
+	)
+
+	if err != nil {
+		svc1log.FromContext(ctx).Error("Error constructing resource reservation cache", svc1log.Stacktrace(err))
+		return nil, err
+	}
+
+	demandCache := cache.NewSafeDemandCache(
+		sparkSchedulerInformerFactory,
+		apiExtensionsClient,
+		sparkSchedulerClient.ScalerV1alpha1(),
+	)
+
+	if err != nil {
+		svc1log.FromContext(ctx).Error("Error constructing demand cache", svc1log.Stacktrace(err))
+		return nil, err
+	}
+
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,
 		podInformer.Lister(),
-		resourceReservationInformerBeta.Lister(),
+		resourceReservationCache,
 		nodeInformer.Lister(),
 	)
 
@@ -131,10 +154,9 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeInformer.Lister(),
 		extender.NewSparkPodLister(podInformer.Lister()),
-		resourceReservationInformerBeta.Lister(),
-		sparkSchedulerClient.SparkschedulerV1beta1(),
+		resourceReservationCache,
 		kubeClient.CoreV1(),
-		sparkSchedulerClient.ScalerV1alpha1(),
+		demandCache,
 		apiExtensionsClient,
 		install.FIFO,
 		binpacker,
@@ -143,7 +165,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	resourceReporter := metrics.NewResourceReporter(
 		nodeInformer.Lister(),
-		resourceReservationInformerBeta.Lister(),
+		resourceReservationCache,
 	)
 
 	queueReporter := metrics.NewQueueReporter(podInformer.Lister())
@@ -156,7 +178,20 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		binpacker,
 	)
 
-	sparkSchedulerExtender.Start(ctx)
+	resourceReservationCache.Run(ctx)
+	demandCache.Run(ctx)
+	err = extender.SyncResourceReservationsAndDemands(
+		ctx,
+		podInformer.Lister(),
+		nodeInformer.Lister(),
+		resourceReservationCache,
+		demandCache,
+		overheadComputer,
+	)
+	if err != nil {
+		svc1log.FromContext(ctx).Error("error syncing resource reservations and demands", svc1log.Stacktrace(err))
+		return nil, err
+	}
 	go resourceReporter.StartReportingResourceUsage(ctx)
 	go queueReporter.StartReportingQueues(ctx)
 	go overheadComputer.Start(ctx)
