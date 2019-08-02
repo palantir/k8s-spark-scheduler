@@ -104,6 +104,12 @@ func (rrc *ResourceReservationCache) List() []*v1beta1.ResourceReservation {
 	return res
 }
 
+// InflightRequestCount returns the number of queued requests that the cache
+// already reflects, but that are not in the api server yet
+func (rrc *ResourceReservationCache) InflightRequestCount() int {
+	return rrc.cache.queue.Size()
+}
+
 type resourceReservationClient struct {
 	sparkschedulerclient.SparkschedulerV1beta1Interface
 }

@@ -40,6 +40,8 @@ const (
 	totalTraffic             = "foundry.spark.scheduler.total.traffic"
 	requestLatency           = "foundry.spark.scheduler.client.request.latency"
 	requestResult            = "foundry.spark.scheduler.client.request.result"
+	cachedObjectCount        = "foundry.spark.scheduler.cache.objects.count"
+	inflightRequestCount     = "foundry.spark.scheduler.cache.inflight.count"
 )
 
 const (
@@ -109,7 +111,7 @@ func VerbTag(ctx context.Context, verb string) metrics.Tag {
 	return tagWithDefault(ctx, verbTagName, verb, "unspecified")
 }
 
-// StatusCodeTag returns a statuc code tag
+// StatusCodeTag returns a status code tag
 func StatusCodeTag(ctx context.Context, statusCode string) metrics.Tag {
 	return tagWithDefault(ctx, statusCodeTagName, statusCode, "unspecified")
 }
