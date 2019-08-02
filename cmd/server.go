@@ -180,18 +180,6 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	resourceReservationCache.Run(ctx)
 	demandCache.Run(ctx)
-	err = extender.SyncResourceReservationsAndDemands(
-		ctx,
-		podInformer.Lister(),
-		nodeInformer.Lister(),
-		resourceReservationCache,
-		demandCache,
-		overheadComputer,
-	)
-	if err != nil {
-		svc1log.FromContext(ctx).Error("error syncing resource reservations and demands", svc1log.Stacktrace(err))
-		return nil, err
-	}
 	go resourceReporter.StartReportingResourceUsage(ctx)
 	go queueReporter.StartReportingQueues(ctx)
 	go overheadComputer.Start(ctx)

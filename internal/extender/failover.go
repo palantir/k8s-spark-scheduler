@@ -36,32 +36,26 @@ import (
 // they now reflect the current state of the world. This is needed on a leader failover,
 // as async writes for resource reservation objects mean some writes will be lost on
 // leader change, so the extender needs to call this before accepting requests.
-func SyncResourceReservationsAndDemands(
-	ctx context.Context,
-	podLister corelisters.PodLister,
-	nodeLister corelisters.NodeLister,
-	resourceReservations *cache.ResourceReservationCache,
-	demands *cache.SafeDemandCache,
-	overheadComputer *OverheadComputer) error {
-	pods, err := podLister.List(labels.Everything())
+func (s *SparkSchedulerExtender) syncResourceReservationsAndDemands(ctx context.Context) error {
+	pods, err := s.podLister.List(labels.Everything())
 	if err != nil {
 		return err
 	}
-	nodes, err := nodeLister.List(labels.Everything())
+	nodes, err := s.nodeLister.List(labels.Everything())
 	if err != nil {
 		return err
 	}
-	rrs := resourceReservations.List()
-	availableResources, orderedNodes := availableResourcesPerInstanceGroup(ctx, rrs, nodes, overheadComputer.GetOverhead(ctx, nodes))
+	rrs := s.resourceReservations.List()
+	availableResources, orderedNodes := availableResourcesPerInstanceGroup(ctx, rrs, nodes, s.overheadComputer.GetOverhead(ctx, nodes))
 	staleSparkPods := unreservedSparkPodsBySparkID(ctx, rrs, pods)
 
-	r := &reconciler{podLister, resourceReservations, demands, availableResources, orderedNodes}
+	r := &reconciler{s.podLister, s.resourceReservations, s.demands, availableResources, orderedNodes}
 	for _, sp := range staleSparkPods {
 		r.syncResourceReservation(ctx, sp)
 		r.syncDemand(ctx, sp)
 	}
 	// recompute overhead to account for newly created resource reservations
-	overheadComputer.compute(ctx)
+	s.overheadComputer.compute(ctx)
 	return nil
 }
 

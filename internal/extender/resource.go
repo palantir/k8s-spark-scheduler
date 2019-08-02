@@ -98,6 +98,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 
 	timer := metrics.NewScheduleTimer(ctx, &args.Pod)
 	logger.Info("starting scheduling pod")
+
 	nodeName, outcome, err := s.selectNode(ctx, args.Pod.Labels[SparkRoleLabel], &args.Pod, *args.NodeNames)
 	timer.Mark(ctx, role, outcome)
 	if err != nil {
