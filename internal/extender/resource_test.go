@@ -17,6 +17,9 @@ package extender
 import (
 	"context"
 	"fmt"
+	"os"
+	"testing"
+
 	ssclientset "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/fake"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	sscache "github.com/palantir/k8s-spark-scheduler/internal/cache"
@@ -31,8 +34,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
-	"os"
-	"testing"
 )
 
 const (
@@ -156,7 +157,7 @@ func terminatePod(t *testing.T, podStore cache.Store, pod v1.Pod) {
 		ExitCode: 1,
 	}
 	pod.Status.ContainerStatuses = []v1.ContainerStatus{
-		v1.ContainerStatus{
+		{
 			State: v1.ContainerState{
 				Terminated: &termination,
 			},
