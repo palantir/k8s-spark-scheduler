@@ -17,6 +17,7 @@ package extender
 import (
 	"context"
 	"sort"
+	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/logging"
@@ -43,6 +44,10 @@ const (
 	success              = "success"
 	successRescheduled   = "success-rescheduled"
 	successAlreadyBound  = "success-already-bound"
+	// TODO: make this configurable
+	// leaderElectionInterval is the default LeaseDuration for core clients.
+	// obtained from k8s.io/component-base/config/v1alpha1
+	leaderElectionInterval = 15 * time.Second
 )
 
 // SparkSchedulerExtender is a kubernetes scheduler extended responsible for ensuring
@@ -60,6 +65,7 @@ type SparkSchedulerExtender struct {
 	isFIFO           bool
 	binpacker        *Binpacker
 	overheadComputer *OverheadComputer
+	lastRequest      time.Time
 }
 
 // NewExtender is responsible for creating and initializing a SparkSchedulerExtender
@@ -98,6 +104,14 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 
 	timer := metrics.NewScheduleTimer(ctx, &args.Pod)
 	logger.Info("starting scheduling pod")
+
+	err := s.reconcileIfNeeded(ctx, timer)
+	if err != nil {
+		msg := "failed to reconcile"
+		logger.Error(msg, svc1log.Stacktrace(err))
+		return failWithMessage(ctx, args, msg)
+	}
+
 	nodeName, outcome, err := s.selectNode(ctx, args.Pod.Labels[SparkRoleLabel], &args.Pod, *args.NodeNames)
 	timer.Mark(ctx, role, outcome)
 	if err != nil {
@@ -118,6 +132,19 @@ func failWithMessage(ctx context.Context, args schedulerapi.ExtenderArgs, messag
 		failedNodes[name] = message
 	}
 	return &schedulerapi.ExtenderFilterResult{FailedNodes: failedNodes}
+}
+
+func (s *SparkSchedulerExtender) reconcileIfNeeded(ctx context.Context, timer *metrics.ScheduleTimer) error {
+	now := time.Now()
+	if s.lastRequest.Add(leaderElectionInterval).After(now) {
+		err := s.syncResourceReservationsAndDemands(ctx)
+		if err != nil {
+			return err
+		}
+		timer.MarkReconciliationFinished(ctx)
+	}
+	s.lastRequest = now
+	return nil
 }
 
 func (s *SparkSchedulerExtender) selectNode(ctx context.Context, role string, pod *v1.Pod, nodeNames []string) (string, string, error) {
