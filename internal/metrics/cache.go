@@ -67,7 +67,7 @@ func (c *CacheMetrics) doStart(ctx context.Context) error {
 		case <-t.C:
 			rrs, err := c.resourceReservationLister.List(labels.Everything())
 			if err != nil {
-				svc1log.FromContext(ctx).Error("failed to list pods", svc1log.Stacktrace(err))
+				svc1log.FromContext(ctx).Error("failed to list resource reservations", svc1log.Stacktrace(err))
 				break
 			}
 			rrsCached := c.resourceReservations.List()
