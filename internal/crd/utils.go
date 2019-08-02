@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
+// CheckCRDExists checks if the given crd exists and is established
 func CheckCRDExists(crdName string, clientset apiextensionsclientset.Interface) (*apiextensionsv1beta1.CustomResourceDefinition, bool, error) {
 	crd, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
 	if err != nil {

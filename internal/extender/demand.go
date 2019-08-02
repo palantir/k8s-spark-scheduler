@@ -56,7 +56,7 @@ func (s *SparkSchedulerExtender) updatePodStatus(ctx context.Context, pod *v1.Po
 }
 
 func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources) {
-	if !s.demands.IsLoaded() {
+	if !s.demands.CRDExists() {
 		return
 	}
 	units := []demandapi.DemandUnit{
@@ -70,7 +70,7 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 }
 
 func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context, driverPod *v1.Pod, applicationResources *sparkApplicationResources) {
-	if !s.demands.IsLoaded() {
+	if !s.demands.CRDExists() {
 		return
 	}
 	s.createDemand(ctx, driverPod, demandResources(applicationResources))
@@ -109,7 +109,7 @@ func (s *SparkSchedulerExtender) doCreateDemand(ctx context.Context, newDemand *
 
 // removeDemandIfExists removes a demand object if it exists. Returns whether or not the demand was removed.
 func (s *SparkSchedulerExtender) removeDemandIfExists(ctx context.Context, pod *v1.Pod) {
-	if !s.demands.IsLoaded() {
+	if !s.demands.CRDExists() {
 		return
 	}
 	demandName := demandResourceName(pod)

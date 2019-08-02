@@ -31,6 +31,8 @@ import (
 	clientcache "k8s.io/client-go/tools/cache"
 )
 
+// SafeDemandCache wraps a demand cache by checking if the demand
+// CRD exists before each operation
 type SafeDemandCache struct {
 	*DemandCache
 	demandCRDInitialized atomic.Bool
@@ -40,7 +42,7 @@ type SafeDemandCache struct {
 	demandKubeClient     demandclient.ScalerV1alpha1Interface
 }
 
-//NewSafeDemandCache returns a demand cache which fallbacks
+// NewSafeDemandCache returns a demand cache which fallbacks
 // to no-op if demand CRD doesn't exist
 func NewSafeDemandCache(
 	informerFactory ssinformers.SharedInformerFactory,
@@ -54,6 +56,7 @@ func NewSafeDemandCache(
 	}
 }
 
+// Run starts the goroutine to check for the existence of the demand CRD
 func (sdc *SafeDemandCache) Run(ctx context.Context) {
 	if sdc.checkDemandCRDExists(ctx) {
 		return
@@ -119,14 +122,15 @@ func (sdc *SafeDemandCache) initializeCache(ctx context.Context) error {
 	return nil
 }
 
-func (sdc *SafeDemandCache) IsLoaded() bool {
+// CRDExists checks if the demand crd exists
+func (sdc *SafeDemandCache) CRDExists() bool {
 	return sdc.demandCRDInitialized.Load()
 }
 
 // Create enqueues a creation request and puts the object into the store
 func (sdc *SafeDemandCache) Create(rr *demandapi.Demand) error {
 	if !sdc.demandCRDInitialized.Load() {
-		return nil
+		return werror.Error("Can not create demand because demand CRD does not exist")
 	}
 	return sdc.DemandCache.Create(rr)
 }

@@ -32,7 +32,7 @@ import (
 
 // SyncResourceReservationsAndDemands gets all resource reservations and pods,
 // finds all pods that do not have a claimed spot in their resource reservation object,
-// groups them by spark application id, and patched the resource reservation objects so
+// groups them by spark application id, and patches the resource reservation objects so
 // they now reflect the current state of the world. This is needed on a leader failover,
 // as async writes for resource reservation objects mean some writes will be lost on
 // leader change, so the extender needs to call this before accepting requests.
@@ -53,9 +53,9 @@ func SyncResourceReservationsAndDemands(
 	}
 	rrs := resourceReservations.List()
 	availableResources, orderedNodes := availableResourcesPerInstanceGroup(ctx, rrs, nodes, overheadComputer.GetOverhead(ctx, nodes))
-	staleSparkPods := sparkPodsByAppID(ctx, rrs, pods)
+	staleSparkPods := unreservedSparkPodsBySparkID(ctx, rrs, pods)
 
-	r := &reconciliator{podLister, resourceReservations, demands, availableResources, orderedNodes}
+	r := &reconciler{podLister, resourceReservations, demands, availableResources, orderedNodes}
 	for _, sp := range staleSparkPods {
 		r.syncResourceReservation(ctx, sp)
 		r.syncDemand(ctx, sp)
@@ -69,47 +69,50 @@ func SyncResourceReservationsAndDemands(
 // pods from a spark application that do not have a claimed resource reservation,
 // and the last known state of the resource reservation object
 type sparkPods struct {
-	driver    *v1.Pod
-	executors []*v1.Pod
+	appID                 string
+	inconsistentDriver    *v1.Pod
+	inconsistentExecutors []*v1.Pod
 }
 
-type reconciliator struct {
+type instanceGroup string
+
+type reconciler struct {
 	podLister            corelisters.PodLister
 	resourceReservations *cache.ResourceReservationCache
 	demands              *cache.SafeDemandCache
-	availableResources   map[string]resources.NodeGroupResources
-	orderedNodes         map[string][]*v1.Node
+	availableResources   map[instanceGroup]resources.NodeGroupResources
+	orderedNodes         map[instanceGroup][]*v1.Node
 }
 
-func (r *reconciliator) syncResourceReservation(ctx context.Context, sp *sparkPods) {
+func (r *reconciler) syncResourceReservation(ctx context.Context, sp *sparkPods) {
 	// if the driver is nil it already has an associated reservation, get the resource
 	// reservation object and update it so it has reservations for each stale executor
-	if sp.driver == nil && len(sp.executors) > 0 {
-		exec := sp.executors[0]
-		rr, ok := r.resourceReservations.Get(exec.Namespace, exec.Labels[SparkAppIDLabel])
+	if sp.inconsistentDriver == nil && len(sp.inconsistentExecutors) > 0 {
+		exec := sp.inconsistentExecutors[0]
+		rr, ok := r.resourceReservations.Get(exec.Namespace, sp.appID)
 		if !ok {
-			logRR(ctx, "resource reservation deleted, ignoring", exec.Namespace, exec.Labels[SparkAppIDLabel])
+			logRR(ctx, "resource reservation deleted, ignoring", exec.Namespace, sp.appID)
 			return
 		}
-		err := r.patchResourceReservation(sp.executors, rr.DeepCopy())
+		err := r.patchResourceReservation(sp.inconsistentExecutors, rr.DeepCopy())
 		if err != nil {
-			logRR(ctx, "resource reservation deleted, ignoring", exec.Namespace, exec.Labels[SparkAppIDLabel])
+			logRR(ctx, "resource reservation deleted, ignoring", exec.Namespace, sp.appID)
 			return
 		}
-	} else if sp.driver != nil {
+	} else if sp.inconsistentDriver != nil {
 		// the driver is stale, a new resource reservation object needs to be created
-		instanceGroup := sp.driver.Spec.NodeSelector[instanceGroupNodeSelector]
-		newRR, reservedResources, err := r.constructResourceReservation(ctx, sp.driver, sp.executors, instanceGroup)
+		instanceGroup := instanceGroup(sp.inconsistentDriver.Spec.NodeSelector[instanceGroupNodeSelector])
+		newRR, reservedResources, err := r.constructResourceReservation(ctx, sp.inconsistentDriver, sp.inconsistentExecutors, instanceGroup)
 		if err != nil {
 			svc1log.FromContext(ctx).Error("failed to construct resource reservation", svc1log.Stacktrace(err))
 			return
 		}
 		err = r.resourceReservations.Create(newRR)
 		if err != nil {
-			logRR(ctx, "resource reservation already exists, force updating", sp.driver.Namespace, sp.driver.Labels[SparkAppIDLabel])
+			logRR(ctx, "resource reservation already exists, force updating", sp.inconsistentDriver.Namespace, sp.appID)
 			updateErr := r.resourceReservations.Update(newRR)
 			if updateErr != nil {
-				logRR(ctx, "resource reservation deleted, ignoring", sp.driver.Namespace, sp.driver.Labels[SparkAppIDLabel])
+				logRR(ctx, "resource reservation deleted, ignoring", sp.inconsistentDriver.Namespace, sp.appID)
 				return
 			}
 		}
@@ -117,24 +120,23 @@ func (r *reconciliator) syncResourceReservation(ctx context.Context, sp *sparkPo
 	}
 }
 
-func (r *reconciliator) syncDemand(ctx context.Context, sp *sparkPods) {
-	// TODO check if demand crd exists
-	if sp.driver != nil {
-		r.deleteDemandIfExists(sp.driver.Namespace, demandResourceName(sp.driver))
+func (r *reconciler) syncDemand(ctx context.Context, sp *sparkPods) {
+	if sp.inconsistentDriver != nil {
+		r.deleteDemandIfExists(sp.inconsistentDriver.Namespace, demandResourceName(sp.inconsistentDriver))
 	}
-	for _, e := range sp.executors {
+	for _, e := range sp.inconsistentExecutors {
 		r.deleteDemandIfExists(e.Namespace, demandResourceName(e))
 	}
 }
 
-func (r *reconciliator) deleteDemandIfExists(namespace, name string) {
+func (r *reconciler) deleteDemandIfExists(namespace, name string) {
 	_, ok := r.demands.Get(namespace, name)
 	if ok {
 		r.demands.Delete(namespace, name)
 	}
 }
 
-func sparkPodsByAppID(
+func unreservedSparkPodsBySparkID(
 	ctx context.Context,
 	rrs []*v1beta1.ResourceReservation,
 	pods []*v1.Pod,
@@ -148,23 +150,21 @@ func sparkPodsByAppID(
 
 	appIDToPods := make(map[string]*sparkPods)
 	for _, pod := range pods {
-		if pod.Spec.SchedulerName != SparkSchedulerName ||
-			pod.DeletionTimestamp != nil ||
-			pod.Spec.NodeName == "" ||
-			podsWithRRs[pod.Name] {
-			// count only spark scheduler managed pods without resource reservations
+		if isNotScheduledSparkPod(pod) || podsWithRRs[pod.Name] {
 			continue
 		}
 		appID := pod.Labels[SparkAppIDLabel]
 		sp, ok := appIDToPods[appID]
 		if !ok {
-			sp = &sparkPods{}
+			sp = &sparkPods{
+				appID: appID,
+			}
 		}
 		switch pod.Labels[SparkRoleLabel] {
 		case Driver:
-			sp.driver = pod
+			sp.inconsistentDriver = pod
 		case Executor:
-			sp.executors = append(sp.executors, pod)
+			sp.inconsistentExecutors = append(sp.inconsistentExecutors, pod)
 		default:
 			svc1log.FromContext(ctx).Error("received non spark pod, ignoring", svc1log.SafeParams(internal.PodSafeParams(*pod)))
 		}
@@ -173,34 +173,38 @@ func sparkPodsByAppID(
 	return appIDToPods
 }
 
+func isNotScheduledSparkPod(pod *v1.Pod) bool {
+	return pod.Spec.SchedulerName != SparkSchedulerName || pod.DeletionTimestamp != nil || pod.Spec.NodeName == ""
+}
+
 func availableResourcesPerInstanceGroup(
 	ctx context.Context,
 	rrs []*v1beta1.ResourceReservation,
 	nodes []*v1.Node,
-	overhead resources.NodeGroupResources) (map[string]resources.NodeGroupResources, map[string][]*v1.Node) {
+	overhead resources.NodeGroupResources) (map[instanceGroup]resources.NodeGroupResources, map[instanceGroup][]*v1.Node) {
 	sort.Slice(nodes, func(i, j int) bool {
 		return nodes[j].CreationTimestamp.Before(&nodes[i].CreationTimestamp)
 	})
 
-	schedulableNodes := make(map[string][]*v1.Node)
+	schedulableNodes := make(map[instanceGroup][]*v1.Node)
 	for _, n := range nodes {
 		if n.Spec.Unschedulable {
 			continue
 		}
-		instanceGroup := n.Labels[instanceGroupNodeSelector]
+		instanceGroup := instanceGroup(n.Labels[instanceGroupNodeSelector])
 		schedulableNodes[instanceGroup] = append(schedulableNodes[instanceGroup], n)
 	}
 	usages := resources.UsageForNodes(rrs)
 	usages.Add(overhead)
-	availableResources := make(map[string]resources.NodeGroupResources)
+	availableResources := make(map[instanceGroup]resources.NodeGroupResources)
 	for instanceGroup, ns := range schedulableNodes {
 		availableResources[instanceGroup] = resources.AvailableForNodes(ns, usages)
 	}
 	return availableResources, schedulableNodes
 }
 
-// syncResourceReservation gets a stale resource reservation and updates its status to reflect all given executors
-func (r *reconciliator) patchResourceReservation(execs []*v1.Pod, rr *v1beta1.ResourceReservation) error {
+// patchResourceReservation gets a stale resource reservation and updates its status to reflect all given executors
+func (r *reconciler) patchResourceReservation(execs []*v1.Pod, rr *v1beta1.ResourceReservation) error {
 	for _, e := range execs {
 		for name, reservation := range rr.Spec.Reservations {
 			if reservation.Node != e.Spec.NodeName {
@@ -221,11 +225,11 @@ func (r *reconciliator) patchResourceReservation(execs []*v1.Pod, rr *v1beta1.Re
 	return r.resourceReservations.Update(rr)
 }
 
-func (r *reconciliator) constructResourceReservation(
+func (r *reconciler) constructResourceReservation(
 	ctx context.Context,
 	driver *v1.Pod,
 	executors []*v1.Pod,
-	instanceGroup string) (*v1beta1.ResourceReservation, resources.NodeGroupResources, error) {
+	instanceGroup instanceGroup) (*v1beta1.ResourceReservation, resources.NodeGroupResources, error) {
 	applicationResources, err := sparkResources(ctx, driver)
 	if err != nil {
 		return nil, nil, err
@@ -237,9 +241,9 @@ func (r *reconciliator) constructResourceReservation(
 		return nil, nil, werror.Error("instance group not found", werror.SafeParam("instanceGroup", instanceGroup))
 	}
 
-	executorCountToReserve := applicationResources.executorCount - len(executors)
-	reservedNodeNames, reservedResources := findNodes(executorCountToReserve, applicationResources.executorResources, availableResources, nodes)
-	if len(reservedNodeNames) < executorCountToReserve {
+	executorCountToAssignNodes := applicationResources.executorCount - len(executors)
+	reservedNodeNames, reservedResources := findNodes(executorCountToAssignNodes, applicationResources.executorResources, availableResources, nodes)
+	if len(reservedNodeNames) < executorCountToAssignNodes {
 		svc1log.FromContext(ctx).Error("could not reserve space for all executors",
 			svc1log.SafeParams(internal.PodSafeParams(*driver)))
 	}
