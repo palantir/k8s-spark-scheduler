@@ -36,14 +36,17 @@ import (
 )
 
 const (
-	failureUnbound         = "failure-unbound"
-	failureInternal        = "failure-internal"
-	failureFit             = "failure-fit"
-	failureEarlierDriver   = "failure-earlier-driver"
-	failureNonSparkPod     = "failure-non-spark-pod"
-	success                = "success"
-	successRescheduled     = "success-rescheduled"
-	successAlreadyBound    = "success-already-bound"
+	failureUnbound       = "failure-unbound"
+	failureInternal      = "failure-internal"
+	failureFit           = "failure-fit"
+	failureEarlierDriver = "failure-earlier-driver"
+	failureNonSparkPod   = "failure-non-spark-pod"
+	success              = "success"
+	successRescheduled   = "success-rescheduled"
+	successAlreadyBound  = "success-already-bound"
+	// TODO: make this configurable
+	// leaderElectionInterval is the default LeaseDuration for core clients.
+	// obtained from k8s.io/component-base/config/v1alpha1
 	leaderElectionInterval = 15 * time.Second
 )
 
