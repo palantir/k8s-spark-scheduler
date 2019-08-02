@@ -16,13 +16,14 @@ package metrics
 
 import (
 	"context"
+	"time"
+
 	sparkschedulerlisters "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/listers/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	"k8s.io/apimachinery/pkg/labels"
-	"time"
 )
 
 var (
