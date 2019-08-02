@@ -168,6 +168,12 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		resourceReservationCache,
 	)
 
+	cacheReporter := metrics.NewCacheMetrics(
+		resourceReservationInformerBeta.Lister(),
+		resourceReservationCache,
+		demandCache,
+	)
+
 	queueReporter := metrics.NewQueueReporter(podInformer.Lister())
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(
@@ -180,6 +186,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	resourceReservationCache.Run(ctx)
 	demandCache.Run(ctx)
+	go cacheReporter.StartReporting(ctx)
 	go resourceReporter.StartReportingResourceUsage(ctx)
 	go queueReporter.StartReportingQueues(ctx)
 	go overheadComputer.Start(ctx)

@@ -16,7 +16,6 @@ package metrics
 
 import (
 	"context"
-	scalerlisters "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/listers/scaler/v1alpha1"
 	sparkschedulerlisters "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/listers/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/pkg/metrics"
@@ -36,8 +35,21 @@ var (
 // CacheMetrics reports metrics for resource reservation and demand caches
 type CacheMetrics struct {
 	resourceReservationLister sparkschedulerlisters.ResourceReservationLister
-	demandLister              scalerlisters.DemandLister
-	resourceReservationCache  *cache.ResourceReservationCache
+	resourceReservations      *cache.ResourceReservationCache
+	demands                   *cache.SafeDemandCache
+}
+
+// NewCacheMetrics creates a new CacheMetrics object
+func NewCacheMetrics(
+	resourceReservationLister sparkschedulerlisters.ResourceReservationLister,
+	resourceReservations *cache.ResourceReservationCache,
+	demands *cache.SafeDemandCache,
+) *CacheMetrics {
+	return &CacheMetrics{
+		resourceReservationLister: resourceReservationLister,
+		resourceReservations:      resourceReservations,
+		demands:                   demands,
+	}
 }
 
 // StartReporting starts periodic reporting for cache metrics
@@ -57,11 +69,19 @@ func (c *CacheMetrics) doStart(ctx context.Context) error {
 				svc1log.FromContext(ctx).Error("failed to list pods", svc1log.Stacktrace(err))
 				break
 			}
-			rrsCached := c.resourceReservationCache.List()
-			inflightCount := c.resourceReservationCache.InflightRequestCount()
+			rrsCached := c.resourceReservations.List()
+			rrsInflight := c.resourceReservations.InflightRequestCount()
 			metrics.FromContext(ctx).Gauge(cachedObjectCount, rrTag, listerTag).Update(int64(len(rrs)))
 			metrics.FromContext(ctx).Gauge(cachedObjectCount, rrTag, cacheTag).Update(int64(len(rrsCached)))
-			metrics.FromContext(ctx).Gauge(inflightRequestCount, rrTag, cacheTag).Update(int64(inflightCount))
+			metrics.FromContext(ctx).Gauge(inflightRequestCount, rrTag).Update(int64(rrsInflight))
+
+			if !c.demands.CRDExists() {
+				continue
+			}
+			demandsInflight := c.demands.InflightRequestCount()
+			demandsCached := c.demands.CachedElements()
+			metrics.FromContext(ctx).Gauge(cachedObjectCount, demandTag, cacheTag).Update(int64(demandsCached))
+			metrics.FromContext(ctx).Gauge(inflightRequestCount, demandTag).Update(int64(demandsInflight))
 		}
 	}
 }
