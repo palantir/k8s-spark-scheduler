@@ -28,6 +28,7 @@ import (
 const (
 	requestCounter           = "foundry.spark.scheduler.requests"
 	schedulingProcessingTime = "foundry.spark.scheduler.schedule.time"
+	reconciliationTime       = "foundry.spark.scheduler.reconciliation.time"
 	schedulingWaitTime       = "foundry.spark.scheduler.wait.time"
 	schedulingRetryTime      = "foundry.spark.scheduler.retry.time"
 	resourceUsageCPU         = "foundry.spark.scheduler.resource.usage.cpu"
@@ -116,11 +117,12 @@ func StatusCodeTag(ctx context.Context, statusCode string) metrics.Tag {
 
 // ScheduleTimer marks pod scheduling time metrics
 type ScheduleTimer struct {
-	podCreationTime  time.Time
-	startTime        time.Time
-	lastSeenTime     time.Time
-	instanceGroupTag metrics.Tag
-	retryTag         metrics.Tag
+	podCreationTime            time.Time
+	startTime                  time.Time
+	lastSeenTime               time.Time
+	reconciliationFinishedTime time.Time
+	instanceGroupTag           metrics.Tag
+	retryTag                   metrics.Tag
 }
 
 // NewScheduleTimer creates a new ScheduleTimer
@@ -142,6 +144,11 @@ func NewScheduleTimer(ctx context.Context, pod *v1.Pod) *ScheduleTimer {
 	}
 }
 
+// MarkReconciliationFinished marks when the reconciliation finished successfully
+func (s *ScheduleTimer) MarkReconciliationFinished(ctx context.Context) {
+	s.reconciliationFinishedTime = time.Now()
+}
+
 // Mark marks scheduling timer metrics with durations from current time
 func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 	sparkRoleTag := SparkRoleTag(ctx, role)
@@ -155,6 +162,9 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 		schedulingWaitTime, sparkRoleTag, outcomeTag, s.instanceGroupTag).Update(now.Sub(s.podCreationTime).Nanoseconds())
 	metrics.FromContext(ctx).Histogram(
 		schedulingRetryTime, sparkRoleTag, outcomeTag, s.instanceGroupTag, s.retryTag).Update(now.Sub(s.lastSeenTime).Nanoseconds())
+	if !s.reconciliationFinishedTime.IsZero() {
+		metrics.FromContext(ctx).Histogram(reconciliationTime).Update(s.reconciliationFinishedTime.Sub(s.startTime).Nanoseconds())
+	}
 }
 
 // ReportCrossZoneMetric reports metric about cross AZ traffic between pods of a spark application

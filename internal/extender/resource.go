@@ -102,7 +102,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 	timer := metrics.NewScheduleTimer(ctx, &args.Pod)
 	logger.Info("starting scheduling pod")
 
-	err := s.reconcileIfNeeded(ctx)
+	err := s.reconcileIfNeeded(ctx, timer)
 	if err != nil {
 		msg := "failed to reconcile"
 		logger.Error(msg, svc1log.Stacktrace(err))
@@ -131,14 +131,17 @@ func failWithMessage(ctx context.Context, args schedulerapi.ExtenderArgs, messag
 	return &schedulerapi.ExtenderFilterResult{FailedNodes: failedNodes}
 }
 
-func (s *SparkSchedulerExtender) reconcileIfNeeded(ctx context.Context) error {
+func (s *SparkSchedulerExtender) reconcileIfNeeded(ctx context.Context, timer *metrics.ScheduleTimer) error {
 	now := time.Now()
-	var err error
 	if s.lastRequest.Add(leaderElectionInterval).After(now) {
-		err = s.syncResourceReservationsAndDemands(ctx)
+		err := s.syncResourceReservationsAndDemands(ctx)
+		if err != nil {
+			return err
+		}
+		timer.MarkReconciliationFinished(ctx)
 	}
 	s.lastRequest = now
-	return err
+	return nil
 }
 
 func (s *SparkSchedulerExtender) selectNode(ctx context.Context, role string, pod *v1.Pod, nodeNames []string) (string, string, error) {
