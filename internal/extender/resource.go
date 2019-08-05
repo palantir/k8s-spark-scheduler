@@ -136,7 +136,7 @@ func failWithMessage(ctx context.Context, args schedulerapi.ExtenderArgs, messag
 
 func (s *SparkSchedulerExtender) reconcileIfNeeded(ctx context.Context, timer *metrics.ScheduleTimer) error {
 	now := time.Now()
-	if s.lastRequest.Add(leaderElectionInterval).After(now) {
+	if now.After(s.lastRequest.Add(leaderElectionInterval)) {
 		err := s.syncResourceReservationsAndDemands(ctx)
 		if err != nil {
 			return err

@@ -48,6 +48,7 @@ func (s *SparkSchedulerExtender) syncResourceReservationsAndDemands(ctx context.
 	rrs := s.resourceReservations.List()
 	availableResources, orderedNodes := availableResourcesPerInstanceGroup(ctx, rrs, nodes, s.overheadComputer.GetOverhead(ctx, nodes))
 	staleSparkPods := unreservedSparkPodsBySparkID(ctx, rrs, pods)
+	svc1log.FromContext(ctx).Info("starting reconciliation", svc1log.SafeParam("appCount", len(staleSparkPods)))
 
 	r := &reconciler{s.podLister, s.resourceReservations, s.demands, availableResources, orderedNodes}
 	for _, sp := range staleSparkPods {

@@ -150,3 +150,13 @@ func (sdc *SafeDemandCache) Get(namespace, name string) (*demandapi.Demand, bool
 	}
 	return sdc.DemandCache.Get(namespace, name)
 }
+
+// CacheSize returns the number of elements in the cache
+func (sdc *SafeDemandCache) CacheSize() int {
+	return len(sdc.cache.List())
+}
+
+// InflightQueueLengths returns the number of items per request queue
+func (sdc *SafeDemandCache) InflightQueueLengths() []int {
+	return sdc.cache.queue.QueueLengths()
+}

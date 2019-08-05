@@ -104,6 +104,11 @@ func (rrc *ResourceReservationCache) List() []*v1beta1.ResourceReservation {
 	return res
 }
 
+// InflightQueueLengths returns the number of items per request queue
+func (rrc *ResourceReservationCache) InflightQueueLengths() []int {
+	return rrc.cache.queue.QueueLengths()
+}
+
 type resourceReservationClient struct {
 	sparkschedulerclient.SparkschedulerV1beta1Interface
 }
