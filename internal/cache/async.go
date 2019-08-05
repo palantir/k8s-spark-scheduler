@@ -122,6 +122,8 @@ func (ac *asyncClient) doDelete(ctx context.Context, key store.Key) {
 	case isRetryableError(err):
 		svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(err))
 		ac.queue.AddIfAbsent(store.Request{Key: key, Type: store.DeleteRequestType})
+	case errors.IsNotFound(err):
+		svc1log.FromContext(ctx).Info("object already deleted")
 	default:
 		logNonRetryableError(ctx, err)
 	}
