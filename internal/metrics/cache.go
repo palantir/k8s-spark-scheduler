@@ -65,26 +65,32 @@ func (c *CacheMetrics) doStart(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-t.C:
-			rrs, err := c.resourceReservationLister.List(labels.Everything())
-			if err != nil {
-				svc1log.FromContext(ctx).Error("failed to list resource reservations", svc1log.Stacktrace(err))
-				break
-			}
-			rrsCached := c.resourceReservations.List()
-			metrics.FromContext(ctx).Gauge(cachedObjectCount, rrTag, listerTag).Update(int64(len(rrs)))
-			metrics.FromContext(ctx).Gauge(cachedObjectCount, rrTag, cacheTag).Update(int64(len(rrsCached)))
-			for idx, queueLength := range c.resourceReservations.InflightQueueLengths() {
-				metrics.FromContext(ctx).Gauge(inflightRequestCount, rrTag, QueueIndexTag(ctx, idx)).Update(int64(queueLength))
-			}
-
-			if !c.demands.CRDExists() {
-				continue
-			}
-			demandsCached := c.demands.CacheSize()
-			metrics.FromContext(ctx).Gauge(cachedObjectCount, demandTag, cacheTag).Update(int64(demandsCached))
-			for idx, queueLength := range c.demands.InflightQueueLengths() {
-				metrics.FromContext(ctx).Gauge(inflightRequestCount, demandTag, QueueIndexTag(ctx, idx)).Update(int64(queueLength))
+			c.emitResourceReservationMetrics(ctx)
+			if c.demands.CRDExists() {
+				c.emitDemandMetrics(ctx)
 			}
 		}
+	}
+}
+
+func (c *CacheMetrics) emitResourceReservationMetrics(ctx context.Context) {
+	rrs, err := c.resourceReservationLister.List(labels.Everything())
+	if err != nil {
+		svc1log.FromContext(ctx).Error("failed to list resource reservations", svc1log.Stacktrace(err))
+		return
+	}
+	rrsCached := c.resourceReservations.List()
+	metrics.FromContext(ctx).Gauge(cachedObjectCount, rrTag, listerTag).Update(int64(len(rrs)))
+	metrics.FromContext(ctx).Gauge(cachedObjectCount, rrTag, cacheTag).Update(int64(len(rrsCached)))
+	for idx, queueLength := range c.resourceReservations.InflightQueueLengths() {
+		metrics.FromContext(ctx).Gauge(inflightRequestCount, rrTag, QueueIndexTag(ctx, idx)).Update(int64(queueLength))
+	}
+}
+
+func (c *CacheMetrics) emitDemandMetrics(ctx context.Context) {
+	demandsCached := c.demands.CacheSize()
+	metrics.FromContext(ctx).Gauge(cachedObjectCount, demandTag, cacheTag).Update(int64(demandsCached))
+	for idx, queueLength := range c.demands.InflightQueueLengths() {
+		metrics.FromContext(ctx).Gauge(inflightRequestCount, demandTag, QueueIndexTag(ctx, idx)).Update(int64(queueLength))
 	}
 }
