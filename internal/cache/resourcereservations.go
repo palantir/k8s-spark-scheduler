@@ -91,7 +91,10 @@ func (rrc *ResourceReservationCache) Delete(namespace, name string) {
 // Get returns the object from the store if it exists
 func (rrc *ResourceReservationCache) Get(namespace, name string) (*v1beta1.ResourceReservation, bool) {
 	obj, ok := rrc.cache.Get(namespace, name)
-	return obj.(*v1beta1.ResourceReservation), ok
+	if !ok {
+		return nil, false
+	}
+	return obj.(*v1beta1.ResourceReservation), true
 }
 
 // List returns all known objects in the store

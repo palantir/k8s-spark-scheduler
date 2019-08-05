@@ -85,7 +85,10 @@ func (dc *DemandCache) Delete(namespace, name string) {
 // Get returns the object from the store if it exists
 func (dc *DemandCache) Get(namespace, name string) (*demandapi.Demand, bool) {
 	obj, ok := dc.cache.Get(namespace, name)
-	return obj.(*demandapi.Demand), ok
+	if !ok {
+		return nil, false
+	}
+	return obj.(*demandapi.Demand), true
 }
 
 type demandClient struct {
