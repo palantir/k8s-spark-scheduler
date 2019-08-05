@@ -16,11 +16,16 @@ package cache
 
 import (
 	"context"
+	"regexp"
 
 	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+var (
+	namespaceTerminatingPattern = regexp.MustCompile(`unable to create new content in namespace .* because it is being terminated`)
 )
 
 // Client is a generic representation of a kube client
@@ -77,8 +82,12 @@ func (ac *asyncClient) doCreate(ctx context.Context, key store.Key) {
 	case isRetryableError(err):
 		svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(err))
 		ac.queue.AddIfAbsent(store.CreateRequest(obj))
+	case isNamespaceTerminating(err):
+		svc1log.FromContext(ctx).Info("can not create object because its namespace is being terminated")
+		ac.objectStore.Delete(key)
 	default:
 		logNonRetryableError(ctx, err)
+		ac.objectStore.Delete(key)
 	}
 }
 
@@ -135,9 +144,13 @@ func isRetryableError(err error) bool {
 }
 
 func logNonRetryableError(ctx context.Context, err error) {
-	svc1log.FromContext(ctx).Error("got non retryable error, giving up", svc1log.Stacktrace(err))
+	svc1log.FromContext(ctx).Error("got non retryable error", svc1log.Stacktrace(err))
 }
 
 func requestCtx(ctx context.Context, key store.Key, requestType string) context.Context {
 	return svc1log.WithLoggerParams(ctx, svc1log.SafeParams(store.KeySafeParams(key)), svc1log.SafeParam("requestType", requestType))
+}
+
+func isNamespaceTerminating(err error) bool {
+	return errors.IsForbidden(err) && namespaceTerminatingPattern.FindString(err.Error()) != ""
 }
