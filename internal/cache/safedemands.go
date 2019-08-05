@@ -156,8 +156,7 @@ func (sdc *SafeDemandCache) CacheSize() int {
 	return len(sdc.cache.List())
 }
 
-// InflightRequestCount returns the number of queued requests that the cache
-// already reflects, but that are not in the api server yet
-func (sdc *SafeDemandCache) InflightRequestCount() int {
-	return sdc.cache.queue.Size()
+// InflightQueueLengths returns the number of items per request queue
+func (sdc *SafeDemandCache) InflightQueueLengths() []int {
+	return sdc.cache.queue.QueueLengths()
 }

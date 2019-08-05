@@ -34,7 +34,7 @@ const (
 type ShardedUniqueQueue interface {
 	AddIfAbsent(Request)
 	GetConsumers() []<-chan func() Request
-	Size() int
+	QueueLengths() []int
 }
 
 // NewShardedUniqueQueue creates a sharded queue of write requests
@@ -79,10 +79,12 @@ func (q *shardedUniqueQueue) GetConsumers() []<-chan func() Request {
 	return res
 }
 
-func (q *shardedUniqueQueue) Size() int {
-	q.lock.Lock()
-	defer q.lock.Unlock()
-	return len(q.inflight)
+func (q *shardedUniqueQueue) QueueLengths() []int {
+	res := make([]int, 0, len(q.queues))
+	for _, c := range q.queues {
+		res = append(res, len(c))
+	}
+	return res
 }
 
 func (q *shardedUniqueQueue) bucket(k Key) uint32 {

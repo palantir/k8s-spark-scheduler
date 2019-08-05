@@ -104,10 +104,9 @@ func (rrc *ResourceReservationCache) List() []*v1beta1.ResourceReservation {
 	return res
 }
 
-// InflightRequestCount returns the number of queued requests that the cache
-// already reflects, but that are not in the api server yet
-func (rrc *ResourceReservationCache) InflightRequestCount() int {
-	return rrc.cache.queue.Size()
+// InflightQueueLengths returns the number of items per request queue
+func (rrc *ResourceReservationCache) InflightQueueLengths() []int {
+	return rrc.cache.queue.QueueLengths()
 }
 
 type resourceReservationClient struct {

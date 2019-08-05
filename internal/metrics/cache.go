@@ -71,18 +71,20 @@ func (c *CacheMetrics) doStart(ctx context.Context) error {
 				break
 			}
 			rrsCached := c.resourceReservations.List()
-			rrsInflight := c.resourceReservations.InflightRequestCount()
 			metrics.FromContext(ctx).Gauge(cachedObjectCount, rrTag, listerTag).Update(int64(len(rrs)))
 			metrics.FromContext(ctx).Gauge(cachedObjectCount, rrTag, cacheTag).Update(int64(len(rrsCached)))
-			metrics.FromContext(ctx).Gauge(inflightRequestCount, rrTag).Update(int64(rrsInflight))
+			for idx, queueLength := range c.resourceReservations.InflightQueueLengths() {
+				metrics.FromContext(ctx).Gauge(inflightRequestCount, rrTag, QueueIndexTag(ctx, idx)).Update(int64(queueLength))
+			}
 
 			if !c.demands.CRDExists() {
 				continue
 			}
-			demandsInflight := c.demands.InflightRequestCount()
 			demandsCached := c.demands.CacheSize()
 			metrics.FromContext(ctx).Gauge(cachedObjectCount, demandTag, cacheTag).Update(int64(demandsCached))
-			metrics.FromContext(ctx).Gauge(inflightRequestCount, demandTag).Update(int64(demandsInflight))
+			for idx, queueLength := range c.demands.InflightQueueLengths() {
+				metrics.FromContext(ctx).Gauge(inflightRequestCount, demandTag, QueueIndexTag(ctx, idx)).Update(int64(queueLength))
+			}
 		}
 	}
 }

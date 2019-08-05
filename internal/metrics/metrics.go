@@ -17,6 +17,7 @@ package metrics
 import (
 	"context"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/palantir/pkg/metrics"
@@ -59,6 +60,7 @@ const (
 	pathTagName           = "requestpath"
 	verbTagName           = "requestverb"
 	statusCodeTagName     = "requeststatuscode"
+	queueIndexTagName     = "queueIndex"
 )
 
 var (
@@ -115,6 +117,11 @@ func VerbTag(ctx context.Context, verb string) metrics.Tag {
 // StatusCodeTag returns a status code tag
 func StatusCodeTag(ctx context.Context, statusCode string) metrics.Tag {
 	return tagWithDefault(ctx, statusCodeTagName, statusCode, "unspecified")
+}
+
+// QueueIndexTag returns a queue index tag
+func QueueIndexTag(ctx context.Context, index int) metrics.Tag {
+	return tagWithDefault(ctx, queueIndexTagName, strconv.Itoa(index), "unspecified")
 }
 
 // ScheduleTimer marks pod scheduling time metrics
