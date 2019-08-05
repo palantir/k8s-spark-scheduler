@@ -57,9 +57,20 @@ func TestStore(t *testing.T) {
 			"a": createObjectFromRV("a", "a", ""),
 		},
 	}, {
-		name: "PutIfNewer overrides if newer",
+		name: "OverrideResourceVersionIfNewer overrides if the object is newer",
 		body: func(ctx context.Context, s ObjectStore) {
 			s.PutIfAbsent(createObjectFromRV("a", "a", ""))
+			s.OverrideResourceVersionIfNewer(ctx, createObjectFromRV("a", "a", ""))
+			s.OverrideResourceVersionIfNewer(ctx, createObjectFromRV("a", "a", "1"))
+			s.OverrideResourceVersionIfNewer(ctx, createObjectFromRV("a", "a", "1"))
+			s.OverrideResourceVersionIfNewer(ctx, createObjectFromRV("a", "a", "0"))
+		},
+		expectedObjects: map[string]metav1.Object{
+			"a": createObjectFromRV("a", "a", "1"),
+		},
+	}, {
+		name: "OverrideResourceVersionIfNewer puts the object if it is absent",
+		body: func(ctx context.Context, s ObjectStore) {
 			s.OverrideResourceVersionIfNewer(ctx, createObjectFromRV("a", "a", ""))
 			s.OverrideResourceVersionIfNewer(ctx, createObjectFromRV("a", "a", "1"))
 			s.OverrideResourceVersionIfNewer(ctx, createObjectFromRV("a", "a", "1"))

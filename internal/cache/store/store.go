@@ -61,11 +61,15 @@ func (s *objectStore) OverrideResourceVersionIfNewer(ctx context.Context, obj me
 	defer s.lock.Unlock()
 	key := KeyOf(obj)
 	currentObj, ok := s.store[key]
-	if ok && resourceVersion(ctx, currentObj) >= resourceVersion(ctx, obj) {
-		return false
+	if !ok {
+		s.store[key] = obj
+		return true
 	}
-	currentObj.SetResourceVersion(obj.GetResourceVersion())
-	return true
+	isNewer := resourceVersion(ctx, currentObj) < resourceVersion(ctx, obj)
+	if isNewer {
+		currentObj.SetResourceVersion(obj.GetResourceVersion())
+	}
+	return isNewer
 }
 
 func (s *objectStore) PutIfAbsent(obj metav1.Object) bool {
