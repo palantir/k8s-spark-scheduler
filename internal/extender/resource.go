@@ -216,7 +216,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		}
 		ok := s.fitEarlierDrivers(ctx, queuedDrivers, driverNodeNames, executorNodeNames, availableResources)
 		if !ok {
-			go s.createDemandForApplication(ctx, driver, applicationResources)
+			s.createDemandForApplication(ctx, driver, applicationResources)
 			return "", failureEarlierDriver, werror.Error("earlier drivers do not fit to the cluster")
 		}
 	}
@@ -238,10 +238,10 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		svc1log.SafeParam("executorNodes", executorNodes),
 		svc1log.SafeParam("binpacker", s.binpacker.Name))
 	if !hasCapacity {
-		go s.createDemandForApplication(ctx, driver, applicationResources)
+		s.createDemandForApplication(ctx, driver, applicationResources)
 		return "", failureFit, werror.Error("application does not fit to the cluster")
 	}
-	go s.removeDemandIfExists(ctx, driver)
+	s.removeDemandIfExists(ctx, driver)
 	metrics.ReportCrossZoneMetric(ctx, driverNode, executorNodes, availableNodes)
 	return s.createResourceReservations(ctx, driver, applicationResources, driverNode, executorNodes)
 }
@@ -313,7 +313,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	if err != nil {
 		return "", failureInternal, werror.Wrap(err, "failed to update resource reservation")
 	}
-	go s.removeDemandIfExists(ctx, executor)
+	s.removeDemandIfExists(ctx, executor)
 	return copyResourceReservation.Spec.Reservations[unboundReservation].Node, outcome, err
 }
 
@@ -371,7 +371,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 			return name, successRescheduled, nil
 		}
 	}
-	go s.createDemandForExecutor(ctx, executor, executorResources)
+	s.createDemandForExecutor(ctx, executor, executorResources)
 	return "", failureFit, werror.Error("not enough capacity to reschedule the executor")
 }
 

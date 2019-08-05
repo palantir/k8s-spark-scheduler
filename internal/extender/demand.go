@@ -44,6 +44,7 @@ var (
 	}
 )
 
+// TODO: should patch instead of put to avoid conflicts
 func (s *SparkSchedulerExtender) updatePodStatus(ctx context.Context, pod *v1.Pod, condition *v1.PodCondition) {
 	if !podutil.UpdatePodCondition(&pod.Status, demandCreatedCondition) {
 		svc1log.FromContext(ctx).Info("pod condition for demand creation already exist")
@@ -87,7 +88,7 @@ func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, 
 		svc1log.FromContext(ctx).Error("failed to create demand", svc1log.Stacktrace(err))
 		return
 	}
-	s.updatePodStatus(ctx, pod, demandCreatedCondition)
+	go s.updatePodStatus(ctx, pod, demandCreatedCondition)
 }
 
 func (s *SparkSchedulerExtender) doCreateDemand(ctx context.Context, newDemand *demandapi.Demand) error {
@@ -113,8 +114,10 @@ func (s *SparkSchedulerExtender) removeDemandIfExists(ctx context.Context, pod *
 		return
 	}
 	demandName := demandResourceName(pod)
-	s.demands.Delete(pod.Namespace, demandName)
-	svc1log.FromContext(ctx).Info("Removed demand object because capacity exists for pod", svc1log.SafeParams(internal.DemandSafeParams(demandName, pod.Namespace)))
+	if _, ok := s.demands.Get(pod.Namespace, demandName); ok {
+		s.demands.Delete(pod.Namespace, demandName)
+		svc1log.FromContext(ctx).Info("Removed demand object because capacity exists for pod", svc1log.SafeParams(internal.DemandSafeParams(demandName, pod.Namespace)))
+	}
 }
 
 func newDemand(pod *v1.Pod, units []demandapi.DemandUnit) (*demandapi.Demand, error) {
