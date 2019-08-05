@@ -20,11 +20,6 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/extender/extendertest"
 )
 
-const (
-	namespace       = "namespace"
-	resourceChannel = "example"
-)
-
 func TestScheduler(t *testing.T) {
 	node1 := extendertest.NewNode("node1")
 	node2 := extendertest.NewNode("node2")
