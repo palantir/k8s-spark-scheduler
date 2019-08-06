@@ -86,8 +86,7 @@ func (c *cache) List() []metav1.Object {
 }
 
 func (c *cache) onObjAdd(obj interface{}) {
-	ctx := context.Background()
-	c.tryOverrideResourceVersion(ctx, obj)
+	return
 }
 
 func (c *cache) onObjUpdate(oldObj interface{}, newObj interface{}) {

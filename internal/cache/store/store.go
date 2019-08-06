@@ -50,9 +50,6 @@ func (s *objectStore) Put(obj metav1.Object) {
 	defer s.lock.Unlock()
 	key := KeyOf(obj)
 	currentObj, ok := s.store[key]
-	if ok {
-		obj.SetResourceVersion(currentObj.GetResourceVersion())
-	}
 	s.store[KeyOf(obj)] = obj
 }
 

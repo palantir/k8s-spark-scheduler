@@ -78,7 +78,7 @@ func (ac *asyncClient) doCreate(ctx context.Context, key store.Key) {
 	result, err := ac.client.Create(obj)
 	switch {
 	case err == nil:
-		ac.objectStore.OverrideResourceVersionIfNewer(ctx, result)
+		return
 	case isRetryableError(err):
 		svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(err))
 		ac.queue.AddIfAbsent(store.CreateRequest(obj))
