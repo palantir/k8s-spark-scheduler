@@ -322,13 +322,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	copyResourceReservation.Status.Pods[unboundReservation] = executor.Name
 	_, err = s.resourceReservationClient.ResourceReservations(copyResourceReservation.Namespace).Update(copyResourceReservation)
 	if err != nil {
-		_, createErr := s.resourceReservationClient.ResourceReservations(copyResourceReservation.Namespace).Create(copyResourceReservation)
-		if createErr != nil {
-			if errors.IsAlreadyExists(createErr) {
-				return "", failureInternal, werror.Wrap(err, "failed to update resource reservation")
-			}
-			return "", failureInternal, werror.Wrap(createErr, "failed to create v1beta1 resource reservation")
-		}
+		return "", failureInternal, werror.Wrap(err, "failed to update resource reservation")
 	}
 	go s.removeDemandIfExists(ctx, executor)
 	return copyResourceReservation.Spec.Reservations[unboundReservation].Node, outcome, err
