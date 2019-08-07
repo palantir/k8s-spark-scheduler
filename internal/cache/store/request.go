@@ -56,11 +56,3 @@ func CreateRequest(obj metav1.Object) Request {
 func UpdateRequest(obj metav1.Object) Request {
 	return Request{KeyOf(obj), UpdateRequestType}
 }
-
-// KeySafeParams returns safe logging params for a key object
-func KeySafeParams(k Key) map[string]interface{} {
-	return map[string]interface{}{
-		"objectName":      k.Name,
-		"objectNamespace": k.Namespace,
-	}
-}
