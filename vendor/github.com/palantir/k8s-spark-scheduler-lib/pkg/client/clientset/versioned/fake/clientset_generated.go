@@ -78,17 +78,7 @@ func (c *Clientset) ScalerV1alpha1() scalerv1alpha1.ScalerV1alpha1Interface {
 	return &fakescalerv1alpha1.FakeScalerV1alpha1{Fake: &c.Fake}
 }
 
-// Scaler retrieves the ScalerV1alpha1Client
-func (c *Clientset) Scaler() scalerv1alpha1.ScalerV1alpha1Interface {
-	return &fakescalerv1alpha1.FakeScalerV1alpha1{Fake: &c.Fake}
-}
-
 // SparkschedulerV1beta1 retrieves the SparkschedulerV1beta1Client
 func (c *Clientset) SparkschedulerV1beta1() sparkschedulerv1beta1.SparkschedulerV1beta1Interface {
-	return &fakesparkschedulerv1beta1.FakeSparkschedulerV1beta1{Fake: &c.Fake}
-}
-
-// Sparkscheduler retrieves the SparkschedulerV1beta1Client
-func (c *Clientset) Sparkscheduler() sparkschedulerv1beta1.SparkschedulerV1beta1Interface {
 	return &fakesparkschedulerv1beta1.FakeSparkschedulerV1beta1{Fake: &c.Fake}
 }
