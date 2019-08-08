@@ -96,11 +96,13 @@ func (c *cache) onObjUpdate(oldObj interface{}, newObj interface{}) {
 }
 
 func (c *cache) onObjDelete(obj interface{}) {
+	ctx := context.Background()
 	typedObject, ok := obj.(metav1.Object)
 	if !ok {
-		svc1log.FromContext(context.Background()).Warn("failed to parse object")
+		svc1log.FromContext(ctx).Warn("failed to parse object")
 		return
 	}
+	svc1log.FromContext(ctx).Info("received deletion event", ObjectSafeParams(typedObject.GetName(), typedObject.GetNamespace()))
 	c.store.Delete(store.KeyOf(typedObject))
 }
 
@@ -111,4 +113,12 @@ func (c *cache) tryOverrideResourceVersion(ctx context.Context, obj interface{})
 		return
 	}
 	c.store.OverrideResourceVersionIfNewer(ctx, typedObject)
+}
+
+// ObjectSafeParams returns safe logging params for a name and a namespace
+func ObjectSafeParams(name, namespace string) svc1log.Param {
+	return svc1log.SafeParams(map[string]interface{}{
+		"objectName":      name,
+		"objectNamespace": namespace,
+	})
 }

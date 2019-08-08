@@ -26,6 +26,7 @@ import (
 
 var (
 	namespaceTerminatingPattern = regexp.MustCompile(`unable to create new content in namespace .* because it is being terminated`)
+	namespaceNotFoundPattern    = regexp.MustCompile(`namespaces .* not found`)
 )
 
 // Client is a generic representation of a kube client
@@ -148,9 +149,10 @@ func logNonRetryableError(ctx context.Context, err error) {
 }
 
 func requestCtx(ctx context.Context, key store.Key, requestType string) context.Context {
-	return svc1log.WithLoggerParams(ctx, svc1log.SafeParams(store.KeySafeParams(key)), svc1log.SafeParam("requestType", requestType))
+	return svc1log.WithLoggerParams(ctx, ObjectSafeParams(key.Namespace, key.Name), svc1log.SafeParam("requestType", requestType))
 }
 
 func isNamespaceTerminating(err error) bool {
-	return errors.IsForbidden(err) && namespaceTerminatingPattern.FindString(err.Error()) != ""
+	return (errors.IsForbidden(err) && namespaceTerminatingPattern.FindString(err.Error()) != "") ||
+		(errors.IsNotFound(err) && namespaceNotFoundPattern.FindString(err.Error()) != "")
 }
