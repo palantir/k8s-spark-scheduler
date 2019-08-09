@@ -44,10 +44,11 @@ const (
 
 // Harness is an extension of an extender with in-memory k8s stores
 type Harness struct {
-	Extender  *extender.SparkSchedulerExtender
-	PodStore  cache.Store
-	NodeStore cache.Store
-	Ctx       context.Context
+	Extender                 *extender.SparkSchedulerExtender
+	PodStore                 cache.Store
+	NodeStore                cache.Store
+	ResourceReservationStore cache.Store
+	Ctx                      context.Context
 }
 
 // NewTestExtender returns a new extender test harness, initialized with the provided k8s objects
@@ -116,10 +117,11 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	)
 
 	return &Harness{
-		Extender:  extender,
-		PodStore:  podInformer.Informer().GetStore(),
-		NodeStore: nodeInformer.Informer().GetStore(),
-		Ctx:       ctx,
+		Extender:                 extender,
+		PodStore:                 podInformer.Informer().GetStore(),
+		NodeStore:                nodeInformer.Informer().GetStore(),
+		ResourceReservationStore: resourceReservationInformerBeta.Informer().GetStore(),
+		Ctx:                      ctx,
 	}, nil
 }
 
