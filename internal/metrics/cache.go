@@ -29,6 +29,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+const (
+	informerDelayBuffer = 5
+)
+
 var (
 	listerTag = metrics.MustNewTag("source", "lister")
 	cacheTag  = metrics.MustNewTag("source", "cache")
@@ -90,7 +94,7 @@ func (c *CacheMetrics) emitResourceReservationMetrics(ctx context.Context) {
 		metrics.FromContext(ctx).Gauge(inflightRequestCount, rrTag, QueueIndexTag(ctx, idx)).Update(int64(queueLength))
 		totalQueueLength += queueLength
 	}
-	if int(math.Abs(float64(len(rrs)-len(rrsCached)))) > totalQueueLength {
+	if int(math.Abs(float64(len(rrs)-len(rrsCached)))) > totalQueueLength+informerDelayBuffer {
 		svc1log.FromContext(ctx).Warn("found unexplained cache size difference",
 			svc1log.SafeParam("rrsCached", len(rrsCached)),
 			svc1log.SafeParam("rrs", len(rrs)))
