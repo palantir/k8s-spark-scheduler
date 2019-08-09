@@ -28,8 +28,9 @@ import (
 )
 
 const (
-	tickInterval   = 30 * time.Second
-	decayThreshold = 2 * tickInterval
+	tickInterval      = 30 * time.Second
+	decayThreshold    = 2 * tickInterval
+	stuckPodThreshold = 12 * time.Hour
 )
 
 var (
@@ -135,15 +136,30 @@ func (p PodHistograms) MarkTimes(ctx context.Context, pod *v1.Pod, now time.Time
 		stateChangedTime, didChangeState := podConditions.TimeWhenTrue(state)
 		key := PodTags{instanceGroupTag, sparkRoleTag, lifecycleTags[state]}
 		if !didChangeState {
-			p.Mark(key, now.Sub(previousStateTime))
+			duration := now.Sub(previousStateTime)
+			p.Mark(key, duration)
 			p.Inc(key)
+			reportIfStuck(ctx, pod, duration, state)
 			return
 		}
 		if stateChangedTime.Add(decayThreshold).After(now) {
-			p.Mark(key, stateChangedTime.Sub(previousStateTime))
+			duration := stateChangedTime.Sub(previousStateTime)
+			p.Mark(key, duration)
+			reportIfStuck(ctx, pod, duration, state)
 		}
 		previousStateTime = stateChangedTime
 	}
+}
+
+func reportIfStuck(ctx context.Context, pod *v1.Pod, duration time.Duration, state v1.PodConditionType) {
+	if duration.Hours() < stuckPodThreshold.Hours() {
+		return
+	}
+	svc1log.FromContext(ctx).Warn("found stuck pod",
+		svc1log.SafeParam("podNamespace", pod.Namespace),
+		svc1log.SafeParam("podName", pod.Name),
+		svc1log.SafeParam("state", state),
+		svc1log.SafeParam("createdAt", pod.CreationTimestamp.Time))
 }
 
 // SparkPodConditions provides spark related lifecycle events from pod conditions
