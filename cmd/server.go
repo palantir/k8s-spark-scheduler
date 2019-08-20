@@ -122,6 +122,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	}
 
 	resourceReservationCache, err := cache.NewResourceReservationCache(
+		ctx,
 		resourceReservationInformerBeta,
 		sparkSchedulerClient.SparkschedulerV1beta1(),
 	)

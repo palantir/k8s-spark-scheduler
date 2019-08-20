@@ -30,17 +30,20 @@ import (
 // creates to avoid conflicts. Users of this need to be
 // the only writing entity for the cached elements.
 type cache struct {
-	store store.ObjectStore
-	queue store.ShardedUniqueQueue
+	store  store.ObjectStore
+	queue  store.ShardedUniqueQueue
+	logger svc1log.Logger
 }
 
 func newCache(
+	ctx context.Context,
 	queue store.ShardedUniqueQueue,
 	store store.ObjectStore,
 	informer clientcache.SharedIndexInformer) *cache {
 	c := &cache{
-		queue: queue,
-		store: store,
+		queue:  queue,
+		store:  store,
+		logger: svc1log.FromContext(ctx),
 	}
 	informer.AddEventHandler(
 		clientcache.ResourceEventHandlerFuncs{
@@ -86,33 +89,30 @@ func (c *cache) List() []metav1.Object {
 }
 
 func (c *cache) onObjAdd(obj interface{}) {
-	ctx := context.Background()
-	c.tryOverrideResourceVersion(ctx, obj)
+	c.tryOverrideResourceVersion(obj)
 }
 
 func (c *cache) onObjUpdate(oldObj interface{}, newObj interface{}) {
-	ctx := context.Background()
-	c.tryOverrideResourceVersion(ctx, newObj)
+	c.tryOverrideResourceVersion(newObj)
 }
 
 func (c *cache) onObjDelete(obj interface{}) {
-	ctx := context.Background()
 	typedObject, ok := obj.(metav1.Object)
 	if !ok {
-		svc1log.FromContext(ctx).Warn("failed to parse object")
+		c.logger.Warn("failed to parse object")
 		return
 	}
-	svc1log.FromContext(ctx).Info("received deletion event", ObjectSafeParams(typedObject.GetName(), typedObject.GetNamespace()))
+	c.logger.Info("received deletion event", ObjectSafeParams(typedObject.GetName(), typedObject.GetNamespace()))
 	c.store.Delete(store.KeyOf(typedObject))
 }
 
-func (c *cache) tryOverrideResourceVersion(ctx context.Context, obj interface{}) {
+func (c *cache) tryOverrideResourceVersion(obj interface{}) {
 	typedObject, ok := obj.(metav1.Object)
 	if !ok {
-		svc1log.FromContext(ctx).Warn("failed to parse object")
+		c.logger.Warn("failed to parse object")
 		return
 	}
-	c.store.OverrideResourceVersionIfNewer(ctx, typedObject)
+	c.store.OverrideResourceVersionIfNewer(typedObject)
 }
 
 // ObjectSafeParams returns safe logging params for a name and a namespace
