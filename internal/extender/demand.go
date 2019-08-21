@@ -157,7 +157,7 @@ func demandResources(applicationResources *sparkApplicationResources) []demandap
 			Memory: applicationResources.driverResources.Memory,
 		},
 		{
-			Count:  applicationResources.executorCount,
+			Count:  applicationResources.minExecutorCount,
 			CPU:    applicationResources.executorResources.CPU,
 			Memory: applicationResources.executorResources.Memory,
 		},

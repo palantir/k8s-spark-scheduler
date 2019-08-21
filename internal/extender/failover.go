@@ -22,9 +22,9 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
-	werror "github.com/palantir/witchcraft-go-error"
+	"github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	corelisters "k8s.io/client-go/listers/core/v1"
@@ -207,6 +207,7 @@ func (r *reconciler) patchResourceReservation(execs []*v1.Pod, rr *v1beta1.Resou
 			}
 			currentPodName, ok := rr.Status.Pods[name]
 			if !ok {
+				// TODO: is there an issue taking a reservation irrespective of order and who might have been there before failover?
 				rr.Status.Pods[name] = e.Name
 				break
 			}
@@ -236,14 +237,19 @@ func (r *reconciler) constructResourceReservation(
 		return nil, nil, werror.Error("instance group not found", werror.SafeParam("instanceGroup", instanceGroup))
 	}
 
-	executorCountToAssignNodes := applicationResources.executorCount - len(executors)
-	reservedNodeNames, reservedResources := findNodes(executorCountToAssignNodes, applicationResources.executorResources, availableResources, nodes)
-	if len(reservedNodeNames) < executorCountToAssignNodes {
-		svc1log.FromContext(ctx).Error("could not reserve space for all executors",
-			svc1log.SafeParams(internal.PodSafeParams(*driver)))
+	var reservedNodeNames []string
+	var reservedResources resources.NodeGroupResources
+	executorCountToAssignNodes := applicationResources.minExecutorCount - len(executors)	// can be negative in dynamic allocation
+	if executorCountToAssignNodes > 0 {
+		reservedNodeNames, reservedResources = findNodes(executorCountToAssignNodes, applicationResources.executorResources, availableResources, nodes)
+		if len(reservedNodeNames) < executorCountToAssignNodes {
+			svc1log.FromContext(ctx).Error("could not reserve space for all executors",
+				svc1log.SafeParams(internal.PodSafeParams(*driver)))
+		}
 	}
-	executorNodes := make([]string, 0, applicationResources.executorCount)
-	for _, e := range executors {
+
+	executorNodes := make([]string, 0, applicationResources.minExecutorCount)
+	for _, e := range executors[0:applicationResources.minExecutorCount] {
 		executorNodes = append(executorNodes, e.Spec.NodeName)
 	}
 	executorNodes = append(executorNodes, reservedNodeNames...)
