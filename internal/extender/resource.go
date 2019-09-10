@@ -36,16 +36,16 @@ import (
 )
 
 const (
-	failureUnbound       			= "failure-unbound"
-	failureInternal      			= "failure-internal"
-	failureFit           			= "failure-fit"
-	failureEarlierDriver 			= "failure-earlier-driver"
-	failureNonSparkPod   			= "failure-non-spark-pod"
-	success              			= "success"
-	successRescheduled   			= "success-rescheduled"
-	successAlreadyBound  			= "success-already-bound"
-	successScheduledExtraExecutor	= "success-scheduled-extra-executor"
-	failureFitExtraExecutor			= "failure-fit-extra-executor"
+	failureUnbound                = "failure-unbound"
+	failureInternal               = "failure-internal"
+	failureFit                    = "failure-fit"
+	failureEarlierDriver          = "failure-earlier-driver"
+	failureNonSparkPod            = "failure-non-spark-pod"
+	success                       = "success"
+	successRescheduled            = "success-rescheduled"
+	successAlreadyBound           = "success-already-bound"
+	successScheduledExtraExecutor = "success-scheduled-extra-executor"
+	failureFitExtraExecutor       = "failure-fit-extra-executor"
 	// TODO: make this configurable
 	// leaderElectionInterval is the default LeaseDuration for core clients.
 	// obtained from k8s.io/component-base/config/v1alpha1
@@ -297,7 +297,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 		if err != nil {
 			return "", failureInternal, err
 		}
-		if outcome == failureUnbound && (sparkResources.minExecutorCount + extraExecutorCount) < sparkResources.maxExecutorCount {
+		if outcome == failureUnbound && (sparkResources.minExecutorCount+extraExecutorCount) < sparkResources.maxExecutorCount {
 			// dynamic allocation case where driver is requesting more executors than min but less than max
 			// TODO: avoid repetition between this and selectDriverNode()
 			if s.isFIFO {
@@ -335,8 +335,8 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 				return node, outcome, err
 			}
 			softReservation := v1beta1.Reservation{
-				Node: node,
-				CPU: sparkResources.executorResources.CPU,
+				Node:   node,
+				CPU:    sparkResources.executorResources.CPU,
 				Memory: sparkResources.executorResources.Memory,
 			}
 			s.softReservationStore.AddReservationForPod(ctx, driver.Labels[SparkAppIDLabel], executor.Name, softReservation)

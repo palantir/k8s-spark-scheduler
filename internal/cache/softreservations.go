@@ -16,12 +16,13 @@ package cache
 
 import (
 	"context"
+	"sync"
+
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientcache "k8s.io/client-go/tools/cache"
-	"sync"
 )
 
 // TODO(rkaram): Move to common place to avoid duplication without causing circular dependency
@@ -36,21 +37,25 @@ const (
 	Executor = "executor"
 )
 
+// SoftReservationStore is an in-memory store that keeps track of soft reservations granted to extra executors for applications that support dynamic allocation
 type SoftReservationStore struct {
-	store 		map[string]*SoftReservation				// SparkAppID -> SoftReservation
-	storeLock 	sync.RWMutex
+	store     map[string]*SoftReservation // SparkAppID -> SoftReservation
+	storeLock sync.RWMutex
 }
 
+// SoftReservation is an in-memory reservation for a particular spark application that keeps track of extra executors allocate over the
+// min reservation count
 // TODO(rkaram): check if we want to use the same reservation object we already have
 type SoftReservation struct {
-	Reservations 	map[string]v1beta1.Reservation		// Executor pod name -> Reservation (only valid ones here)
-	Status			map[string]bool						// Executor pod name -> Reservation valid or not
+	Reservations map[string]v1beta1.Reservation // Executor pod name -> Reservation (only valid ones here)
+	Status       map[string]bool                // Executor pod name -> Reservation valid or not
 }
 
-func NewSoftReservationStore(informer coreinformers.PodInformer) *SoftReservationStore  {
+// NewSoftReservationStore builds and returns a SoftReservationStore and instantiates the needed background informer event handlers to keep the store up to date
+func NewSoftReservationStore(informer coreinformers.PodInformer) *SoftReservationStore {
 	s := &SoftReservationStore{
-		store: 			make(map[string]*SoftReservation),
-		storeLock:		sync.RWMutex{},
+		store:     make(map[string]*SoftReservation),
+		storeLock: sync.RWMutex{},
 	}
 
 	informer.Informer().AddEventHandler(
@@ -71,16 +76,18 @@ func NewSoftReservationStore(informer coreinformers.PodInformer) *SoftReservatio
 	return s
 }
 
-func (s *SoftReservationStore) GetSoftReservation(appId string) (SoftReservation, bool) {
+// GetSoftReservation returns a copy of the SoftReservation tied to an application if it exists (otherwise, bool returned will be false)
+func (s *SoftReservationStore) GetSoftReservation(appID string) (SoftReservation, bool) {
 	s.storeLock.RLock()
 	defer s.storeLock.RUnlock()
-	appSoftReservation, ok := s.store[appId]
+	appSoftReservation, ok := s.store[appID]
 	if !ok {
 		return SoftReservation{}, ok
 	}
 	return *appSoftReservation, ok
 }
 
+// GetAllSoftReservations returns a pointer to the internal store that holds all soft reservations and should be treated as read only for now
 func (s *SoftReservationStore) GetAllSoftReservations() map[string]*SoftReservation {
 	s.storeLock.RLock()
 	defer s.storeLock.RUnlock()
@@ -88,29 +95,33 @@ func (s *SoftReservationStore) GetAllSoftReservations() map[string]*SoftReservat
 	return s.store
 }
 
-func (s *SoftReservationStore) CreateSoftReservationIfNotExists(appId string) SoftReservation {
+// CreateSoftReservationIfNotExists creates an internal empty soft reservation for a particular application.
+// This is a noop if the reservation already exists.
+func (s *SoftReservationStore) CreateSoftReservationIfNotExists(appID string) SoftReservation {
 	s.storeLock.Lock()
 	defer s.storeLock.Unlock()
-	appSoftReservation, ok := s.store[appId]
+	appSoftReservation, ok := s.store[appID]
 	if !ok {
 		r := make(map[string]v1beta1.Reservation)
 		st := make(map[string]bool)
 		sr := &SoftReservation{
 			Reservations: r,
-			Status: st,
+			Status:       st,
 		}
-		s.store[appId] = sr
+		s.store[appID] = sr
 		appSoftReservation = sr
 	}
 	return *appSoftReservation
 }
 
-func (s *SoftReservationStore) AddReservationForPod(ctx context.Context, appId string, podName string, reservation v1beta1.Reservation) {
+// AddReservationForPod adds a reservation for an extra executor pod, attaching the associated node and resources to it.
+// This is a noop if the reservation already exists.
+func (s *SoftReservationStore) AddReservationForPod(ctx context.Context, appID string, podName string, reservation v1beta1.Reservation) {
 	s.storeLock.Lock()
 	defer s.storeLock.Unlock()
-	appSoftReservation, ok := s.store[appId]
+	appSoftReservation, ok := s.store[appID]
 	if !ok {
-		svc1log.FromContext(ctx).Info("Could not put reservation since appId does not exist in reservation store", svc1log.SafeParam("appId", appId))
+		svc1log.FromContext(ctx).Info("Could not put reservation since appID does not exist in reservation store", svc1log.SafeParam("appID", appID))
 		return
 	}
 

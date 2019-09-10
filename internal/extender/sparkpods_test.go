@@ -55,29 +55,29 @@ func TestSparkResources(t *testing.T) {
 		expectedApplicationResources: &sparkApplicationResources{
 			driverResources:   createResources(1, 2432*1024*1024),
 			executorResources: createResources(2, 6758*1024*1024),
-			minExecutorCount:     2,
-			maxExecutorCount:     2,
+			minExecutorCount:  2,
+			maxExecutorCount:  2,
 		},
 	}, {
 		name: "parses dynamic allocation pod annotations into resources",
 		pod: v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
-					DriverCPU:      "1",
-					DriverMemory:   "2432Mi",
-					ExecutorCPU:    "2",
-					ExecutorMemory: "6758Mi",
+					DriverCPU:                "1",
+					DriverMemory:             "2432Mi",
+					ExecutorCPU:              "2",
+					ExecutorMemory:           "6758Mi",
 					DynamicAllocationEnabled: "true",
-					DAMinExecutorCount:  "2",
-					DAMaxExecutorCount:  "5",
+					DAMinExecutorCount:       "2",
+					DAMaxExecutorCount:       "5",
 				},
 			},
 		},
 		expectedApplicationResources: &sparkApplicationResources{
 			driverResources:   createResources(1, 2432*1024*1024),
 			executorResources: createResources(2, 6758*1024*1024),
-			minExecutorCount:     2,
-			maxExecutorCount:     5,
+			minExecutorCount:  2,
+			maxExecutorCount:  5,
 		},
 	}}
 

@@ -23,9 +23,9 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
-	"github.com/palantir/witchcraft-go-error"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -74,12 +74,12 @@ type sparkPods struct {
 type instanceGroup string
 
 type reconciler struct {
-	podLister            	*SparkPodLister
-	resourceReservations 	*cache.ResourceReservationCache
-	softReservations		*cache.SoftReservationStore
-	demands              	*cache.SafeDemandCache
-	availableResources   	map[instanceGroup]resources.NodeGroupResources
-	orderedNodes         	map[instanceGroup][]*v1.Node
+	podLister            *SparkPodLister
+	resourceReservations *cache.ResourceReservationCache
+	softReservations     *cache.SoftReservationStore
+	demands              *cache.SafeDemandCache
+	availableResources   map[instanceGroup]resources.NodeGroupResources
+	orderedNodes         map[instanceGroup][]*v1.Node
 }
 
 func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods) {
@@ -139,8 +139,8 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 				break
 			}
 			r.softReservations.AddReservationForPod(ctx, sp.appID, extraExecutor.Name, v1beta1.Reservation{
-				Node: extraExecutor.Spec.NodeName,
-				CPU: appResources.executorResources.CPU,
+				Node:   extraExecutor.Spec.NodeName,
+				CPU:    appResources.executorResources.CPU,
 				Memory: appResources.executorResources.Memory,
 			})
 		}
@@ -179,7 +179,7 @@ func unreservedSparkPodsBySparkID(
 
 	podsWithSoftRRs := make(map[string]bool, len(softrrs))
 	for _, srr := range softrrs {
-		for podName, _ := range srr.Reservations {
+		for podName := range srr.Reservations {
 			podsWithSoftRRs[podName] = true
 		}
 	}
