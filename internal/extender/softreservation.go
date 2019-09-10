@@ -35,7 +35,6 @@ func (s *SparkSchedulerExtender) usedSoftReservationResources() resources.NodeGr
 }
 
 func (s *SparkSchedulerExtender) getSoftReservationCount(appId string) int {
-	s.softReservationStore.PrintStore()
 	if sr, ok := s.softReservationStore.GetSoftReservation(appId); ok {
 		return len(sr.Reservations)
 	}
