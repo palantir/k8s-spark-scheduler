@@ -16,6 +16,7 @@ package extender
 
 import (
 	"context"
+	"math"
 	"sort"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
@@ -27,7 +28,6 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
-	corelisters "k8s.io/client-go/listers/core/v1"
 )
 
 // SyncResourceReservationsAndDemands gets all resource reservations and pods,
@@ -46,13 +46,15 @@ func (s *SparkSchedulerExtender) syncResourceReservationsAndDemands(ctx context.
 		return err
 	}
 	rrs := s.resourceReservations.List()
-	availableResources, orderedNodes := availableResourcesPerInstanceGroup(ctx, rrs, nodes, s.overheadComputer.GetOverhead(ctx, nodes))
-	staleSparkPods := unreservedSparkPodsBySparkID(ctx, rrs, pods)
+	overhead := s.overheadComputer.GetOverhead(ctx, nodes)
+	softReservationOverhead := s.usedSoftReservationResources()
+	availableResources, orderedNodes := availableResourcesPerInstanceGroup(ctx, rrs, nodes, overhead, softReservationOverhead)
+	staleSparkPods := unreservedSparkPodsBySparkID(ctx, rrs, s.softReservationStore.GetAllSoftReservations(), pods)
 	svc1log.FromContext(ctx).Info("starting reconciliation", svc1log.SafeParam("appCount", len(staleSparkPods)))
 
-	r := &reconciler{s.podLister, s.resourceReservations, s.demands, availableResources, orderedNodes}
+	r := &reconciler{s.podLister, s.resourceReservations, s.softReservationStore, s.demands, availableResources, orderedNodes}
 	for _, sp := range staleSparkPods {
-		r.syncResourceReservation(ctx, sp)
+		r.syncResourceReservations(ctx, sp)
 		r.syncDemand(ctx, sp)
 	}
 	// recompute overhead to account for newly created resource reservations
@@ -72,16 +74,23 @@ type sparkPods struct {
 type instanceGroup string
 
 type reconciler struct {
-	podLister            corelisters.PodLister
-	resourceReservations *cache.ResourceReservationCache
-	demands              *cache.SafeDemandCache
-	availableResources   map[instanceGroup]resources.NodeGroupResources
-	orderedNodes         map[instanceGroup][]*v1.Node
+	podLister            	*SparkPodLister
+	resourceReservations 	*cache.ResourceReservationCache
+	softReservations		*cache.SoftReservationStore
+	demands              	*cache.SafeDemandCache
+	availableResources   	map[instanceGroup]resources.NodeGroupResources
+	orderedNodes         	map[instanceGroup][]*v1.Node
 }
 
-func (r *reconciler) syncResourceReservation(ctx context.Context, sp *sparkPods) {
+func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods) {
 	// if the driver is nil it already has an associated reservation, get the resource
 	// reservation object and update it so it has reservations for each stale executor
+	appResources, err := r.getAppResources(ctx, sp)
+	if err != nil {
+		return
+	}
+	extraExecutors := make([]*v1.Pod, 0, len(sp.inconsistentExecutors))
+
 	if sp.inconsistentDriver == nil && len(sp.inconsistentExecutors) > 0 {
 		exec := sp.inconsistentExecutors[0]
 		rr, ok := r.resourceReservations.Get(exec.Namespace, sp.appID)
@@ -89,7 +98,8 @@ func (r *reconciler) syncResourceReservation(ctx context.Context, sp *sparkPods)
 			logRR(ctx, "resource reservation deleted, ignoring", exec.Namespace, sp.appID)
 			return
 		}
-		err := r.patchResourceReservation(sp.inconsistentExecutors, rr.DeepCopy())
+		unreservedExecutors, err := r.patchResourceReservation(sp.inconsistentExecutors, rr.DeepCopy())
+		extraExecutors = unreservedExecutors
 		if err != nil {
 			logRR(ctx, "resource reservation deleted, ignoring", exec.Namespace, sp.appID)
 			return
@@ -97,7 +107,11 @@ func (r *reconciler) syncResourceReservation(ctx context.Context, sp *sparkPods)
 	} else if sp.inconsistentDriver != nil {
 		// the driver is stale, a new resource reservation object needs to be created
 		instanceGroup := instanceGroup(sp.inconsistentDriver.Spec.NodeSelector[instanceGroupNodeSelector])
-		newRR, reservedResources, err := r.constructResourceReservation(ctx, sp.inconsistentDriver, sp.inconsistentExecutors, instanceGroup)
+		endIdx := int(math.Min(float64(len(sp.inconsistentExecutors)), float64(appResources.minExecutorCount)))
+		executorsUpToMin := sp.inconsistentExecutors[0:endIdx]
+		extraExecutors = sp.inconsistentExecutors[endIdx:]
+
+		newRR, reservedResources, err := r.constructResourceReservation(ctx, sp.inconsistentDriver, executorsUpToMin, instanceGroup)
 		if err != nil {
 			svc1log.FromContext(ctx).Error("failed to construct resource reservation", svc1log.Stacktrace(err))
 			return
@@ -113,6 +127,25 @@ func (r *reconciler) syncResourceReservation(ctx context.Context, sp *sparkPods)
 		}
 		r.availableResources[instanceGroup].Sub(reservedResources)
 	}
+
+	// Create soft reservation object for drivers that can have extra executors even if they don't at the moment
+	if appResources.maxExecutorCount > appResources.minExecutorCount {
+		r.softReservations.CreateSoftReservationIfNotExists(sp.appID)
+	}
+	// Create soft reservations for the extra executors
+	if len(extraExecutors) > 0 {
+		for i, extraExecutor := range extraExecutors {
+			if i >= (appResources.maxExecutorCount - appResources.minExecutorCount) {
+				break
+			}
+			r.softReservations.AddReservationForPod(ctx, sp.appID, extraExecutor.Name, v1beta1.Reservation{
+				Node: extraExecutor.Spec.NodeName,
+				CPU: appResources.executorResources.CPU,
+				Memory: appResources.executorResources.Memory,
+			})
+		}
+	}
+
 }
 
 func (r *reconciler) syncDemand(ctx context.Context, sp *sparkPods) {
@@ -134,6 +167,7 @@ func (r *reconciler) deleteDemandIfExists(namespace, name string) {
 func unreservedSparkPodsBySparkID(
 	ctx context.Context,
 	rrs []*v1beta1.ResourceReservation,
+	softrrs map[string]*cache.SoftReservation,
 	pods []*v1.Pod,
 ) map[string]*sparkPods {
 	podsWithRRs := make(map[string]bool, len(rrs))
@@ -143,9 +177,16 @@ func unreservedSparkPodsBySparkID(
 		}
 	}
 
+	podsWithSoftRRs := make(map[string]bool, len(softrrs))
+	for _, srr := range softrrs {
+		for podName, _ := range srr.Reservations {
+			podsWithSoftRRs[podName] = true
+		}
+	}
+
 	appIDToPods := make(map[string]*sparkPods)
 	for _, pod := range pods {
-		if isNotScheduledSparkPod(pod) || podsWithRRs[pod.Name] {
+		if isNotScheduledSparkPod(pod) || podsWithRRs[pod.Name] || podsWithSoftRRs[pod.Name] {
 			continue
 		}
 		appID := pod.Labels[SparkAppIDLabel]
@@ -176,7 +217,8 @@ func availableResourcesPerInstanceGroup(
 	ctx context.Context,
 	rrs []*v1beta1.ResourceReservation,
 	nodes []*v1.Node,
-	overhead resources.NodeGroupResources) (map[instanceGroup]resources.NodeGroupResources, map[instanceGroup][]*v1.Node) {
+	overhead resources.NodeGroupResources,
+	softReservationOverhead resources.NodeGroupResources) (map[instanceGroup]resources.NodeGroupResources, map[instanceGroup][]*v1.Node) {
 	sort.Slice(nodes, func(i, j int) bool {
 		return nodes[j].CreationTimestamp.Before(&nodes[i].CreationTimestamp)
 	})
@@ -191,6 +233,7 @@ func availableResourcesPerInstanceGroup(
 	}
 	usages := resources.UsageForNodes(rrs)
 	usages.Add(overhead)
+	usages.Add(softReservationOverhead)
 	availableResources := make(map[instanceGroup]resources.NodeGroupResources)
 	for instanceGroup, ns := range schedulableNodes {
 		availableResources[instanceGroup] = resources.AvailableForNodes(ns, usages)
@@ -199,8 +242,10 @@ func availableResourcesPerInstanceGroup(
 }
 
 // patchResourceReservation gets a stale resource reservation and updates its status to reflect all given executors
-func (r *reconciler) patchResourceReservation(execs []*v1.Pod, rr *v1beta1.ResourceReservation) error {
+func (r *reconciler) patchResourceReservation(execs []*v1.Pod, rr *v1beta1.ResourceReservation) ([]*v1.Pod, error) {
+	extraExecutors := make([]*v1.Pod, 0, len(execs))
 	for _, e := range execs {
+		reservedForExecutor := false
 		for name, reservation := range rr.Spec.Reservations {
 			if reservation.Node != e.Spec.NodeName {
 				continue
@@ -209,16 +254,23 @@ func (r *reconciler) patchResourceReservation(execs []*v1.Pod, rr *v1beta1.Resou
 			if !ok {
 				// TODO: is there an issue taking a reservation irrespective of order and who might have been there before failover?
 				rr.Status.Pods[name] = e.Name
+				reservedForExecutor = true
 				break
 			}
 			pod, err := r.podLister.Pods(e.Namespace).Get(currentPodName)
 			if errors.IsNotFound(err) || (err == nil && isPodTerminated(pod)) {
 				rr.Status.Pods[name] = e.Name
+				reservedForExecutor = true
 				break
 			}
 		}
+
+		if !reservedForExecutor {
+			extraExecutors = append(extraExecutors, e)
+		}
 	}
-	return r.resourceReservations.Update(rr)
+
+	return extraExecutors, r.resourceReservations.Update(rr)
 }
 
 func (r *reconciler) constructResourceReservation(
@@ -239,7 +291,7 @@ func (r *reconciler) constructResourceReservation(
 
 	var reservedNodeNames []string
 	var reservedResources resources.NodeGroupResources
-	executorCountToAssignNodes := applicationResources.minExecutorCount - len(executors)	// can be negative in dynamic allocation
+	executorCountToAssignNodes := applicationResources.minExecutorCount - len(executors)
 	if executorCountToAssignNodes > 0 {
 		reservedNodeNames, reservedResources = findNodes(executorCountToAssignNodes, applicationResources.executorResources, availableResources, nodes)
 		if len(reservedNodeNames) < executorCountToAssignNodes {
@@ -263,6 +315,23 @@ func (r *reconciler) constructResourceReservation(
 		rr.Status.Pods[executorReservationName(i)] = e.Name
 	}
 	return rr, reservedResources, nil
+}
+
+func (r *reconciler) getAppResources(ctx context.Context, sp *sparkPods) (*sparkApplicationResources, error) {
+	var driver *v1.Pod
+	if sp.inconsistentDriver != nil {
+		driver = sp.inconsistentDriver
+	} else if len(sp.inconsistentExecutors) > 0 {
+		d, err := r.podLister.getDriverPod(ctx, sp.inconsistentExecutors[0])
+		if err != nil {
+			logRR(ctx, "error getting driver pod for executor", sp.inconsistentExecutors[0].Namespace, sp.appID)
+			return nil, err
+		}
+		driver = d
+	} else {
+		return nil, werror.Error("no inconsistent driver or executor")
+	}
+	return sparkResources(ctx, driver)
 }
 
 // findNodes reserves space for n executors, picks nodes by the iterating

@@ -59,6 +59,7 @@ type SparkSchedulerExtender struct {
 	nodeLister           corelisters.NodeLister
 	podLister            *SparkPodLister
 	resourceReservations *cache.ResourceReservationCache
+	softReservationStore *cache.SoftReservationStore
 	coreClient           corev1.CoreV1Interface
 
 	demands             *cache.SafeDemandCache
@@ -75,6 +76,7 @@ func NewExtender(
 	nodeLister corelisters.NodeLister,
 	podLister *SparkPodLister,
 	resourceReservations *cache.ResourceReservationCache,
+	softReservationStore *cache.SoftReservationStore,
 	coreClient corev1.CoreV1Interface,
 	demands *cache.SafeDemandCache,
 	apiExtensionsClient apiextensionsclientset.Interface,
@@ -85,6 +87,7 @@ func NewExtender(
 		nodeLister:           nodeLister,
 		podLister:            podLister,
 		resourceReservations: resourceReservations,
+		softReservationStore: softReservationStore,
 		coreClient:           coreClient,
 		demands:              demands,
 		apiExtensionsClient:  apiExtensionsClient,
@@ -246,7 +249,12 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	}
 	s.removeDemandIfExists(ctx, driver)
 	metrics.ReportCrossZoneMetric(ctx, driverNode, executorNodes, availableNodes)
-	return s.createResourceReservations(ctx, driver, applicationResources, driverNode, executorNodes)
+	reservedDriverNode, outcome, err := s.createResourceReservations(ctx, driver, applicationResources, driverNode, executorNodes)
+	if outcome == success && applicationResources.maxExecutorCount > applicationResources.minExecutorCount {
+		// only create soft reservations for applications which can request extra executors
+		s.softReservationStore.CreateSoftReservationIfNotExists(driver.Labels[SparkAppIDLabel])
+	}
+	return reservedDriverNode, outcome, err
 }
 
 func (s *SparkSchedulerExtender) potentialNodes(availableNodes []*v1.Node, driver *v1.Pod, nodeNames []string) (driverNodes, executorNodes []string) {
@@ -280,12 +288,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	}
 	unboundReservations, outcome, unboundResErr := s.findUnboundReservations(ctx, executor, resourceReservation)
 	if unboundResErr != nil {
-		// TODO: change this logic above based on unboundReservations empty rather than on the err
-		// TODO: do we want the same active executors here and for findUnboundReservations for consistency?
-		activeExecutors, err := s.getActiveExecutors(ctx, executor.Namespace, executor.Labels[SparkAppIDLabel])
-		if err != nil {
-			return "", failureInternal, err
-		}
+		extraExecutorCount := s.getSoftReservationCount(executor.Labels[SparkAppIDLabel])
 		driver, err := s.podLister.getDriverPod(ctx, executor)
 		if err != nil {
 			return "", failureInternal, err
@@ -294,7 +297,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 		if err != nil {
 			return "", failureInternal, err
 		}
-		if outcome == failureUnbound && len(activeExecutors) < sparkResources.maxExecutorCount {
+		if outcome == failureUnbound && (sparkResources.minExecutorCount + extraExecutorCount) < sparkResources.maxExecutorCount {
 			// dynamic allocation case where driver is requesting more executors than min but less than max
 			// TODO: avoid repetition between this and selectDriverNode()
 			if s.isFIFO {
@@ -331,6 +334,12 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 				}
 				return node, outcome, err
 			}
+			softReservation := v1beta1.Reservation{
+				Node: node,
+				CPU: sparkResources.executorResources.CPU,
+				Memory: sparkResources.executorResources.Memory,
+			}
+			s.softReservationStore.AddReservationForPod(ctx, driver.Labels[SparkAppIDLabel], executor.Name, softReservation)
 			return node, successScheduledExtraExecutor, nil
 		}
 		return "", outcome, unboundResErr
@@ -397,7 +406,9 @@ func (s *SparkSchedulerExtender) getNodes(ctx context.Context, nodeNames []strin
 
 func (s *SparkSchedulerExtender) usedResources(nodeNames []string) (resources.NodeGroupResources, error) {
 	resourceReservations := s.resourceReservations.List()
-	return resources.UsageForNodes(resourceReservations), nil
+	usage := resources.UsageForNodes(resourceReservations)
+	usage.Add(s.usedSoftReservationResources())
+	return usage, nil
 }
 
 func (s *SparkSchedulerExtender) createResourceReservations(
@@ -429,6 +440,8 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	}
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
 	availableResources := resources.AvailableForNodes(availableNodes, usages)
+	svc1log.FromContext(ctx).Error("debug", svc1log.SafeParam("availableResources", availableResources),
+		svc1log.SafeParam("nodeNames", nodeNames))
 	for _, name := range nodeNames {
 		if !executorResources.GreaterThan(availableResources[name]) {
 			return name, successRescheduled, nil
@@ -479,27 +492,11 @@ func (s *SparkSchedulerExtender) findUnboundReservations(ctx context.Context, ex
 			relocatableReservations = append(relocatableReservations, name)
 		}
 	}
-
 	if len(relocatableReservations) == 0 {
 		return nil, failureUnbound, werror.Error("failed to find unbound resource reservation", werror.SafeParams(logging.RRSafeParam(resourceReservation)))
 	}
 	svc1log.FromContext(ctx).Info("found relocatable resource reservations", svc1log.SafeParams(logging.RRSafeParam(resourceReservation)))
 	return relocatableReservations, successRescheduled, nil
-}
-
-func (s *SparkSchedulerExtender) getActiveExecutors(ctx context.Context, namespace string, sparkAppID string) (map[string]bool, error)  {
-	selector := labels.Set(map[string]string{SparkAppIDLabel: sparkAppID, SparkRoleLabel: Executor}).AsSelector()
-	pods, err := s.podLister.Pods(namespace).List(selector)
-	if err != nil {
-		return nil, werror.Wrap(err, "failed to list pods")
-	}
-	activePodNames := make(map[string]bool, len(pods))
-	for _, pod := range pods {
-		if !isPodTerminated(pod) && pod.Status.Phase != v1.PodPending {
-			activePodNames[pod.Name] = true
-		}
-	}
-	return activePodNames, nil
 }
 
 func isPodTerminated(pod *v1.Pod) bool {

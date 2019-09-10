@@ -108,9 +108,11 @@ func sparkResources(ctx context.Context, pod *v1.Pod) (*sparkApplicationResource
 	parsedResources := map[string]resource.Quantity{}
 	dynamicAllocationEnabled := false
 	if daLabel, ok := pod.Annotations[DynamicAllocationEnabled]; ok {
-		if da, err := strconv.ParseBool(daLabel); err != nil {
+		da, err := strconv.ParseBool(daLabel)
+		if err != nil {
 			return nil, fmt.Errorf("annotation DynamicAllocationEnabled could not be parsed as a boolean")
-		} else { dynamicAllocationEnabled = da }
+		}
+		dynamicAllocationEnabled = da
 	}
 
 	for _, a := range []string{DriverCPU, DriverMemory, ExecutorCPU, ExecutorMemory, ExecutorCount, DAMinExecutorCount, DAMaxExecutorCount} {
