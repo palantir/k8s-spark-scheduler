@@ -154,7 +154,7 @@ release-requires-filter: &release-requires-filter
 # Filter that matches only the "master" branch. Used for jobs that publish snapshots.
 master-requires-filter: &master-requires-filter
   requires: *requires_jobs
-  filters: { tags: { ignore: /.*/ }, branches: { only: /dynamic_allocation/ } }
+  filters: { tags: { ignore: /.*/ }, branches: { only: /rk\/dynamic_allocation/ } }
 
 workflows:
   version: 2
