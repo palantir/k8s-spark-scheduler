@@ -182,9 +182,9 @@ func NewNode(name string) v1.Node {
 			Name:      name,
 			Namespace: "namespace",
 			Labels: map[string]string{
-				"resource_channel": "batch-medium-priority",
-				// "com.palantir.rubix/instance-group": "batch-medium-priority",
-				"test": "something",
+				"resource_channel":                  "batch-medium-priority",
+				"com.palantir.rubix/instance-group": "batch-medium-priority",
+				"test":                              "something",
 			},
 			Annotations: map[string]string{},
 		},
