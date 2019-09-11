@@ -103,7 +103,9 @@ func (u *UnschedulablePodMarker) scanForUnschedulablePods(ctx context.Context) {
 					svc1log.Stacktrace(err))
 				return
 			}
-
+			if exceedsCapacity {
+				svc1log.FromContext(ctx).Info("Marking pod as exceeds capacity")
+			}
 			err = u.markPodClusterCapacityStatus(ctx, pod, exceedsCapacity)
 			if err != nil {
 				svc1log.FromContext(ctx).Error("failed to mark pod cluster capacity status",
@@ -124,7 +126,7 @@ func (u *UnschedulablePodMarker) DoesPodExceedClusterCapacity(ctx context.Contex
 		nodeNames = append(nodeNames, node.Name)
 	}
 	if len(nodeNames) == 0 {
-		svc1log.FromContext(ctx).Warn("could not find any nodes matching pod selectors, possible misconfiguration.",
+		svc1log.FromContext(ctx).Info("could not find any nodes matching pod selectors",
 			svc1log.SafeParam("nodeSelector", driver.Spec.NodeSelector))
 	}
 
