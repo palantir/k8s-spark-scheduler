@@ -60,7 +60,7 @@ docker_publish_steps: &docker_publish_steps
       if [ "$RELEASE_TYPE" == "release" ]; then
         ./godelw docker push --repository "$DOCKER_REPO" --tags=release
       else
-        ./godelw docker push --repository "$DOCKER_REPO" --tags=da
+        ./godelw docker push --repository "$DOCKER_REPO" --tags=latest
       fi
 
 define-tests-dir: &define-tests-dir
