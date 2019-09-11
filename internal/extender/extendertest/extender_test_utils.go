@@ -45,6 +45,7 @@ const (
 // Harness is an extension of an extender with in-memory k8s stores
 type Harness struct {
 	Extender                 *extender.SparkSchedulerExtender
+	UnschedulablePodMarker   *extender.UnschedulablePodMarker
 	PodStore                 cache.Store
 	NodeStore                cache.Store
 	ResourceReservationStore cache.Store
@@ -104,7 +105,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	isFIFO := true
 	binpacker := extender.SelectBinpacker("tightly-pack")
 
-	extender := extender.NewExtender(
+	sparkSchedulerExtender := extender.NewExtender(
 		nodeInformer.Lister(),
 		extender.NewSparkPodLister(podInformer.Lister()),
 		resourceReservationCache,
@@ -116,8 +117,16 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		overheadComputer,
 	)
 
+	unschedulablePodMarker := extender.NewUnschedulablePodMarker(
+		nodeInformer.Lister(),
+		podInformer.Lister(),
+		fakeKubeClient.CoreV1(),
+		overheadComputer,
+		binpacker)
+
 	return &Harness{
-		Extender:                 extender,
+		Extender:                 sparkSchedulerExtender,
+		UnschedulablePodMarker:   unschedulablePodMarker,
 		PodStore:                 podInformer.Informer().GetStore(),
 		NodeStore:                nodeInformer.Informer().GetStore(),
 		ResourceReservationStore: resourceReservationInformerBeta.Informer().GetStore(),
@@ -173,7 +182,9 @@ func NewNode(name string) v1.Node {
 			Name:      name,
 			Namespace: "namespace",
 			Labels: map[string]string{
-				"resource_channel": "batch-medium-priority",
+				"resource_channel":                  "batch-medium-priority",
+				"com.palantir.rubix/instance-group": "batch-medium-priority",
+				"test":                              "something",
 			},
 			Annotations: map[string]string{},
 		},
@@ -213,7 +224,8 @@ func SparkApplicationPods(sparkApplicationID string, numExecutors int) []v1.Pod 
 		},
 		Spec: v1.PodSpec{
 			NodeSelector: map[string]string{
-				"resource_channel": "batch-medium-priority",
+				"resource_channel":                  "batch-medium-priority",
+				"com.palantir.rubix/instance-group": "batch-medium-priority",
 			},
 		},
 		Status: v1.PodStatus{

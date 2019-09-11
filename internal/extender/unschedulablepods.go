@@ -97,13 +97,15 @@ func (u *UnschedulablePodMarker) scanForUnschedulablePods(ctx context.Context) {
 				svc1log.SafeParam("podName", pod.Name),
 				svc1log.SafeParam("podNamespace", pod.Namespace))
 
-			exceedsCapacity, err := u.doesPodExceedClusterCapacity(ctx, pod)
+			exceedsCapacity, err := u.DoesPodExceedClusterCapacity(ctx, pod)
 			if err != nil {
 				svc1log.FromContext(ctx).Error("failed to check if pod was unschedulable",
 					svc1log.Stacktrace(err))
 				return
 			}
-
+			if exceedsCapacity {
+				svc1log.FromContext(ctx).Info("Marking pod as exceeds capacity")
+			}
 			err = u.markPodClusterCapacityStatus(ctx, pod, exceedsCapacity)
 			if err != nil {
 				svc1log.FromContext(ctx).Error("failed to mark pod cluster capacity status",
@@ -113,7 +115,8 @@ func (u *UnschedulablePodMarker) scanForUnschedulablePods(ctx context.Context) {
 	}
 }
 
-func (u *UnschedulablePodMarker) doesPodExceedClusterCapacity(ctx context.Context, driver *v1.Pod) (bool, error) {
+// DoesPodExceedClusterCapacity checks if the provided driver pod could ever fit to the cluster
+func (u *UnschedulablePodMarker) DoesPodExceedClusterCapacity(ctx context.Context, driver *v1.Pod) (bool, error) {
 	nodes, err := u.nodeLister.List(labels.Set(driver.Spec.NodeSelector).AsSelector())
 	if err != nil {
 		return false, err
@@ -122,6 +125,11 @@ func (u *UnschedulablePodMarker) doesPodExceedClusterCapacity(ctx context.Contex
 	for _, node := range nodes {
 		nodeNames = append(nodeNames, node.Name)
 	}
+	if len(nodeNames) == 0 {
+		svc1log.FromContext(ctx).Info("could not find any nodes matching pod selectors",
+			svc1log.SafeParam("nodeSelector", driver.Spec.NodeSelector))
+	}
+
 	availableResources := resources.AvailableForNodes(nodes, u.overheadComputer.GetOverhead(ctx, nodes))
 	applicationResources, err := sparkResources(ctx, driver)
 	if err != nil {
