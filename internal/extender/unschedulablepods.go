@@ -123,6 +123,11 @@ func (u *UnschedulablePodMarker) DoesPodExceedClusterCapacity(ctx context.Contex
 	for _, node := range nodes {
 		nodeNames = append(nodeNames, node.Name)
 	}
+	if len(nodeNames) == 0 {
+		svc1log.FromContext(ctx).Warn("could not find any nodes matching pod selectors, possible misconfiguration.",
+			svc1log.SafeParam("nodeSelector", driver.Spec.NodeSelector))
+	}
+
 	availableResources := resources.AvailableForNodes(nodes, u.overheadComputer.GetOverhead(ctx, nodes))
 	applicationResources, err := sparkResources(ctx, driver)
 	if err != nil {
