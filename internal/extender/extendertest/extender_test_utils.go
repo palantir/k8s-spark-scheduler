@@ -79,6 +79,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		resourceReservationInformerBeta.Informer().HasSynced)
 
 	resourceReservationCache, err := sscache.NewResourceReservationCache(
+		ctx,
 		resourceReservationInformerBeta,
 		fakeSchedulerClient.SparkschedulerV1beta1(),
 	)

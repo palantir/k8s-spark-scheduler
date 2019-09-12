@@ -112,7 +112,7 @@ func (sdc *SafeDemandCache) initializeCache(ctx context.Context) error {
 	if ok := clientcache.WaitForCacheSync(ctxWithTimeout.Done(), informer.Informer().HasSynced); !ok {
 		return werror.Error("timeout syncing informer", werror.SafeParam("timeoutSeconds", 2))
 	}
-	demandCache, err := NewDemandCache(informer, sdc.demandKubeClient)
+	demandCache, err := NewDemandCache(ctx, informer, sdc.demandKubeClient)
 	if err != nil {
 		return err
 	}
