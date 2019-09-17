@@ -40,6 +40,7 @@ const (
 // SoftReservationStore is an in-memory store that keeps track of soft reservations granted to extra executors for applications that support dynamic allocation
 type SoftReservationStore struct {
 	store     map[string]*SoftReservation // SparkAppID -> SoftReservation
+	storeLock sync.RWMutex
 }
 
 // SoftReservation is an in-memory reservation for a particular spark application that keeps track of extra executors allocate over the
@@ -54,7 +55,6 @@ type SoftReservation struct {
 func NewSoftReservationStore(informer coreinformers.PodInformer) *SoftReservationStore {
 	s := &SoftReservationStore{
 		store:     make(map[string]*SoftReservation),
-		storeLock: sync.RWMutex{},
 	}
 
 	informer.Informer().AddEventHandler(
