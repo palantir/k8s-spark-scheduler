@@ -54,7 +54,7 @@ type SoftReservation struct {
 // NewSoftReservationStore builds and returns a SoftReservationStore and instantiates the needed background informer event handlers to keep the store up to date
 func NewSoftReservationStore(informer coreinformers.PodInformer) *SoftReservationStore {
 	s := &SoftReservationStore{
-		store:     make(map[string]*SoftReservation),
+		store: make(map[string]*SoftReservation),
 	}
 
 	informer.Informer().AddEventHandler(
