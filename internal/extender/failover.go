@@ -55,7 +55,7 @@ func (s *SparkSchedulerExtender) syncResourceReservationsAndDemands(ctx context.
 	r := &reconciler{s.podLister, s.resourceReservations, s.softReservationStore, s.demands, availableResources, orderedNodes}
 	for _, sp := range staleSparkPods {
 		r.syncResourceReservations(ctx, sp)
-		r.syncDemand(ctx, sp)
+		r.syncDemands(ctx, sp)
 	}
 	// recompute overhead to account for newly created resource reservations
 	s.overheadComputer.compute(ctx)
@@ -87,6 +87,8 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 	// reservation object and update it so it has reservations for each stale executor
 	appResources, err := r.getAppResources(ctx, sp)
 	if err != nil {
+		svc1log.FromContext(ctx).Error("could not get application resources for application",
+			svc1log.SafeParam("appID", sp.appID), svc1log.Stacktrace(err))
 		return
 	}
 	extraExecutors := make([]*v1.Pod, 0, len(sp.inconsistentExecutors))
@@ -148,7 +150,7 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 
 }
 
-func (r *reconciler) syncDemand(ctx context.Context, sp *sparkPods) {
+func (r *reconciler) syncDemands(ctx context.Context, sp *sparkPods) {
 	if sp.inconsistentDriver != nil {
 		r.deleteDemandIfExists(sp.inconsistentDriver.Namespace, demandResourceName(sp.inconsistentDriver))
 	}

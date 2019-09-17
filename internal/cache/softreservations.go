@@ -40,7 +40,6 @@ const (
 // SoftReservationStore is an in-memory store that keeps track of soft reservations granted to extra executors for applications that support dynamic allocation
 type SoftReservationStore struct {
 	store     map[string]*SoftReservation // SparkAppID -> SoftReservation
-	storeLock sync.RWMutex
 }
 
 // SoftReservation is an in-memory reservation for a particular spark application that keeps track of extra executors allocate over the
@@ -103,10 +102,9 @@ func (s *SoftReservationStore) CreateSoftReservationIfNotExists(appID string) So
 	appSoftReservation, ok := s.store[appID]
 	if !ok {
 		r := make(map[string]v1beta1.Reservation)
-		st := make(map[string]bool)
 		sr := &SoftReservation{
 			Reservations: r,
-			Status:       st,
+			Status:       make(map[string]bool),
 		}
 		s.store[appID] = sr
 		appSoftReservation = sr
