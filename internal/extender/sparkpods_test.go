@@ -40,7 +40,7 @@ func TestSparkResources(t *testing.T) {
 		pod                          v1.Pod
 		expectedApplicationResources *sparkApplicationResources
 	}{{
-		name: "parses pod annotations into resources",
+		name: "parses static allocation pod annotations into resources",
 		pod: v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
@@ -55,7 +55,29 @@ func TestSparkResources(t *testing.T) {
 		expectedApplicationResources: &sparkApplicationResources{
 			driverResources:   createResources(1, 2432*1024*1024),
 			executorResources: createResources(2, 6758*1024*1024),
-			executorCount:     2,
+			minExecutorCount:  2,
+			maxExecutorCount:  2,
+		},
+	}, {
+		name: "parses dynamic allocation pod annotations into resources",
+		pod: v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					DriverCPU:                "1",
+					DriverMemory:             "2432Mi",
+					ExecutorCPU:              "2",
+					ExecutorMemory:           "6758Mi",
+					DynamicAllocationEnabled: "true",
+					DAMinExecutorCount:       "2",
+					DAMaxExecutorCount:       "5",
+				},
+			},
+		},
+		expectedApplicationResources: &sparkApplicationResources{
+			driverResources:   createResources(1, 2432*1024*1024),
+			executorResources: createResources(2, 6758*1024*1024),
+			minExecutorCount:  2,
+			maxExecutorCount:  5,
 		},
 	}}
 
@@ -73,9 +95,13 @@ func TestSparkResources(t *testing.T) {
 				t.Fatalf("executorResources are not equal, expected: %v, got: %v",
 					test.expectedApplicationResources.executorResources, applicationResources.executorResources)
 			}
-			if applicationResources.executorCount != test.expectedApplicationResources.executorCount {
-				t.Fatalf("executorCount are not equal, expected: %v, got: %v",
-					test.expectedApplicationResources.executorCount, applicationResources.executorCount)
+			if applicationResources.minExecutorCount != test.expectedApplicationResources.minExecutorCount {
+				t.Fatalf("minExecutorCount not equal to ExecutorCount in static allocation, expected: %v, got: %v",
+					test.expectedApplicationResources.minExecutorCount, applicationResources.minExecutorCount)
+			}
+			if applicationResources.maxExecutorCount != test.expectedApplicationResources.maxExecutorCount {
+				t.Fatalf("maxExecutorCount not equal to ExecutorCount in static allocation, expected: %v, got: %v",
+					test.expectedApplicationResources.maxExecutorCount, applicationResources.maxExecutorCount)
 			}
 		})
 	}

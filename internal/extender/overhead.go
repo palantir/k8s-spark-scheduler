@@ -99,6 +99,7 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 			podsWithRRs[podName] = true
 		}
 	}
+	// TODO(rkaram): separate between regular overhead and dynamic allocation/spark overhead
 	rawOverhead := map[string]resources.NodeGroupResources{}
 	for _, p := range pods {
 		if podsWithRRs[p.Name] {

@@ -143,6 +143,8 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		return nil, err
 	}
 
+	softReservationStore := cache.NewSoftReservationStore(podInformer)
+
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,
 		podInformer.Lister(),
@@ -156,6 +158,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		nodeInformer.Lister(),
 		extender.NewSparkPodLister(podInformer.Lister()),
 		resourceReservationCache,
+		softReservationStore,
 		kubeClient.CoreV1(),
 		demandCache,
 		apiExtensionsClient,

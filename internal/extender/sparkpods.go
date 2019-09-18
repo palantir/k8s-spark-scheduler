@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	v1 "k8s.io/api/core/v1"
@@ -48,14 +49,21 @@ const (
 	ExecutorCPU = "spark-executor-cpu"
 	// ExecutorMemory represents the key of an annotation that describes how much memory a spark executor requires
 	ExecutorMemory = "spark-executor-mem"
-	// ExecutorCount represents the key of an annotation that describes how many executors a spark job requires
+	// DynamicAllocationEnabled sets whether dynamic allocation is enabled for this spark application (false by default)
+	DynamicAllocationEnabled = "spark-da-enabled"
+	// ExecutorCount represents the key of an annotation that describes how many executors a spark application requires (required if DynamicAllocationEnabled is false)
 	ExecutorCount = "spark-executor-count"
+	// DAMinExecutorCount represents the lower bound on the number of executors a spark application requires if dynamic allocation is enabled (required if DynamicAllocationEnabled is true)
+	DAMinExecutorCount = "spark-da-min-executor-count"
+	// DAMaxExecutorCount represents the upper bound on the number of executors a spark application can have if dynamic allocation is enabled (required if DynamicAllocationEnabled is true)
+	DAMaxExecutorCount = "spark-da-max-executor-count"
 )
 
 type sparkApplicationResources struct {
 	driverResources   *resources.Resources
 	executorResources *resources.Resources
-	executorCount     int
+	minExecutorCount  int
+	maxExecutorCount  int
 }
 
 // SparkPodLister is a PodLister which can also list drivers per node selector
@@ -98,10 +106,26 @@ func filterToEarliestAndSort(driver *v1.Pod, allDrivers []*v1.Pod) []*v1.Pod {
 
 func sparkResources(ctx context.Context, pod *v1.Pod) (*sparkApplicationResources, error) {
 	parsedResources := map[string]resource.Quantity{}
+	dynamicAllocationEnabled := false
+	if daLabel, ok := pod.Annotations[DynamicAllocationEnabled]; ok {
+		da, err := strconv.ParseBool(daLabel)
+		if err != nil {
+			return nil, fmt.Errorf("annotation DynamicAllocationEnabled could not be parsed as a boolean")
+		}
+		dynamicAllocationEnabled = da
+	}
 
-	for _, a := range []string{DriverCPU, DriverMemory, ExecutorCPU, ExecutorMemory, ExecutorCount} {
+	for _, a := range []string{DriverCPU, DriverMemory, ExecutorCPU, ExecutorMemory, ExecutorCount, DAMinExecutorCount, DAMaxExecutorCount} {
 		value, ok := pod.Annotations[a]
 		if !ok {
+			switch {
+			case dynamicAllocationEnabled == false && a == ExecutorCount:
+				return nil, fmt.Errorf("annotation ExecutorCount is required when DynamicAllocationEnabled is false")
+			case dynamicAllocationEnabled == true && (a == DAMinExecutorCount || a == DAMaxExecutorCount):
+				return nil, fmt.Errorf("annotation %v is required when DynamicAllocationEnabled is true", a)
+			case a == ExecutorCount || a == DAMinExecutorCount || a == DAMaxExecutorCount:
+				continue
+			}
 			return nil, fmt.Errorf("annotation %v is missing from driver", a)
 		}
 		quantity, err := resource.ParseQuantity(value)
@@ -111,9 +135,19 @@ func sparkResources(ctx context.Context, pod *v1.Pod) (*sparkApplicationResource
 		parsedResources[a] = quantity
 	}
 
-	executorCountQuantity := parsedResources[ExecutorCount]
-	// justification for casting to int from int64: executor count is small (<1000)
-	executorCount := int(executorCountQuantity.Value())
+	var minExecutorCount int
+	var maxExecutorCount int
+	if dynamicAllocationEnabled {
+		// justification for casting to int from int64: executor count is small (<1000)
+		parsedMinExecutorCount := parsedResources[DAMinExecutorCount]
+		parsedMaxExecutorCount := parsedResources[DAMaxExecutorCount]
+		minExecutorCount = int(parsedMinExecutorCount.Value())
+		maxExecutorCount = int(parsedMaxExecutorCount.Value())
+	} else {
+		parsedExecutorCount := parsedResources[ExecutorCount]
+		minExecutorCount = int(parsedExecutorCount.Value())
+		maxExecutorCount = int(parsedExecutorCount.Value())
+	}
 
 	driverResources := &resources.Resources{
 		CPU:    parsedResources[DriverCPU],
@@ -123,7 +157,7 @@ func sparkResources(ctx context.Context, pod *v1.Pod) (*sparkApplicationResource
 		CPU:    parsedResources[ExecutorCPU],
 		Memory: parsedResources[ExecutorMemory],
 	}
-	return &sparkApplicationResources{driverResources, executorResources, executorCount}, nil
+	return &sparkApplicationResources{driverResources, executorResources, minExecutorCount, maxExecutorCount}, nil
 }
 
 func sparkResourceUsage(driverResources, executorResources *resources.Resources, driverNode string, executorNodes []string) resources.NodeGroupResources {
@@ -133,4 +167,13 @@ func sparkResourceUsage(driverResources, executorResources *resources.Resources,
 		res[n] = executorResources
 	}
 	return res
+}
+
+func (s SparkPodLister) getDriverPod(ctx context.Context, executor *v1.Pod) (*v1.Pod, error) {
+	selector := labels.Set(map[string]string{SparkRoleLabel: Driver}).AsSelector()
+	driver, err := s.Pods(executor.Namespace).List(selector)
+	if err != nil || len(driver) != 1 {
+		return nil, err
+	}
+	return driver[0], nil
 }
