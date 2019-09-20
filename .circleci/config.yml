@@ -149,12 +149,12 @@ release-requires-filter: &release-requires-filter
     tags:
       only: /^v?[0-9]+(\.[0-9]+)+(-rc[0-9]+)?$/
     branches:
-      only: /rk\/dynamic_allocation/
+      only: /.*/
 
 # Filter that matches only the "master" branch. Used for jobs that publish snapshots.
 master-requires-filter: &master-requires-filter
   requires: *requires_jobs
-  filters: { tags: { ignore: /.*/ }, branches: { only: /rk\/dynamic_allocation/ } }
+  filters: { tags: { ignore: /.*/ }, branches: { only: /master/ } }
 
 workflows:
   version: 2
