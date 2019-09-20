@@ -29,11 +29,6 @@ import (
 )
 
 const (
-	instanceGroupNodeSelector = "resource_channel"
-	instanceGroupLabel        = "instance-group"
-)
-
-const (
 	podDemandCreated v1.PodConditionType = "PodDemandCreated"
 )
 
@@ -78,7 +73,7 @@ func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context,
 }
 
 func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, demandUnits []demandapi.DemandUnit) {
-	newDemand, err := newDemand(pod, demandUnits)
+	newDemand, err := newDemand(pod, s.instanceGroupLabel, demandUnits)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("failed to construct demand object", svc1log.Stacktrace(err))
 		return
@@ -120,10 +115,11 @@ func (s *SparkSchedulerExtender) removeDemandIfExists(ctx context.Context, pod *
 	}
 }
 
-func newDemand(pod *v1.Pod, units []demandapi.DemandUnit) (*demandapi.Demand, error) {
-	instanceGroup, ok := pod.Spec.NodeSelector[instanceGroupNodeSelector]
+func newDemand(pod *v1.Pod, instanceGroupLabel string, units []demandapi.DemandUnit) (*demandapi.Demand, error) {
+	instanceGroup, ok := pod.Spec.NodeSelector[instanceGroupLabel]
 	if !ok {
-		return nil, werror.Error("No resource_channel label exists. Cannot map to InstanceGroup. Skipping demand object")
+		return nil, werror.Error("No instanceGroup label exists. Cannot map to InstanceGroup. Skipping demand object",
+			werror.SafeParam("expectedLabel", instanceGroupLabel))
 	}
 	appID, ok := pod.Labels[SparkAppIDLabel]
 	if !ok {

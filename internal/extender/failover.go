@@ -46,11 +46,11 @@ func (s *SparkSchedulerExtender) syncResourceReservationsAndDemands(ctx context.
 		return err
 	}
 	rrs := s.resourceReservations.List()
-	availableResources, orderedNodes := availableResourcesPerInstanceGroup(ctx, rrs, nodes, s.overheadComputer.GetOverhead(ctx, nodes))
+	availableResources, orderedNodes := availableResourcesPerInstanceGroup(ctx, s.instanceGroupLabel, rrs, nodes, s.overheadComputer.GetOverhead(ctx, nodes))
 	staleSparkPods := unreservedSparkPodsBySparkID(ctx, rrs, pods)
 	svc1log.FromContext(ctx).Info("starting reconciliation", svc1log.SafeParam("appCount", len(staleSparkPods)))
 
-	r := &reconciler{s.podLister, s.resourceReservations, s.demands, availableResources, orderedNodes}
+	r := &reconciler{s.podLister, s.resourceReservations, s.demands, availableResources, orderedNodes, s.instanceGroupLabel}
 	for _, sp := range staleSparkPods {
 		r.syncResourceReservation(ctx, sp)
 		r.syncDemand(ctx, sp)
@@ -77,6 +77,7 @@ type reconciler struct {
 	demands              *cache.SafeDemandCache
 	availableResources   map[instanceGroup]resources.NodeGroupResources
 	orderedNodes         map[instanceGroup][]*v1.Node
+	instanceGroupLabel   string
 }
 
 func (r *reconciler) syncResourceReservation(ctx context.Context, sp *sparkPods) {
@@ -96,7 +97,7 @@ func (r *reconciler) syncResourceReservation(ctx context.Context, sp *sparkPods)
 		}
 	} else if sp.inconsistentDriver != nil {
 		// the driver is stale, a new resource reservation object needs to be created
-		instanceGroup := instanceGroup(sp.inconsistentDriver.Spec.NodeSelector[instanceGroupNodeSelector])
+		instanceGroup := instanceGroup(sp.inconsistentDriver.Spec.NodeSelector[r.instanceGroupLabel])
 		newRR, reservedResources, err := r.constructResourceReservation(ctx, sp.inconsistentDriver, sp.inconsistentExecutors, instanceGroup)
 		if err != nil {
 			svc1log.FromContext(ctx).Error("failed to construct resource reservation", svc1log.Stacktrace(err))
@@ -174,6 +175,7 @@ func isNotScheduledSparkPod(pod *v1.Pod) bool {
 
 func availableResourcesPerInstanceGroup(
 	ctx context.Context,
+	instanceGroupLabel string,
 	rrs []*v1beta1.ResourceReservation,
 	nodes []*v1.Node,
 	overhead resources.NodeGroupResources) (map[instanceGroup]resources.NodeGroupResources, map[instanceGroup][]*v1.Node) {
@@ -186,7 +188,7 @@ func availableResourcesPerInstanceGroup(
 		if n.Spec.Unschedulable {
 			continue
 		}
-		instanceGroup := instanceGroup(n.Labels[instanceGroupNodeSelector])
+		instanceGroup := instanceGroup(n.Labels[instanceGroupLabel])
 		schedulableNodes[instanceGroup] = append(schedulableNodes[instanceGroup], n)
 	}
 	usages := resources.UsageForNodes(rrs)

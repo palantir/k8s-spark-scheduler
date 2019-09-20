@@ -34,7 +34,7 @@ func (t TestPod) withCondition(conditionType v1.PodConditionType, time time.Time
 	return t
 }
 
-func createPod(instanceGroup, sparkRole string, creationTimeStamp time.Time) TestPod {
+func createPod(instanceGroup, instanceGroupTagLabel, sparkRole string, creationTimeStamp time.Time) TestPod {
 	return TestPod{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:            map[string]string{sparkRoleLabel: sparkRole},
@@ -49,7 +49,7 @@ func createPod(instanceGroup, sparkRole string, creationTimeStamp time.Time) Tes
 	}
 }
 
-func podTags(instanceGroup, sparkRole string, conditionType v1.PodConditionType) PodTags {
+func podTags(instanceGroup, instanceGroupTagLabel, sparkRole string, conditionType v1.PodConditionType) PodTags {
 	ctx := context.Background()
 	return PodTags{
 		InstanceGroupTag(ctx, instanceGroup),
@@ -61,30 +61,30 @@ func podTags(instanceGroup, sparkRole string, conditionType v1.PodConditionType)
 func TestMarkTimes(t *testing.T) {
 	now := time.Now()
 	pods := []TestPod{
-		createPod("a", "driver", now.Add(-10*time.Second)).
+		createPod("a", "resource_channel", "driver", now.Add(-10*time.Second)).
 			withCondition(v1.PodScheduled, now.Add(-5*time.Second)),
-		createPod("a", "driver", now.Add(-15*time.Second)).
+		createPod("a", "resource_channel", "driver", now.Add(-15*time.Second)).
 			withCondition(v1.PodScheduled, now.Add(-5*time.Second)).
 			withCondition(v1.PodInitialized, now.Add(-5*time.Second)).
 			withCondition(v1.PodReady, now),
-		createPod("a", "executor", now.Add(-5*time.Second)),
+		createPod("a", "resource_channel", "executor", now.Add(-5*time.Second)),
 	}
 
 	expected := map[PodTags]struct {
 		count int64
 		max   int64
 	}{
-		podTags("a", "driver", v1.PodScheduled): {
+		podTags("a", "resource_channel", "driver", v1.PodScheduled): {
 			max: 10e9,
 		},
-		podTags("a", "driver", v1.PodReady): {
+		podTags("a", "resource_channel", "driver", v1.PodReady): {
 			max: 5e9,
 		},
-		podTags("a", "driver", v1.PodInitialized): {
+		podTags("a", "resource_channel", "driver", v1.PodInitialized): {
 			max:   5e9,
 			count: 1,
 		},
-		podTags("a", "executor", v1.PodScheduled): {
+		podTags("a", "resource_channel", "executor", v1.PodScheduled): {
 			max:   5e9,
 			count: 1,
 		},
@@ -93,7 +93,7 @@ func TestMarkTimes(t *testing.T) {
 	histograms := PodHistograms{}
 	for _, pod := range pods {
 		actualPod := v1.Pod(pod)
-		histograms.MarkTimes(context.Background(), &actualPod, now)
+		histograms.MarkTimes(context.Background(), &actualPod, "resource_channel", now)
 	}
 
 	for key, expectedValues := range expected {

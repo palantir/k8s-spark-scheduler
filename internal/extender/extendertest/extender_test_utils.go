@@ -61,6 +61,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	kubeInformerFactory := informers.NewSharedInformerFactory(fakeKubeClient, 0)
 	nodeInformer := kubeInformerFactory.Core().V1().Nodes()
 	podInformer := kubeInformerFactory.Core().V1().Pods()
+	instanceGroupLabel := "resource_channel"
 
 	sparkSchedulerInformerFactory := ssinformers.NewSharedInformerFactory(fakeSchedulerClient, 0)
 	resourceReservationInformerBeta := sparkSchedulerInformerFactory.Sparkscheduler().V1beta1().ResourceReservations()
@@ -101,6 +102,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		podInformer.Lister(),
 		resourceReservationCache,
 		nodeInformer.Lister(),
+		instanceGroupLabel,
 	)
 
 	isFIFO := true
@@ -108,7 +110,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeInformer.Lister(),
-		extender.NewSparkPodLister(podInformer.Lister()),
+		extender.NewSparkPodLister(podInformer.Lister(), instanceGroupLabel),
 		resourceReservationCache,
 		fakeKubeClient.CoreV1(),
 		demandCache,
@@ -116,6 +118,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		isFIFO,
 		binpacker,
 		overheadComputer,
+		instanceGroupLabel,
 	)
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(

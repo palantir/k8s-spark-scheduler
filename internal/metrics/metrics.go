@@ -47,20 +47,18 @@ const (
 )
 
 const (
-	// instanceGroupTagLabel needs to match the labels applied to the kubelets
-	instanceGroupTagLabel = "resource_channel"
-	sparkRoleLabel        = "spark-role"
-	sparkRoleTagName      = "sparkrole"
-	outcomeTagName        = "outcome"
-	instanceGroupTagName  = "instance-group"
-	hostTagName           = "nodename"
-	lifecycleTagName      = "lifecycle"
-	sparkSchedulerName    = "spark-scheduler"
-	nodeZoneLabel         = "failure-domain.beta.kubernetes.io/zone"
-	pathTagName           = "requestpath"
-	verbTagName           = "requestverb"
-	statusCodeTagName     = "requeststatuscode"
-	queueIndexTagName     = "queueIndex"
+	sparkRoleLabel       = "spark-role"
+	sparkRoleTagName     = "sparkrole"
+	outcomeTagName       = "outcome"
+	instanceGroupTagName = "instance-group"
+	hostTagName          = "nodename"
+	lifecycleTagName     = "lifecycle"
+	sparkSchedulerName   = "spark-scheduler"
+	nodeZoneLabel        = "failure-domain.beta.kubernetes.io/zone"
+	pathTagName          = "requestpath"
+	verbTagName          = "requestverb"
+	statusCodeTagName    = "requeststatuscode"
+	queueIndexTagName    = "queueIndex"
 )
 
 var (
@@ -135,7 +133,7 @@ type ScheduleTimer struct {
 }
 
 // NewScheduleTimer creates a new ScheduleTimer
-func NewScheduleTimer(ctx context.Context, pod *v1.Pod) *ScheduleTimer {
+func NewScheduleTimer(ctx context.Context, instanceGroup string, pod *v1.Pod) *ScheduleTimer {
 	lastSeenTime := pod.CreationTimestamp.Time
 	retryTag := firstTryTag
 	for _, podCondition := range pod.Status.Conditions {
@@ -148,7 +146,7 @@ func NewScheduleTimer(ctx context.Context, pod *v1.Pod) *ScheduleTimer {
 		podCreationTime:  pod.CreationTimestamp.Time,
 		lastSeenTime:     lastSeenTime,
 		startTime:        time.Now(),
-		instanceGroupTag: InstanceGroupTag(ctx, pod.Spec.NodeSelector[instanceGroupTagLabel]),
+		instanceGroupTag: InstanceGroupTag(ctx, instanceGroup),
 		retryTag:         retryTag,
 	}
 }

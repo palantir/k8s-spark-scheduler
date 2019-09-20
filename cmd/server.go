@@ -69,6 +69,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	}
 	kubeconfig.QPS = install.QPS
 	kubeconfig.Burst = install.Burst
+	instanceGroupLabel := install.InstanceGroupLabel
 
 	kubeClient, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
@@ -148,13 +149,14 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		podInformer.Lister(),
 		resourceReservationCache,
 		nodeInformer.Lister(),
+		instanceGroupLabel,
 	)
 
 	binpacker := extender.SelectBinpacker(install.BinpackAlgo)
 
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeInformer.Lister(),
-		extender.NewSparkPodLister(podInformer.Lister()),
+		extender.NewSparkPodLister(podInformer.Lister(), instanceGroupLabel),
 		resourceReservationCache,
 		kubeClient.CoreV1(),
 		demandCache,
@@ -162,11 +164,13 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		install.FIFO,
 		binpacker,
 		overheadComputer,
+		instanceGroupLabel,
 	)
 
 	resourceReporter := metrics.NewResourceReporter(
 		nodeInformer.Lister(),
 		resourceReservationCache,
+		instanceGroupLabel,
 	)
 
 	cacheReporter := metrics.NewCacheMetrics(
@@ -175,7 +179,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		demandCache,
 	)
 
-	queueReporter := metrics.NewQueueReporter(podInformer.Lister())
+	queueReporter := metrics.NewQueueReporter(podInformer.Lister(), instanceGroupLabel)
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(
 		nodeInformer.Lister(),

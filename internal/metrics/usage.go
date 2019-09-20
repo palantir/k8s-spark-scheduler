@@ -32,17 +32,20 @@ import (
 
 // ResourceUsageReporter reports resource usage periodically
 type ResourceUsageReporter struct {
-	nodeLister           corelisters.NodeLister
-	resourceReservations *cache.ResourceReservationCache
+	nodeLister            corelisters.NodeLister
+	resourceReservations  *cache.ResourceReservationCache
+	instanceGroupTagLabel string
 }
 
 // NewResourceReporter returns a new ResourceUsageReporter instance
 func NewResourceReporter(
 	nodeLister corelisters.NodeLister,
-	resourceReservations *cache.ResourceReservationCache) *ResourceUsageReporter {
+	resourceReservations *cache.ResourceReservationCache,
+	instanceGroupTagLabel string) *ResourceUsageReporter {
 	return &ResourceUsageReporter{
-		nodeLister:           nodeLister,
-		resourceReservations: resourceReservations,
+		nodeLister:            nodeLister,
+		resourceReservations:  resourceReservations,
+		instanceGroupTagLabel: instanceGroupTagLabel,
 	}
 }
 
@@ -58,7 +61,7 @@ func (r *ResourceUsageReporter) doStart(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-t.C:
-			req, err := labels.NewRequirement(instanceGroupTagLabel, selection.Exists, []string{})
+			req, err := labels.NewRequirement(r.instanceGroupTagLabel, selection.Exists, []string{})
 			if err != nil {
 				svc1log.FromContext(ctx).Error("failed to create requirement for instance group label exists", svc1log.Stacktrace(err))
 				break
@@ -102,7 +105,7 @@ func (r *ResourceUsageReporter) report(ctx context.Context, nodes []*v1.Node, rr
 			continue
 		}
 		hostTag := HostTag(ctx, n.Name)
-		instanceGroupTag := InstanceGroupTag(ctx, n.Labels[instanceGroupTagLabel])
+		instanceGroupTag := InstanceGroupTag(ctx, n.Labels[r.instanceGroupTagLabel])
 		metrics.FromContext(ctx).Gauge(resourceUsageCPU, hostTag, instanceGroupTag).Update(usage.CPU.Value())
 		metrics.FromContext(ctx).Gauge(resourceUsageMemory, hostTag, instanceGroupTag).Update(usage.Memory.Value())
 	}
