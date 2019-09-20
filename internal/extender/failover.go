@@ -303,7 +303,7 @@ func (r *reconciler) constructResourceReservation(
 	}
 
 	executorNodes := make([]string, 0, applicationResources.minExecutorCount)
-	for _, e := range executors[0:applicationResources.minExecutorCount] {
+	for _, e := range executors {
 		executorNodes = append(executorNodes, e.Spec.NodeName)
 	}
 	executorNodes = append(executorNodes, reservedNodeNames...)
