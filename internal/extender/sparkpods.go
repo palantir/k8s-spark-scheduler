@@ -50,13 +50,13 @@ const (
 	// ExecutorMemory represents the key of an annotation that describes how much memory a spark executor requires
 	ExecutorMemory = "spark-executor-mem"
 	// DynamicAllocationEnabled sets whether dynamic allocation is enabled for this spark application (false by default)
-	DynamicAllocationEnabled = "spark-da-enabled"
+	DynamicAllocationEnabled = "spark-dynamic-allocation-enabled"
 	// ExecutorCount represents the key of an annotation that describes how many executors a spark application requires (required if DynamicAllocationEnabled is false)
 	ExecutorCount = "spark-executor-count"
 	// DAMinExecutorCount represents the lower bound on the number of executors a spark application requires if dynamic allocation is enabled (required if DynamicAllocationEnabled is true)
-	DAMinExecutorCount = "spark-da-min-executor-count"
+	DAMinExecutorCount = "spark-dynamic-allocation-min-executor-count"
 	// DAMaxExecutorCount represents the upper bound on the number of executors a spark application can have if dynamic allocation is enabled (required if DynamicAllocationEnabled is true)
-	DAMaxExecutorCount = "spark-da-max-executor-count"
+	DAMaxExecutorCount = "spark-dynamic-allocation-max-executor-count"
 )
 
 type sparkApplicationResources struct {
