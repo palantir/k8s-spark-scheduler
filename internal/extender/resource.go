@@ -193,6 +193,21 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 }
 
 func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v1.Pod, nodeNames []string) (string, string, error) {
+	if rr, ok := s.resourceReservations.Get(driver.Namespace, driver.Labels[SparkAppIDLabel]); ok {
+		driverReservedNode := rr.Spec.Reservations["driver"].Node
+		for _, node := range nodeNames {
+			if driverReservedNode == node {
+				svc1log.FromContext(ctx).Info("Received request to schedule driver which already has a reservation. Returning previously reserved node...",
+					svc1log.SafeParam("namespace", driver.Namespace),
+					svc1log.SafeParam("driverReservedNode", driverReservedNode))
+				return driverReservedNode, success, nil
+			}
+		}
+		svc1log.FromContext(ctx).Warn("Received request to schedule driver which already has a reservation, but previously reserved node is not in list of nodes",
+			svc1log.SafeParam("namespace", driver.Namespace),
+			svc1log.SafeParam("driverReservedNode", driverReservedNode),
+			svc1log.SafeParam("nodeNames", nodeNames))
+	}
 	availableNodes, err := s.nodeLister.List(labels.Set(driver.Spec.NodeSelector).AsSelector())
 	if err != nil {
 		return "", failureInternal, err
@@ -346,11 +361,7 @@ func (s *SparkSchedulerExtender) createResourceReservations(
 	rr := newResourceReservation(driverNode, executorNodes, driver, applicationResources.driverResources, applicationResources.executorResources)
 	err := s.resourceReservations.Create(rr)
 	if err != nil {
-		existingRR, ok := s.resourceReservations.Get(rr.Namespace, rr.Name)
-		if !ok {
-			return "", failureInternal, werror.Error("failed to get existing resource reservation")
-		}
-		return existingRR.Spec.Reservations["driver"].Node, success, nil
+		return "", failureInternal, werror.Wrap(err, "failed to create resource reservation", werror.SafeParam("reservationName", rr.Name))
 	}
 	logger.Debug("creating executor resource reservations", svc1log.SafeParams(logging.RRSafeParam(rr)))
 	return driverNode, success, nil
