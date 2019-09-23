@@ -299,34 +299,6 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 		}
 		if outcome == failureUnbound && (sparkResources.minExecutorCount+extraExecutorCount) < sparkResources.maxExecutorCount {
 			// dynamic allocation case where driver is requesting more executors than min but less than max
-			// TODO: avoid repetition between this and selectDriverNode()
-			if s.isFIFO {
-				// fit earlier drivers first to guarantee them a place instead of giving it to the extra executor
-				availableNodes, err := s.nodeLister.List(labels.Set(driver.Spec.NodeSelector).AsSelector())
-				if err != nil {
-					return "", failureInternal, err
-				}
-
-				driverNodeNames, executorNodeNames := s.potentialNodes(availableNodes, driver, nodeNames)
-				usages, err := s.usedResources(driverNodeNames)
-				if err != nil {
-					return "", failureInternal, err
-				}
-				usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
-				availableResources := resources.AvailableForNodes(availableNodes, usages)
-				if err != nil {
-					return "", failureInternal, werror.Wrap(err, "failed to get spark resources")
-				}
-				queuedDrivers, err := s.podLister.ListEarlierDrivers(driver)
-				if err != nil {
-					return "", failureInternal, werror.Wrap(err, "failed to list earlier drivers")
-				}
-				ok := s.fitEarlierDrivers(ctx, queuedDrivers, driverNodeNames, executorNodeNames, availableResources)
-				if !ok {
-					return "", failureEarlierDriver, werror.Error("earlier drivers do not fit to the cluster, so can't allocate extra executor")
-				}
-			}
-
 			node, outcome, err := s.rescheduleExecutor(ctx, executor, nodeNames, sparkResources, false)
 			if err != nil {
 				if outcome == failureFit {
