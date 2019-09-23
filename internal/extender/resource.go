@@ -198,15 +198,14 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		for _, node := range nodeNames {
 			if driverReservedNode == node {
 				svc1log.FromContext(ctx).Info("Received request to schedule driver which already has a reservation. Returning previously reserved node...",
-					svc1log.SafeParam("namespace", driver.Namespace),
 					svc1log.SafeParam("driverReservedNode", driverReservedNode))
 				return driverReservedNode, success, nil
 			}
 		}
-		svc1log.FromContext(ctx).Warn("Received request to schedule driver which already has a reservation, but previously reserved node is not in list of nodes",
-			svc1log.SafeParam("namespace", driver.Namespace),
+		svc1log.FromContext(ctx).Warn("Received request to schedule driver which already has a reservation, but previously reserved node is not in list of nodes. Returning previously reserved node anyway...",
 			svc1log.SafeParam("driverReservedNode", driverReservedNode),
 			svc1log.SafeParam("nodeNames", nodeNames))
+		return driverReservedNode, success, nil
 	}
 	availableNodes, err := s.nodeLister.List(labels.Set(driver.Spec.NodeSelector).AsSelector())
 	if err != nil {
