@@ -156,9 +156,9 @@ func (s *SoftReservationStore) removeExecutorReservation(appID string, executorN
 	if _, found := sr.Reservations[executorName]; found {
 		delete(sr.Reservations, executorName)
 	}
-	if _, found := sr.Status[executorName]; found {
-		sr.Status[executorName] = false
-	}
+	// We always mark this as false to remember that we saw the executor die, and prevent a race between this death event
+	// and the request to schedule the executor
+	sr.Status[executorName] = false
 }
 
 func (s *SoftReservationStore) removeDriverReservation(appID string) {
