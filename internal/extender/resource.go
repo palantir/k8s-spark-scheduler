@@ -412,8 +412,6 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	}
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
 	availableResources := resources.AvailableForNodes(availableNodes, usages)
-	svc1log.FromContext(ctx).Error("debug", svc1log.SafeParam("availableResources", availableResources),
-		svc1log.SafeParam("nodeNames", nodeNames))
 	for _, name := range nodeNames {
 		if !executorResources.GreaterThan(availableResources[name]) {
 			return name, successRescheduled, nil
