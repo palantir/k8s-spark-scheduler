@@ -17,6 +17,7 @@ package extender
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sort"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
@@ -76,16 +77,16 @@ func (s SparkPodLister) ListEarlierDrivers(driver *v1.Pod) ([]*v1.Pod, error) {
 	if err != nil {
 		return nil, err
 	}
-	return filterToEarliestAndSort(driver, drivers, s.instanceGroupLabel), nil
+	return filterToEarliestAndSort(driver, drivers), nil
 }
 
-func filterToEarliestAndSort(driver *v1.Pod, allDrivers []*v1.Pod, instanceGroupLabel string) []*v1.Pod {
+func filterToEarliestAndSort(driver *v1.Pod, allDrivers []*v1.Pod) []*v1.Pod {
 	earlierDrivers := make([]*v1.Pod, 0, 10)
 	for _, p := range allDrivers {
 		// add only unscheduled drivers with the same instance group and targeted to the same scheduler
 		if len(p.Spec.NodeName) == 0 &&
 			p.Spec.SchedulerName == driver.Spec.SchedulerName &&
-			p.Spec.NodeSelector[instanceGroupLabel] == driver.Spec.NodeSelector[instanceGroupLabel] &&
+			reflect.DeepEqual(p.Spec.NodeSelector, driver.Spec.NodeSelector) &&
 			p.CreationTimestamp.Before(&driver.CreationTimestamp) &&
 			p.DeletionTimestamp == nil {
 			earlierDrivers = append(earlierDrivers, p)
