@@ -131,7 +131,7 @@ func TestIsEarliest(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			drivers := filterToEarliestAndSort(test.pod, test.pods, "resource_channel")
+			drivers := filterToEarliestAndSort(test.pod, test.pods)
 			uids := make([]string, 0, len(drivers))
 			for _, d := range drivers {
 				uids = append(uids, string(d.UID))
