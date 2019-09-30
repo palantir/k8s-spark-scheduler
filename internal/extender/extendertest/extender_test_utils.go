@@ -59,11 +59,17 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	fakeSchedulerClient := ssclientset.NewSimpleClientset()
 	fakeAPIExtensionsClient := apiextensionsfake.NewSimpleClientset()
 	kubeInformerFactory := informers.NewSharedInformerFactory(fakeKubeClient, 0)
-	nodeInformer := kubeInformerFactory.Core().V1().Nodes()
-	podInformer := kubeInformerFactory.Core().V1().Pods()
+	nodeInformerInterface := kubeInformerFactory.Core().V1().Nodes()
+	nodeInformer := nodeInformerInterface.Informer()
+	nodeLister := nodeInformerInterface.Lister()
+
+	podInformerInterface := kubeInformerFactory.Core().V1().Pods()
+	podInformer := podInformerInterface.Informer()
+	podLister := podInformerInterface.Lister()
 
 	sparkSchedulerInformerFactory := ssinformers.NewSharedInformerFactory(fakeSchedulerClient, 0)
-	resourceReservationInformerBeta := sparkSchedulerInformerFactory.Sparkscheduler().V1beta1().ResourceReservations()
+	resourceReservationInformerInterface := sparkSchedulerInformerFactory.Sparkscheduler().V1beta1().ResourceReservations()
+	resourceReservationInformer := resourceReservationInformerInterface.Informer()
 
 	go func() {
 		kubeInformerFactory.Start(ctx.Done())
@@ -74,13 +80,13 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 
 	cache.WaitForCacheSync(
 		ctx.Done(),
-		nodeInformer.Informer().HasSynced,
-		podInformer.Informer().HasSynced,
-		resourceReservationInformerBeta.Informer().HasSynced)
+		nodeInformer.HasSynced,
+		podInformer.HasSynced,
+		resourceReservationInformer.HasSynced)
 
 	resourceReservationCache, err := sscache.NewResourceReservationCache(
 		ctx,
-		resourceReservationInformerBeta,
+		resourceReservationInformerInterface,
 		fakeSchedulerClient.SparkschedulerV1beta1(),
 	)
 	if err != nil {
@@ -98,17 +104,17 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,
-		podInformer.Lister(),
+		podLister,
 		resourceReservationCache,
-		nodeInformer.Lister(),
+		nodeLister,
 	)
 
 	isFIFO := true
 	binpacker := extender.SelectBinpacker("tightly-pack")
 
 	sparkSchedulerExtender := extender.NewExtender(
-		nodeInformer.Lister(),
-		extender.NewSparkPodLister(podInformer.Lister()),
+		nodeLister,
+		extender.NewSparkPodLister(podLister),
 		resourceReservationCache,
 		fakeKubeClient.CoreV1(),
 		demandCache,
@@ -119,8 +125,8 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	)
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(
-		nodeInformer.Lister(),
-		podInformer.Lister(),
+		nodeLister,
+		podLister,
 		fakeKubeClient.CoreV1(),
 		overheadComputer,
 		binpacker)
@@ -128,9 +134,9 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	return &Harness{
 		Extender:                 sparkSchedulerExtender,
 		UnschedulablePodMarker:   unschedulablePodMarker,
-		PodStore:                 podInformer.Informer().GetStore(),
-		NodeStore:                nodeInformer.Informer().GetStore(),
-		ResourceReservationStore: resourceReservationInformerBeta.Informer().GetStore(),
+		PodStore:                 podInformer.GetStore(),
+		NodeStore:                nodeInformer.GetStore(),
+		ResourceReservationStore: resourceReservationInformer.GetStore(),
 		Ctx:                      ctx,
 	}, nil
 }

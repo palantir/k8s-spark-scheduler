@@ -94,9 +94,17 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	kubeInformerFactory := informers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	sparkSchedulerInformerFactory := ssinformers.NewSharedInformerFactory(sparkSchedulerClient, time.Second*30)
 
-	nodeInformer := kubeInformerFactory.Core().V1().Nodes()
-	podInformer := kubeInformerFactory.Core().V1().Pods()
-	resourceReservationInformerBeta := sparkSchedulerInformerFactory.Sparkscheduler().V1beta1().ResourceReservations()
+	nodeInformerInterface := kubeInformerFactory.Core().V1().Nodes()
+	nodeInformer := nodeInformerInterface.Informer()
+	nodeLister := nodeInformerInterface.Lister()
+
+	podInformerInterface := kubeInformerFactory.Core().V1().Pods()
+	podInformer := podInformerInterface.Informer()
+	podLister := podInformerInterface.Lister()
+
+	resourceReservationInformerInterface := sparkSchedulerInformerFactory.Sparkscheduler().V1beta1().ResourceReservations()
+	resourceReservationInformer := resourceReservationInformerInterface.Informer()
+	resourceReservationLister := resourceReservationInformerInterface.Lister()
 
 	go func() {
 		_ = wapp.RunWithFatalLogging(ctx, func(ctx context.Context) error {
@@ -114,16 +122,16 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	if ok := clientcache.WaitForCacheSync(
 		ctx.Done(),
-		nodeInformer.Informer().HasSynced,
-		podInformer.Informer().HasSynced,
-		resourceReservationInformerBeta.Informer().HasSynced); !ok {
+		nodeInformer.HasSynced,
+		podInformer.HasSynced,
+		resourceReservationInformer.HasSynced); !ok {
 		svc1log.FromContext(ctx).Error("Error waiting for cache to sync")
 		return nil, nil
 	}
 
 	resourceReservationCache, err := cache.NewResourceReservationCache(
 		ctx,
-		resourceReservationInformerBeta,
+		resourceReservationInformerInterface,
 		sparkSchedulerClient.SparkschedulerV1beta1(),
 	)
 
@@ -145,16 +153,16 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,
-		podInformer.Lister(),
+		podLister,
 		resourceReservationCache,
-		nodeInformer.Lister(),
+		nodeLister,
 	)
 
 	binpacker := extender.SelectBinpacker(install.BinpackAlgo)
 
 	sparkSchedulerExtender := extender.NewExtender(
-		nodeInformer.Lister(),
-		extender.NewSparkPodLister(podInformer.Lister()),
+		nodeLister,
+		extender.NewSparkPodLister(podLister),
 		resourceReservationCache,
 		kubeClient.CoreV1(),
 		demandCache,
@@ -165,21 +173,21 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	)
 
 	resourceReporter := metrics.NewResourceReporter(
-		nodeInformer.Lister(),
+		nodeLister,
 		resourceReservationCache,
 	)
 
 	cacheReporter := metrics.NewCacheMetrics(
-		resourceReservationInformerBeta.Lister(),
+		resourceReservationLister,
 		resourceReservationCache,
 		demandCache,
 	)
 
-	queueReporter := metrics.NewQueueReporter(podInformer.Lister())
+	queueReporter := metrics.NewQueueReporter(podLister)
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(
-		nodeInformer.Lister(),
-		podInformer.Lister(),
+		nodeLister,
+		podLister,
 		kubeClient.CoreV1(),
 		overheadComputer,
 		binpacker,
