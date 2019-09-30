@@ -70,6 +70,10 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	kubeconfig.QPS = install.QPS
 	kubeconfig.Burst = install.Burst
 	instanceGroupLabel := install.InstanceGroupLabel
+	if instanceGroupLabel == "" {
+		// for back-compat, as instanceGroupLabel was once hard-coded to this value
+		instanceGroupLabel = "resource_channel"
+	}
 
 	kubeClient, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {

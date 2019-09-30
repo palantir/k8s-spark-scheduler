@@ -49,7 +49,7 @@ func createPod(instanceGroup, instanceGroupTagLabel, sparkRole string, creationT
 	}
 }
 
-func podTags(instanceGroup, instanceGroupTagLabel, sparkRole string, conditionType v1.PodConditionType) PodTags {
+func podTags(instanceGroup, sparkRole string, conditionType v1.PodConditionType) PodTags {
 	ctx := context.Background()
 	return PodTags{
 		InstanceGroupTag(ctx, instanceGroup),

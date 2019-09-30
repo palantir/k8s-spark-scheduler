@@ -27,7 +27,7 @@ type Install struct {
 	QPS                float32 `yaml:"qps,omitempty"`
 	Burst              int     `yaml:"burst,omitempty"`
 	BinpackAlgo        string  `yaml:"binpack,omitempty"`
-	InstanceGroupLabel string  `yaml:"InstanceGroupLabel,omitempty"`
+	InstanceGroupLabel string  `yaml:"instance-group-label,omitempty"`
 
 	ResourceReservationCRDAnnotations map[string]string `yaml:"resource-reservation-crd-annotations,omitempty"`
 }
