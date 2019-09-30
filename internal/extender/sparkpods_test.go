@@ -101,31 +101,31 @@ func TestIsEarliest(t *testing.T) {
 		result []string
 	}{{
 		name: "selects earliest unassigned",
-		pod:  createPod(100, "1", "resource_channel", "a"),
+		pod:  createPod(100, "1", "instance-group-label", "instance-group-foobar"),
 		pods: []*v1.Pod{
-			createPod(101, "3", "resource_channel", "a"),
-			createPod(150, "2", "resource_channel", "a"),
-			createPod(100, "1", "resource_channel", "a")},
+			createPod(101, "3", "instance-group-label", "instance-group-foobar"),
+			createPod(150, "2", "instance-group-label", "instance-group-foobar"),
+			createPod(100, "1", "instance-group-label", "instance-group-foobar")},
 		result: []string{},
 	}, {
 		name:   "selects if earliest and not in cache",
-		pod:    createPod(100, "1", "resource_channel", "a"),
-		pods:   []*v1.Pod{createPod(101, "2", "resource_channel", "a")},
+		pod:    createPod(100, "1", "instance-group-label", "instance-group-foobar"),
+		pods:   []*v1.Pod{createPod(101, "2", "instance-group-label", "instance-group-foobar")},
 		result: []string{},
 	}, {
 		name: "does not select when not earliest",
-		pod:  createPod(100, "1", "resource_channel", "a"),
+		pod:  createPod(100, "1", "instance-group-label", "instance-group-foobar"),
 		pods: []*v1.Pod{
-			createPod(101, "3", "resource_channel", "a"),
-			createPod(99, "2", "resource_channel", "a"),
-			createPod(100, "1", "resource_channel", "a")},
+			createPod(101, "3", "instance-group-label", "instance-group-foobar"),
+			createPod(99, "2", "instance-group-label", "instance-group-foobar"),
+			createPod(100, "1", "instance-group-label", "instance-group-foobar")},
 		result: []string{"2"},
 	}, {
 		name: "does not select when not earliest and not in cache",
-		pod:  createPod(100, "1", "resource_channel", "a"),
+		pod:  createPod(100, "1", "instance-group-label", "instance-group-foobar"),
 		pods: []*v1.Pod{
-			createPod(99, "3", "resource_channel", "a"),
-			createPod(101, "2", "resource_channel", "a")},
+			createPod(99, "3", "instance-group-label", "instance-group-foobar"),
+			createPod(101, "2", "instance-group-label", "instance-group-foobar")},
 		result: []string{"3"},
 	}}
 
