@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -131,7 +131,7 @@ func TestIsEarliest(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			drivers := filterToEarliestAndSort(test.pod, test.pods)
+			drivers := filterToEarliestAndSort(test.pod, test.pods, "instance-group-label")
 			uids := make([]string, 0, len(drivers))
 			for _, d := range drivers {
 				uids = append(uids, string(d.UID))
