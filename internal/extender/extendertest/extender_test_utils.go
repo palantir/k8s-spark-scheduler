@@ -26,7 +26,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/witchcraft-go-logging/wlog"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,12 +47,14 @@ type Harness struct {
 	Extender                 *extender.SparkSchedulerExtender
 	PodStore                 cache.Store
 	NodeStore                cache.Store
-	ResourceReservationStore cache.Store
+	ResourceReservationCache *sscache.ResourceReservationCache
+	SoftReservationStore     *sscache.SoftReservationStore
 	Ctx                      context.Context
 }
 
 // NewTestExtender returns a new extender test harness, initialized with the provided k8s objects
 func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
+	wlog.SetDefaultLoggerProvider(wlog.NewNoopLoggerProvider()) // suppressing Witchcraft warning log about logger provider
 	ctx := newLoggingContext()
 	fakeKubeClient := fake.NewSimpleClientset(objects...)
 	fakeSchedulerClient := ssclientset.NewSimpleClientset()
@@ -63,6 +65,11 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 
 	sparkSchedulerInformerFactory := ssinformers.NewSharedInformerFactory(fakeSchedulerClient, 0)
 	resourceReservationInformerBeta := sparkSchedulerInformerFactory.Sparkscheduler().V1beta1().ResourceReservations()
+
+	// TODO: Remove this after race fix PR is merged into master
+	nodeInformer.Informer()
+	podInformer.Informer()
+	resourceReservationInformerBeta.Informer()
 
 	go func() {
 		kubeInformerFactory.Start(ctx.Done())
@@ -93,7 +100,6 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	softReservationStore := sscache.NewSoftReservationStore(podInformer)
 
 	overheadComputer := extender.NewOverheadComputer(
@@ -123,9 +129,18 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		Extender:                 extender,
 		PodStore:                 podInformer.Informer().GetStore(),
 		NodeStore:                nodeInformer.Informer().GetStore(),
-		ResourceReservationStore: resourceReservationInformerBeta.Informer().GetStore(),
+		ResourceReservationCache: resourceReservationCache,
+		SoftReservationStore:     softReservationStore,
 		Ctx:                      ctx,
 	}, nil
+}
+
+// Schedule calls the extender's Predicate method for the given pod and nodes
+func (h *Harness) Schedule(pod v1.Pod, nodeNames []string) *schedulerapi.ExtenderFilterResult {
+	return h.Extender.Predicate(h.Ctx, schedulerapi.ExtenderArgs{
+		Pod:       pod,
+		NodeNames: &nodeNames,
+	})
 }
 
 // TerminatePod terminates an existing pod
@@ -146,10 +161,7 @@ func (h *Harness) TerminatePod(pod v1.Pod) error {
 
 // AssertSuccessfulSchedule tries to schedule the provided pods and fails the test if not successful
 func (h *Harness) AssertSuccessfulSchedule(t *testing.T, pod v1.Pod, nodeNames []string, errorDetails string) {
-	result := h.Extender.Predicate(h.Ctx, schedulerapi.ExtenderArgs{
-		Pod:       pod,
-		NodeNames: &nodeNames,
-	})
+	result := h.Schedule(pod, nodeNames)
 	if result.NodeNames == nil {
 		t.Errorf("Scheduling should succeed: %s", errorDetails)
 	}
@@ -157,10 +169,7 @@ func (h *Harness) AssertSuccessfulSchedule(t *testing.T, pod v1.Pod, nodeNames [
 
 // AssertFailedSchedule tries to schedule the provided pods and fails the test if successful
 func (h *Harness) AssertFailedSchedule(t *testing.T, pod v1.Pod, nodeNames []string, errorDetails string) {
-	result := h.Extender.Predicate(h.Ctx, schedulerapi.ExtenderArgs{
-		Pod:       pod,
-		NodeNames: &nodeNames,
-	})
+	result := h.Schedule(pod, nodeNames)
 	if result.NodeNames != nil {
 		t.Errorf("Scheduling should not succeed: %s", errorDetails)
 	}
@@ -174,7 +183,6 @@ func NewNode(name string) v1.Node {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: "namespace",
 			Labels: map[string]string{
 				"resource_channel": "batch-medium-priority",
 			},
@@ -192,9 +200,37 @@ func NewNode(name string) v1.Node {
 	}
 }
 
-// SparkApplicationPods returns a list of pods corresponding to a Spark Application
-func SparkApplicationPods(sparkApplicationID string, numExecutors int) []v1.Pod {
-	pods := make([]v1.Pod, 1+numExecutors)
+// StaticAllocationSparkPods returns a list of pods corresponding to a Spark Application with 1 driver and numExecutors executors
+// with the proper static allocation annotations set
+func StaticAllocationSparkPods(sparkApplicationID string, numExecutors int) []v1.Pod {
+	driverAnnotations := map[string]string{
+		"spark-driver-cpu":     "1",
+		"spark-driver-mem":     "1",
+		"spark-executor-cpu":   "1",
+		"spark-executor-mem":   "1",
+		"spark-executor-count": fmt.Sprintf("%d", numExecutors),
+	}
+	return sparkApplicationPods(sparkApplicationID, driverAnnotations, numExecutors)
+}
+
+// DynamicAllocationSparkPods returns a list of pods corresponding to a Spark Application with 1 driver and maxExecutors executors
+// with the proper dynamic allocation annotations set for min and max executor counts
+func DynamicAllocationSparkPods(sparkApplicationID string, minExecutors int, maxExecutors int) []v1.Pod {
+	driverAnnotations := map[string]string{
+		"spark-driver-cpu":     "1",
+		"spark-driver-mem":     "1",
+		"spark-executor-cpu":   "1",
+		"spark-executor-mem":   "1",
+		"spark-dynamic-allocation-enabled": "true",
+		"spark-dynamic-allocation-min-executor-count": fmt.Sprintf("%d", minExecutors),
+		"spark-dynamic-allocation-max-executor-count": fmt.Sprintf("%d", maxExecutors),
+	}
+	return sparkApplicationPods(sparkApplicationID, driverAnnotations, maxExecutors)
+}
+
+// sparkApplicationPods returns a list of pods corresponding to a Spark Application
+func sparkApplicationPods(sparkApplicationID string, driverAnnotations map[string]string, maxExecutorCount int) []v1.Pod {
+	pods := make([]v1.Pod, 1+maxExecutorCount)
 	pods[0] = v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "pod",
@@ -206,13 +242,7 @@ func SparkApplicationPods(sparkApplicationID string, numExecutors int) []v1.Pod 
 				"spark-role":   "driver",
 				"spark-app-id": sparkApplicationID,
 			},
-			Annotations: map[string]string{
-				"spark-driver-cpu":     "1",
-				"spark-driver-mem":     "1",
-				"spark-executor-cpu":   "1",
-				"spark-executor-mem":   "1",
-				"spark-executor-count": fmt.Sprintf("%d", numExecutors),
-			},
+			Annotations: driverAnnotations,
 		},
 		Spec: v1.PodSpec{
 			NodeSelector: map[string]string{
@@ -224,7 +254,7 @@ func SparkApplicationPods(sparkApplicationID string, numExecutors int) []v1.Pod 
 		},
 	}
 
-	for i := 0; i < numExecutors; i++ {
+	for i := 0; i < maxExecutorCount; i++ {
 		pods[i+1] = v1.Pod{
 			TypeMeta: metav1.TypeMeta{
 				Kind: "pod",
