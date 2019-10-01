@@ -69,6 +69,11 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	}
 	kubeconfig.QPS = install.QPS
 	kubeconfig.Burst = install.Burst
+	instanceGroupLabel := install.InstanceGroupLabel
+	if instanceGroupLabel == "" {
+		// for back-compat, as instanceGroupLabel was once hard-coded to this value
+		instanceGroupLabel = "resource_channel"
+	}
 
 	kubeClient, err := kubernetes.NewForConfig(kubeconfig)
 	if err != nil {
@@ -156,13 +161,14 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		podLister,
 		resourceReservationCache,
 		nodeLister,
+		instanceGroupLabel,
 	)
 
 	binpacker := extender.SelectBinpacker(install.BinpackAlgo)
 
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeLister,
-		extender.NewSparkPodLister(podLister),
+		extender.NewSparkPodLister(podLister, instanceGroupLabel),
 		resourceReservationCache,
 		kubeClient.CoreV1(),
 		demandCache,
@@ -170,11 +176,13 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		install.FIFO,
 		binpacker,
 		overheadComputer,
+		instanceGroupLabel,
 	)
 
 	resourceReporter := metrics.NewResourceReporter(
 		nodeLister,
 		resourceReservationCache,
+		instanceGroupLabel,
 	)
 
 	cacheReporter := metrics.NewCacheMetrics(
@@ -183,7 +191,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		demandCache,
 	)
 
-	queueReporter := metrics.NewQueueReporter(podLister)
+	queueReporter := metrics.NewQueueReporter(podLister, instanceGroupLabel)
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(
 		nodeLister,

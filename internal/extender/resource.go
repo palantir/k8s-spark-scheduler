@@ -62,10 +62,11 @@ type SparkSchedulerExtender struct {
 	demands             *cache.SafeDemandCache
 	apiExtensionsClient apiextensionsclientset.Interface
 
-	isFIFO           bool
-	binpacker        *Binpacker
-	overheadComputer *OverheadComputer
-	lastRequest      time.Time
+	isFIFO             bool
+	binpacker          *Binpacker
+	overheadComputer   *OverheadComputer
+	lastRequest        time.Time
+	instanceGroupLabel string
 }
 
 // NewExtender is responsible for creating and initializing a SparkSchedulerExtender
@@ -78,7 +79,8 @@ func NewExtender(
 	apiExtensionsClient apiextensionsclientset.Interface,
 	isFIFO bool,
 	binpacker *Binpacker,
-	overheadComputer *OverheadComputer) *SparkSchedulerExtender {
+	overheadComputer *OverheadComputer,
+	instanceGroupLabel string) *SparkSchedulerExtender {
 	return &SparkSchedulerExtender{
 		nodeLister:           nodeLister,
 		podLister:            podLister,
@@ -89,6 +91,7 @@ func NewExtender(
 		isFIFO:               isFIFO,
 		binpacker:            binpacker,
 		overheadComputer:     overheadComputer,
+		instanceGroupLabel:   instanceGroupLabel,
 	}
 }
 
@@ -97,12 +100,13 @@ func NewExtender(
 func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerapi.ExtenderArgs) *schedulerapi.ExtenderFilterResult {
 	params := internal.PodSafeParams(args.Pod)
 	role := args.Pod.Labels[SparkRoleLabel]
+	instanceGroup := args.Pod.Spec.NodeSelector[s.instanceGroupLabel]
 	params["podSparkRole"] = role
-	params["instanceGroup"] = args.Pod.Spec.NodeSelector[instanceGroupNodeSelector]
+	params["instanceGroup"] = instanceGroup
 	ctx = svc1log.WithLoggerParams(ctx, svc1log.SafeParams(params))
 	logger := svc1log.FromContext(ctx)
 
-	timer := metrics.NewScheduleTimer(ctx, &args.Pod)
+	timer := metrics.NewScheduleTimer(ctx, instanceGroup, &args.Pod)
 	logger.Info("starting scheduling pod")
 
 	err := s.reconcileIfNeeded(ctx, timer)

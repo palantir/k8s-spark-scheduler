@@ -81,14 +81,14 @@ func TestSparkResources(t *testing.T) {
 	}
 }
 
-func createPod(seconds int64, uid, instanceGroup string) *v1.Pod {
+func createPod(seconds int64, uid, instanceGroupLabel, instanceGroup string) *v1.Pod {
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:               types.UID(uid),
 			CreationTimestamp: metav1.NewTime(time.Unix(seconds, 0)),
 		},
 		Spec: v1.PodSpec{
-			NodeSelector: map[string]string{instanceGroupNodeSelector: instanceGroup},
+			NodeSelector: map[string]string{instanceGroupLabel: instanceGroup},
 		},
 	}
 }
@@ -100,30 +100,38 @@ func TestIsEarliest(t *testing.T) {
 		pods   []*v1.Pod
 		result []string
 	}{{
-		name:   "selects earliest unassigned",
-		pod:    createPod(100, "1", "a"),
-		pods:   []*v1.Pod{createPod(101, "3", "a"), createPod(150, "2", "a"), createPod(100, "1", "a")},
+		name: "selects earliest unassigned",
+		pod:  createPod(100, "1", "instance-group-label", "instance-group-foobar"),
+		pods: []*v1.Pod{
+			createPod(101, "3", "instance-group-label", "instance-group-foobar"),
+			createPod(150, "2", "instance-group-label", "instance-group-foobar"),
+			createPod(100, "1", "instance-group-label", "instance-group-foobar")},
 		result: []string{},
 	}, {
 		name:   "selects if earliest and not in cache",
-		pod:    createPod(100, "1", "a"),
-		pods:   []*v1.Pod{createPod(101, "2", "a")},
+		pod:    createPod(100, "1", "instance-group-label", "instance-group-foobar"),
+		pods:   []*v1.Pod{createPod(101, "2", "instance-group-label", "instance-group-foobar")},
 		result: []string{},
 	}, {
-		name:   "does not select when not earliest",
-		pod:    createPod(100, "1", "a"),
-		pods:   []*v1.Pod{createPod(101, "3", "a"), createPod(99, "2", "a"), createPod(100, "1", "a")},
+		name: "does not select when not earliest",
+		pod:  createPod(100, "1", "instance-group-label", "instance-group-foobar"),
+		pods: []*v1.Pod{
+			createPod(101, "3", "instance-group-label", "instance-group-foobar"),
+			createPod(99, "2", "instance-group-label", "instance-group-foobar"),
+			createPod(100, "1", "instance-group-label", "instance-group-foobar")},
 		result: []string{"2"},
 	}, {
-		name:   "does not select when not earliest and not in cache",
-		pod:    createPod(100, "1", "a"),
-		pods:   []*v1.Pod{createPod(99, "3", "a"), createPod(101, "2", "a")},
+		name: "does not select when not earliest and not in cache",
+		pod:  createPod(100, "1", "instance-group-label", "instance-group-foobar"),
+		pods: []*v1.Pod{
+			createPod(99, "3", "instance-group-label", "instance-group-foobar"),
+			createPod(101, "2", "instance-group-label", "instance-group-foobar")},
 		result: []string{"3"},
 	}}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			drivers := filterToEarliestAndSort(test.pod, test.pods)
+			drivers := filterToEarliestAndSort(test.pod, test.pods, "instance-group-label")
 			uids := make([]string, 0, len(drivers))
 			for _, d := range drivers {
 				uids = append(uids, string(d.UID))
