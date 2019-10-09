@@ -28,6 +28,8 @@ import (
 
 // TODO(rkaram): Move to common place to avoid duplication without causing circular dependency
 const (
+	// SparkSchedulerName is the name of the kube-scheduler instance that talks with the extender
+	SparkSchedulerName = "spark-scheduler"
 	// SparkRoleLabel represents the label key for the spark-role of a pod
 	SparkRoleLabel = "spark-role"
 	// SparkAppIDLabel represents the label key for the spark application ID on a pod
@@ -66,7 +68,7 @@ func NewSoftReservationStore(informer coreinformers.PodInformer) *SoftReservatio
 	informer.Informer().AddEventHandler(
 		clientcache.FilteringResourceEventHandler{
 			FilterFunc: func(obj interface{}) bool {
-				if pod, ok := obj.(*v1.Pod); ok {
+				if pod, ok := obj.(*v1.Pod); ok && pod.Spec.SchedulerName == SparkSchedulerName {
 					if _, labelFound := pod.Labels[SparkRoleLabel]; labelFound {
 						return true
 					}
