@@ -14,26 +14,6 @@
 
 package extender
 
-import (
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-)
-
-func (s *SparkSchedulerExtender) usedSoftReservationResources() resources.NodeGroupResources {
-	allReservations := s.softReservationStore.GetAllSoftReservations()
-	res := resources.NodeGroupResources(map[string]*resources.Resources{})
-
-	for _, softReservation := range allReservations {
-		for _, reservationObject := range softReservation.Reservations {
-			node := reservationObject.Node
-			if res[node] == nil {
-				res[node] = resources.Zero()
-			}
-			res[node].AddFromReservation(&reservationObject)
-		}
-	}
-	return res
-}
-
 func (s *SparkSchedulerExtender) getSoftReservationCount(appID string) int {
 	if sr, ok := s.softReservationStore.GetSoftReservation(appID); ok {
 		return len(sr.Reservations)

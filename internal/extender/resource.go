@@ -379,7 +379,7 @@ func (s *SparkSchedulerExtender) getNodes(ctx context.Context, nodeNames []strin
 func (s *SparkSchedulerExtender) usedResources(nodeNames []string) (resources.NodeGroupResources, error) {
 	resourceReservations := s.resourceReservations.List()
 	usage := resources.UsageForNodes(resourceReservations)
-	usage.Add(s.usedSoftReservationResources())
+	usage.Add(s.softReservationStore.UsedSoftReservationResources())
 	return usage, nil
 }
 

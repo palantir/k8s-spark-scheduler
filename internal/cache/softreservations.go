@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
@@ -45,13 +46,18 @@ type SoftReservationStore struct {
 
 // SoftReservation is an in-memory reservation for a particular spark application that keeps track of extra executors allocate over the
 // min reservation count
-// TODO(rkaram): check if we want to use the same reservation object we already have
 type SoftReservation struct {
-	Reservations map[string]v1beta1.Reservation // Executor pod name -> Reservation (only valid ones here)
-	Status       map[string]bool                // Executor pod name -> Reservation valid or not
+	// Executor pod name -> Reservation (only valid ones here)
+	Reservations map[string]v1beta1.Reservation
+
+	// Executor pod name -> Reservation valid or not
+	// The reason for this is that we want to keep a history of previously allocated extra executors that we should not create a
+	// Reservation for if we already have in the past even if the executor is now dead. This prevents the scenario where we have a race between
+	// the executor death event handling and the executor's scheduling event.
+	Status map[string]bool
 }
 
-// NewSoftReservationStore builds and returns a SoftReservationStore and instantiates the needed background informer event handlers to keep the store up to date
+// NewSoftReservationStore builds and returns a SoftReservationStore and instantiates the needed background informer event handlers to keep the store up to date.
 func NewSoftReservationStore(informer coreinformers.PodInformer) *SoftReservationStore {
 	s := &SoftReservationStore{
 		store: make(map[string]*SoftReservation),
@@ -75,31 +81,35 @@ func NewSoftReservationStore(informer coreinformers.PodInformer) *SoftReservatio
 	return s
 }
 
-// GetSoftReservation returns a copy of the SoftReservation tied to an application if it exists (otherwise, bool returned will be false)
-func (s *SoftReservationStore) GetSoftReservation(appID string) (SoftReservation, bool) {
+// GetSoftReservation returns a copy of the SoftReservation tied to an application if it exists (otherwise, bool returned will be false).
+func (s *SoftReservationStore) GetSoftReservation(appID string) (*SoftReservation, bool) {
 	s.storeLock.RLock()
 	defer s.storeLock.RUnlock()
 	appSoftReservation, ok := s.store[appID]
 	if !ok {
-		return SoftReservation{}, ok
+		return &SoftReservation{}, ok
 	}
-	return *appSoftReservation, ok
+	return s.deepCopySoftReservation(appSoftReservation), ok
 }
 
-// GetAllSoftReservations returns a pointer to the internal store that holds all soft reservations and should be treated as read only for now
-func (s *SoftReservationStore) GetAllSoftReservations() map[string]*SoftReservation {
+// GetAllSoftReservationsCopy returns a copy of the internal store. As this indicates, this method does a deep copy
+// which is slow and should only be used for purposes where this is acceptable such as tests.
+func (s *SoftReservationStore) GetAllSoftReservationsCopy() map[string]*SoftReservation {
 	s.storeLock.RLock()
 	defer s.storeLock.RUnlock()
-	// TODO(rkaram): consider copying the SoftReservations before returning if not a performance concern
-	return s.store
+	storeCopy := make(map[string]*SoftReservation, len(s.store))
+	for appID, sr := range s.store {
+		storeCopy[appID] = s.deepCopySoftReservation(sr)
+	}
+	return storeCopy
 }
 
 // CreateSoftReservationIfNotExists creates an internal empty soft reservation for a particular application.
 // This is a noop if the reservation already exists.
-func (s *SoftReservationStore) CreateSoftReservationIfNotExists(appID string) SoftReservation {
+func (s *SoftReservationStore) CreateSoftReservationIfNotExists(appID string) {
 	s.storeLock.Lock()
 	defer s.storeLock.Unlock()
-	appSoftReservation, ok := s.store[appID]
+	_, ok := s.store[appID]
 	if !ok {
 		r := make(map[string]v1beta1.Reservation)
 		sr := &SoftReservation{
@@ -107,9 +117,7 @@ func (s *SoftReservationStore) CreateSoftReservationIfNotExists(appID string) So
 			Status:       make(map[string]bool),
 		}
 		s.store[appID] = sr
-		appSoftReservation = sr
 	}
-	return *appSoftReservation
 }
 
 // AddReservationForPod adds a reservation for an extra executor pod, attaching the associated node and resources to it.
@@ -129,6 +137,42 @@ func (s *SoftReservationStore) AddReservationForPod(ctx context.Context, appID s
 
 	appSoftReservation.Reservations[podName] = reservation
 	appSoftReservation.Status[podName] = true
+}
+
+// ExecutorHasSoftReservation returns true when the passed executor pod currently has a SoftReservation, false otherwise.
+func (s *SoftReservationStore) ExecutorHasSoftReservation(ctx context.Context, executor *v1.Pod) bool {
+	s.storeLock.RLock()
+	defer s.storeLock.RUnlock()
+	appID, ok := executor.Labels[SparkAppIDLabel]
+	if !ok {
+		svc1log.FromContext(ctx).Error("Cannot get SoftReservation for pod which does not have application ID label set",
+			svc1log.SafeParam("podName", executor.Name),
+			svc1log.SafeParam("expectedLabel", SparkAppIDLabel))
+		return false
+	}
+	if sr, ok := s.GetSoftReservation(appID); ok {
+		_, ok := sr.Reservations[executor.Name]
+		return ok
+	}
+	return false
+}
+
+// UsedSoftReservationResources returns SoftReservation usage by node.
+func (s *SoftReservationStore) UsedSoftReservationResources() resources.NodeGroupResources {
+	s.storeLock.RLock()
+	defer s.storeLock.RUnlock()
+	res := resources.NodeGroupResources(map[string]*resources.Resources{})
+
+	for _, softReservation := range s.store {
+		for _, reservationObject := range softReservation.Reservations {
+			node := reservationObject.Node
+			if res[node] == nil {
+				res[node] = resources.Zero()
+			}
+			res[node].AddFromReservation(&reservationObject)
+		}
+	}
+	return res
 }
 
 func (s *SoftReservationStore) onPodDeletion(obj interface{}) {
@@ -166,5 +210,20 @@ func (s *SoftReservationStore) removeDriverReservation(appID string) {
 	defer s.storeLock.Unlock()
 	if _, found := s.store[appID]; found {
 		delete(s.store, appID)
+	}
+}
+
+func (s *SoftReservationStore) deepCopySoftReservation(reservation *SoftReservation) *SoftReservation {
+	reservationsCopy := make(map[string]v1beta1.Reservation, len(reservation.Reservations))
+	for name, res := range reservation.Reservations {
+		reservationsCopy[name] = *res.DeepCopy()
+	}
+	statusCopy := make(map[string]bool, len(reservation.Status))
+	for name, status := range reservation.Status {
+		statusCopy[name] = status
+	}
+	return &SoftReservation{
+		Reservations: reservationsCopy,
+		Status:       statusCopy,
 	}
 }
