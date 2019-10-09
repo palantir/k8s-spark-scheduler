@@ -44,6 +44,7 @@ const (
 type SoftReservationStore struct {
 	store     map[string]*SoftReservation // SparkAppID -> SoftReservation
 	storeLock sync.RWMutex
+	bgLogger    svc1log.Logger
 }
 
 // SoftReservation is an in-memory reservation for a particular spark application that keeps track of extra executors allocated over the
@@ -59,17 +60,20 @@ type SoftReservation struct {
 	Status map[string]bool
 }
 
+
 // NewSoftReservationStore builds and returns a SoftReservationStore and instantiates the needed background informer event handlers to keep the store up to date.
 func NewSoftReservationStore(informer coreinformers.PodInformer) *SoftReservationStore {
 	s := &SoftReservationStore{
 		store: make(map[string]*SoftReservation),
+		bgLogger: svc1log.FromContext(ctx),
 	}
 
 	informer.Informer().AddEventHandler(
 		clientcache.FilteringResourceEventHandler{
 			FilterFunc: func(obj interface{}) bool {
-				if pod, ok := obj.(*v1.Pod); ok && pod.Spec.SchedulerName == SparkSchedulerName {
-					if _, labelFound := pod.Labels[SparkRoleLabel]; labelFound {
+				if pod, ok := obj.(*v1.Pod); ok {
+					_, labelFound := pod.Labels[SparkRoleLabel]
+					if labelFound && pod.Spec.SchedulerName == SparkSchedulerName {
 						return true
 					}
 				}
@@ -178,10 +182,19 @@ func (s *SoftReservationStore) UsedSoftReservationResources() resources.NodeGrou
 }
 
 func (s *SoftReservationStore) onPodDeletion(obj interface{}) {
-	ctx := context.Background()
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		svc1log.FromContext(ctx).Error("failed to parse object as pod")
+		s.bgLogger.Error("failed to parse object as pod, trying to get from tombstone")
+		tombstone, ok := obj.(clientcache.DeletedFinalStateUnknown)
+		if !ok {
+			s.bgLogger.Error("failed to get object from tombstone")
+			return
+		}
+		pod, ok = tombstone.Obj.(*v1.Pod)
+		if !ok {
+			s.bgLogger.Error("failed to get pod from tombstone")
+			return
+		}
 	}
 	appID := pod.Labels[SparkAppIDLabel]
 	switch pod.Labels[SparkRoleLabel] {
