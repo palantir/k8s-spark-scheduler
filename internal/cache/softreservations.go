@@ -44,7 +44,7 @@ const (
 type SoftReservationStore struct {
 	store     map[string]*SoftReservation // SparkAppID -> SoftReservation
 	storeLock sync.RWMutex
-	bgLogger    svc1log.Logger
+	bgLogger  svc1log.Logger
 }
 
 // SoftReservation is an in-memory reservation for a particular spark application that keeps track of extra executors allocated over the
@@ -60,11 +60,10 @@ type SoftReservation struct {
 	Status map[string]bool
 }
 
-
 // NewSoftReservationStore builds and returns a SoftReservationStore and instantiates the needed background informer event handlers to keep the store up to date.
 func NewSoftReservationStore(ctx context.Context, informer coreinformers.PodInformer) *SoftReservationStore {
 	s := &SoftReservationStore{
-		store: make(map[string]*SoftReservation),
+		store:    make(map[string]*SoftReservation),
 		bgLogger: svc1log.FromContext(ctx),
 	}
 
