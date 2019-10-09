@@ -46,7 +46,7 @@ type SoftReservationStore struct {
 	storeLock sync.RWMutex
 }
 
-// SoftReservation is an in-memory reservation for a particular spark application that keeps track of extra executors allocate over the
+// SoftReservation is an in-memory reservation for a particular spark application that keeps track of extra executors allocated over the
 // min reservation count
 type SoftReservation struct {
 	// Executor pod name -> Reservation (only valid ones here)
