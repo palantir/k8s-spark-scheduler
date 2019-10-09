@@ -142,7 +142,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		return nil, err
 	}
 
-	softReservationStore := cache.NewSoftReservationStore(podInformer)
+	softReservationStore := cache.NewSoftReservationStore(ctx, podInformer)
 
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,
