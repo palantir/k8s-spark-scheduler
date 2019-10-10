@@ -79,7 +79,7 @@ func (ac *asyncClient) doCreate(ctx context.Context, key store.Key) {
 	result, err := ac.client.Create(obj)
 	switch {
 	case err == nil:
-		ac.objectStore.OverrideResourceVersionIfNewer(ctx, result)
+		ac.objectStore.OverrideResourceVersionIfNewer(result)
 	case isRetryableError(err):
 		svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(err))
 		ac.queue.AddIfAbsent(store.CreateRequest(obj))
@@ -102,7 +102,7 @@ func (ac *asyncClient) doUpdate(ctx context.Context, key store.Key) {
 	result, err := ac.client.Update(obj)
 	switch {
 	case err == nil:
-		ac.objectStore.OverrideResourceVersionIfNewer(ctx, result)
+		ac.objectStore.OverrideResourceVersionIfNewer(result)
 	case isRetryableError(err):
 		svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(err))
 		ac.queue.AddIfAbsent(store.UpdateRequest(obj))
@@ -111,7 +111,7 @@ func (ac *asyncClient) doUpdate(ctx context.Context, key store.Key) {
 		newObj, getErr := ac.client.Get(key.Namespace, key.Name)
 		switch {
 		case getErr == nil:
-			ac.objectStore.OverrideResourceVersionIfNewer(ctx, newObj)
+			ac.objectStore.OverrideResourceVersionIfNewer(newObj)
 			ac.doUpdate(ctx, key)
 		case isRetryableError(getErr):
 			svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(getErr))

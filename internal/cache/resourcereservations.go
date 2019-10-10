@@ -44,6 +44,7 @@ type ResourceReservationCache struct {
 
 // NewResourceReservationCache creates a new cache.
 func NewResourceReservationCache(
+	ctx context.Context,
 	resourceReservationInformer rrinformers.ResourceReservationInformer,
 	resourceReservationKubeClient sparkschedulerclient.SparkschedulerV1beta1Interface,
 ) (*ResourceReservationCache, error) {
@@ -51,12 +52,12 @@ func NewResourceReservationCache(
 	if err != nil {
 		return nil, err
 	}
-	objectStore := store.NewStore()
+	objectStore := store.NewStore(ctx)
 	for _, rr := range rrs {
 		objectStore.Put(rr)
 	}
 	queue := store.NewShardedUniqueQueue(resourceReservationClients)
-	cache := newCache(queue, objectStore, resourceReservationInformer.Informer())
+	cache := newCache(ctx, queue, objectStore, resourceReservationInformer.Informer())
 	asyncClient := &asyncClient{
 		client:      &resourceReservationClient{resourceReservationKubeClient},
 		queue:       queue,

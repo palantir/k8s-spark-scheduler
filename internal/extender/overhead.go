@@ -42,6 +42,7 @@ type OverheadComputer struct {
 	nodeLister           corelisters.NodeLister
 	latestOverhead       Overhead
 	overheadLock         *sync.RWMutex
+	instanceGroupLabel   string
 }
 
 // Overhead represents the overall overhead in the cluster, indexed by instance groups
@@ -58,12 +59,14 @@ func NewOverheadComputer(
 	ctx context.Context,
 	podLister corelisters.PodLister,
 	resourceReservations *cache.ResourceReservationCache,
-	nodeLister corelisters.NodeLister) *OverheadComputer {
+	nodeLister corelisters.NodeLister,
+	instanceGroupLabel string) *OverheadComputer {
 	computer := &OverheadComputer{
 		podLister:            podLister,
 		resourceReservations: resourceReservations,
 		nodeLister:           nodeLister,
 		overheadLock:         &sync.RWMutex{},
+		instanceGroupLabel:   instanceGroupLabel,
 	}
 	computer.compute(ctx)
 	return computer
@@ -115,7 +118,7 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 			continue
 		}
 		// found pod with not associated resource reservation, add to overhead
-		instanceGroup := node.Labels[instanceGroupNodeSelector]
+		instanceGroup := node.Labels[o.instanceGroupLabel]
 		if _, ok := rawOverhead[instanceGroup]; !ok {
 			rawOverhead[instanceGroup] = resources.NodeGroupResources{}
 		}
@@ -175,7 +178,7 @@ func (o OverheadComputer) GetOverhead(ctx context.Context, nodes []*v1.Node) res
 		return res
 	}
 	for _, n := range nodes {
-		instanceGroup := n.Labels[instanceGroupNodeSelector]
+		instanceGroup := n.Labels[o.instanceGroupLabel]
 		instanceGroupOverhead := o.latestOverhead[instanceGroup]
 		if instanceGroupOverhead == nil {
 			svc1log.FromContext(ctx).Warn("overhead for instance group does not exist", svc1log.SafeParam("instanceGroup", instanceGroup))

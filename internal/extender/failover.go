@@ -48,11 +48,11 @@ func (s *SparkSchedulerExtender) syncResourceReservationsAndDemands(ctx context.
 	rrs := s.resourceReservations.List()
 	overhead := s.overheadComputer.GetOverhead(ctx, nodes)
 	softReservationOverhead := s.softReservationStore.UsedSoftReservationResources()
-	availableResources, orderedNodes := availableResourcesPerInstanceGroup(ctx, rrs, nodes, overhead, softReservationOverhead)
+	availableResources, orderedNodes := availableResourcesPerInstanceGroup(ctx, s.instanceGroupLabel, rrs, nodes, overhead, softReservationOverhead)
 	staleSparkPods := unreservedSparkPodsBySparkID(ctx, rrs, s.softReservationStore, pods)
 	svc1log.FromContext(ctx).Info("starting reconciliation", svc1log.SafeParam("appCount", len(staleSparkPods)))
 
-	r := &reconciler{s.podLister, s.resourceReservations, s.softReservationStore, s.demands, availableResources, orderedNodes}
+	r := &reconciler{s.podLister, s.resourceReservations, s.softReservationStore, s.demands, availableResources, orderedNodes, s.instanceGroupLabel}
 	for _, sp := range staleSparkPods {
 		r.syncResourceReservations(ctx, sp)
 		r.syncDemands(ctx, sp)
@@ -80,6 +80,7 @@ type reconciler struct {
 	demands              *cache.SafeDemandCache
 	availableResources   map[instanceGroup]resources.NodeGroupResources
 	orderedNodes         map[instanceGroup][]*v1.Node
+	instanceGroupLabel   string
 }
 
 func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods) {
@@ -117,7 +118,7 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 		}
 	} else if sp.inconsistentDriver != nil {
 		// the driver is stale, a new resource reservation object needs to be created
-		instanceGroup := instanceGroup(sp.inconsistentDriver.Spec.NodeSelector[instanceGroupNodeSelector])
+		instanceGroup := instanceGroup(sp.inconsistentDriver.Spec.NodeSelector[r.instanceGroupLabel])
 		endIdx := int(math.Min(float64(len(sp.inconsistentExecutors)), float64(appResources.minExecutorCount)))
 		executorsUpToMin := sp.inconsistentExecutors[0:endIdx]
 		extraExecutors = sp.inconsistentExecutors[endIdx:]
@@ -220,6 +221,7 @@ func isNotScheduledSparkPod(pod *v1.Pod) bool {
 
 func availableResourcesPerInstanceGroup(
 	ctx context.Context,
+	instanceGroupLabel string,
 	rrs []*v1beta1.ResourceReservation,
 	nodes []*v1.Node,
 	overhead resources.NodeGroupResources,
@@ -233,7 +235,7 @@ func availableResourcesPerInstanceGroup(
 		if n.Spec.Unschedulable {
 			continue
 		}
-		instanceGroup := instanceGroup(n.Labels[instanceGroupNodeSelector])
+		instanceGroup := instanceGroup(n.Labels[instanceGroupLabel])
 		schedulableNodes[instanceGroup] = append(schedulableNodes[instanceGroup], n)
 	}
 	usages := resources.UsageForNodes(rrs)
