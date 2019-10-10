@@ -50,13 +50,13 @@ const (
 	// ExecutorMemory represents the key of an annotation that describes how much memory a spark executor requires
 	ExecutorMemory = "spark-executor-mem"
 	// DynamicAllocationEnabled sets whether dynamic allocation is enabled for this spark application (false by default)
-	DynamicAllocationEnabled = "spark-da-enabled"
+	DynamicAllocationEnabled = "spark-dynamic-allocation-enabled"
 	// ExecutorCount represents the key of an annotation that describes how many executors a spark application requires (required if DynamicAllocationEnabled is false)
 	ExecutorCount = "spark-executor-count"
 	// DAMinExecutorCount represents the lower bound on the number of executors a spark application requires if dynamic allocation is enabled (required if DynamicAllocationEnabled is true)
-	DAMinExecutorCount = "spark-da-min-executor-count"
+	DAMinExecutorCount = "spark-dynamic-allocation-min-executor-count"
 	// DAMaxExecutorCount represents the upper bound on the number of executors a spark application can have if dynamic allocation is enabled (required if DynamicAllocationEnabled is true)
-	DAMaxExecutorCount = "spark-da-max-executor-count"
+	DAMaxExecutorCount = "spark-dynamic-allocation-max-executor-count"
 )
 
 type sparkApplicationResources struct {
@@ -69,11 +69,12 @@ type sparkApplicationResources struct {
 // SparkPodLister is a PodLister which can also list drivers per node selector
 type SparkPodLister struct {
 	corelisters.PodLister
+	instanceGroupLabel string
 }
 
 // NewSparkPodLister creates and initializes a SparkPodLister
-func NewSparkPodLister(delegate corelisters.PodLister) *SparkPodLister {
-	return &SparkPodLister{delegate}
+func NewSparkPodLister(delegate corelisters.PodLister, instanceGroupLabel string) *SparkPodLister {
+	return &SparkPodLister{delegate, instanceGroupLabel}
 }
 
 // ListEarlierDrivers lists earlier driver than the given driver that has the same node selectors
@@ -83,16 +84,16 @@ func (s SparkPodLister) ListEarlierDrivers(driver *v1.Pod) ([]*v1.Pod, error) {
 	if err != nil {
 		return nil, err
 	}
-	return filterToEarliestAndSort(driver, drivers), nil
+	return filterToEarliestAndSort(driver, drivers, s.instanceGroupLabel), nil
 }
 
-func filterToEarliestAndSort(driver *v1.Pod, allDrivers []*v1.Pod) []*v1.Pod {
+func filterToEarliestAndSort(driver *v1.Pod, allDrivers []*v1.Pod, instanceGroupLabel string) []*v1.Pod {
 	earlierDrivers := make([]*v1.Pod, 0, 10)
 	for _, p := range allDrivers {
 		// add only unscheduled drivers with the same instance group and targeted to the same scheduler
 		if len(p.Spec.NodeName) == 0 &&
 			p.Spec.SchedulerName == driver.Spec.SchedulerName &&
-			p.Spec.NodeSelector[instanceGroupNodeSelector] == driver.Spec.NodeSelector[instanceGroupNodeSelector] &&
+			p.Spec.NodeSelector[instanceGroupLabel] == driver.Spec.NodeSelector[instanceGroupLabel] &&
 			p.CreationTimestamp.Before(&driver.CreationTimestamp) &&
 			p.DeletionTimestamp == nil {
 			earlierDrivers = append(earlierDrivers, p)
@@ -170,7 +171,7 @@ func sparkResourceUsage(driverResources, executorResources *resources.Resources,
 }
 
 func (s SparkPodLister) getDriverPod(ctx context.Context, executor *v1.Pod) (*v1.Pod, error) {
-	selector := labels.Set(map[string]string{SparkRoleLabel: Driver}).AsSelector()
+	selector := labels.Set(map[string]string{SparkAppIDLabel: executor.Labels[SparkAppIDLabel], SparkRoleLabel: Driver}).AsSelector()
 	driver, err := s.Pods(executor.Namespace).List(selector)
 	if err != nil || len(driver) != 1 {
 		return nil, err

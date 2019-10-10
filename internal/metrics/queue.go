@@ -42,13 +42,15 @@ var (
 
 // PendingPodQueueReporter reports queue sizes periodically
 type PendingPodQueueReporter struct {
-	podLister corelisters.PodLister
+	podLister             corelisters.PodLister
+	instanceGroupTagLabel string
 }
 
 // NewQueueReporter returns a new ResourceUsageReporter instance
-func NewQueueReporter(podLister corelisters.PodLister) *PendingPodQueueReporter {
+func NewQueueReporter(podLister corelisters.PodLister, instanceGroupTagLabel string) *PendingPodQueueReporter {
 	return &PendingPodQueueReporter{
-		podLister: podLister,
+		podLister:             podLister,
+		instanceGroupTagLabel: instanceGroupTagLabel,
 	}
 }
 
@@ -79,7 +81,7 @@ func (r *PendingPodQueueReporter) report(ctx context.Context, pods []*v1.Pod) {
 	histograms := PodHistograms{}
 	for _, pod := range pods {
 		if pod.Spec.SchedulerName == sparkSchedulerName {
-			histograms.MarkTimes(ctx, pod, now)
+			histograms.MarkTimes(ctx, pod, r.instanceGroupTagLabel, now)
 		}
 	}
 	for key, ph := range histograms {
@@ -125,7 +127,7 @@ func (p PodHistograms) Inc(key PodTags) {
 }
 
 // MarkTimes inspects pod conditions and marks lifecycle transition times
-func (p PodHistograms) MarkTimes(ctx context.Context, pod *v1.Pod, now time.Time) {
+func (p PodHistograms) MarkTimes(ctx context.Context, pod *v1.Pod, instanceGroupTagLabel string, now time.Time) {
 	instanceGroupTag := InstanceGroupTag(ctx, pod.Spec.NodeSelector[instanceGroupTagLabel])
 	sparkRoleTag := SparkRoleTag(ctx, pod.Labels[sparkRoleLabel])
 	podConditions := NewSparkPodConditions(pod.Status.Conditions)
