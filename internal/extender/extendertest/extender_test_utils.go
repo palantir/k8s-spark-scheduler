@@ -104,7 +104,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		return nil, err
 	}
 
-	softReservationStore := sscache.NewSoftReservationStore(ctx, podInformer)
+	softReservationStore := sscache.NewSoftReservationStore(ctx, podInformerInterface)
 
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,
