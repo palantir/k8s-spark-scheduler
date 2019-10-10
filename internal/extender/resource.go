@@ -36,14 +36,16 @@ import (
 )
 
 const (
-	failureUnbound       = "failure-unbound"
-	failureInternal      = "failure-internal"
-	failureFit           = "failure-fit"
-	failureEarlierDriver = "failure-earlier-driver"
-	failureNonSparkPod   = "failure-non-spark-pod"
-	success              = "success"
-	successRescheduled   = "success-rescheduled"
-	successAlreadyBound  = "success-already-bound"
+	failureUnbound                = "failure-unbound"
+	failureInternal               = "failure-internal"
+	failureFit                    = "failure-fit"
+	failureEarlierDriver          = "failure-earlier-driver"
+	failureNonSparkPod            = "failure-non-spark-pod"
+	success                       = "success"
+	successRescheduled            = "success-rescheduled"
+	successAlreadyBound           = "success-already-bound"
+	successScheduledExtraExecutor = "success-scheduled-extra-executor"
+	failureFitExtraExecutor       = "failure-fit-extra-executor"
 	// TODO: make this configurable
 	// leaderElectionInterval is the default LeaseDuration for core clients.
 	// obtained from k8s.io/component-base/config/v1alpha1
@@ -57,6 +59,7 @@ type SparkSchedulerExtender struct {
 	nodeLister           corelisters.NodeLister
 	podLister            *SparkPodLister
 	resourceReservations *cache.ResourceReservationCache
+	softReservationStore *cache.SoftReservationStore
 	coreClient           corev1.CoreV1Interface
 
 	demands             *cache.SafeDemandCache
@@ -74,6 +77,7 @@ func NewExtender(
 	nodeLister corelisters.NodeLister,
 	podLister *SparkPodLister,
 	resourceReservations *cache.ResourceReservationCache,
+	softReservationStore *cache.SoftReservationStore,
 	coreClient corev1.CoreV1Interface,
 	demands *cache.SafeDemandCache,
 	apiExtensionsClient apiextensionsclientset.Interface,
@@ -85,6 +89,7 @@ func NewExtender(
 		nodeLister:           nodeLister,
 		podLister:            podLister,
 		resourceReservations: resourceReservations,
+		softReservationStore: softReservationStore,
 		coreClient:           coreClient,
 		demands:              demands,
 		apiExtensionsClient:  apiExtensionsClient,
@@ -181,7 +186,7 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 			ctx,
 			applicationResources.driverResources,
 			applicationResources.executorResources,
-			applicationResources.executorCount,
+			applicationResources.minExecutorCount,
 			nodeNames, executorNodeNames, availableResources)
 		if !hasCapacity {
 			svc1log.FromContext(ctx).Warn("failed to fit one of the earlier drivers",
@@ -242,13 +247,14 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		ctx,
 		applicationResources.driverResources,
 		applicationResources.executorResources,
-		applicationResources.executorCount,
+		applicationResources.minExecutorCount,
 		driverNodeNames, executorNodeNames, availableResources)
 	svc1log.FromContext(ctx).Debug("binpacking result",
 		svc1log.SafeParam("availableResources", availableResources),
 		svc1log.SafeParam("driverResources", applicationResources.driverResources),
 		svc1log.SafeParam("executorResources", applicationResources.executorResources),
-		svc1log.SafeParam("executorCount", applicationResources.executorCount),
+		svc1log.SafeParam("minExecutorCount", applicationResources.minExecutorCount),
+		svc1log.SafeParam("maxExecutorCount", applicationResources.maxExecutorCount),
 		svc1log.SafeParam("hasCapacity", hasCapacity),
 		svc1log.SafeParam("candidateDriverNodes", nodeNames),
 		svc1log.SafeParam("candidateExecutorNodes", executorNodeNames),
@@ -261,7 +267,12 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	}
 	s.removeDemandIfExists(ctx, driver)
 	metrics.ReportCrossZoneMetric(ctx, driverNode, executorNodes, availableNodes)
-	return s.createResourceReservations(ctx, driver, applicationResources, driverNode, executorNodes)
+	reservedDriverNode, outcome, err := s.createResourceReservations(ctx, driver, applicationResources, driverNode, executorNodes)
+	if outcome == success && applicationResources.maxExecutorCount > applicationResources.minExecutorCount {
+		// only create soft reservations for applications which can request extra executors
+		s.softReservationStore.CreateSoftReservationIfNotExists(driver.Labels[SparkAppIDLabel])
+	}
+	return reservedDriverNode, outcome, err
 }
 
 func (s *SparkSchedulerExtender) potentialNodes(availableNodes []*v1.Node, driver *v1.Pod, nodeNames []string) (driverNodes, executorNodes []string) {
@@ -293,9 +304,41 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	if !ok {
 		return "", failureInternal, werror.Error("failed to get resource reservations")
 	}
-	unboundReservations, outcome, err := s.findUnboundReservations(ctx, executor, resourceReservation)
-	if err != nil {
-		return "", outcome, err
+	unboundReservations, outcome, unboundResErr := s.findUnboundReservations(ctx, executor, resourceReservation)
+	if unboundResErr != nil {
+		extraExecutorCount := 0
+		if sr, ok := s.softReservationStore.GetSoftReservation(executor.Labels[SparkAppIDLabel]); ok {
+			extraExecutorCount = len(sr.Reservations)
+		}
+		driver, err := s.podLister.getDriverPod(ctx, executor)
+		if err != nil {
+			return "", failureInternal, err
+		}
+		sparkResources, err := sparkResources(ctx, driver)
+		if err != nil {
+			return "", failureInternal, err
+		}
+		if outcome == failureUnbound && (sparkResources.minExecutorCount+extraExecutorCount) < sparkResources.maxExecutorCount {
+			// dynamic allocation case where driver is requesting more executors than min but less than max
+			node, outcome, err := s.rescheduleExecutor(ctx, executor, nodeNames, sparkResources, false)
+			if err != nil {
+				if outcome == failureFit {
+					return node, failureFitExtraExecutor, werror.Error("not enough capacity to schedule the extra executor")
+				}
+				return node, outcome, err
+			}
+			softReservation := v1beta1.Reservation{
+				Node:   node,
+				CPU:    sparkResources.executorResources.CPU,
+				Memory: sparkResources.executorResources.Memory,
+			}
+			err = s.softReservationStore.AddReservationForPod(ctx, driver.Labels[SparkAppIDLabel], executor.Name, softReservation)
+			if err != nil {
+				return "", failureInternal, err
+			}
+			return node, successScheduledExtraExecutor, nil
+		}
+		return "", outcome, unboundResErr
 	}
 	// the reservation to be selected for the current executor needs to be on a node that the extender has received from kube-scheduler
 	nodeToReservation := make(map[string]string, len(unboundReservations))
@@ -316,7 +359,15 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 		// try to reschedule the executor, breaking FIFO, but preventing executor starvation
 		// we are guaranteed len(unboundResourceReservations) > 0
 		unboundReservation = unboundReservations[0]
-		node, outcome, err := s.rescheduleExecutor(ctx, executor, nodeNames, unboundReservation, resourceReservation)
+		driver, err := s.podLister.getDriverPod(ctx, executor)
+		if err != nil {
+			return "", failureInternal, err
+		}
+		sparkResources, err := sparkResources(ctx, driver)
+		if err != nil {
+			return "", failureInternal, err
+		}
+		node, outcome, err := s.rescheduleExecutor(ctx, executor, nodeNames, sparkResources, true)
 		if err != nil {
 			return "", outcome, err
 		}
@@ -327,7 +378,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	}
 
 	copyResourceReservation.Status.Pods[unboundReservation] = executor.Name
-	err = s.resourceReservations.Update(copyResourceReservation)
+	err := s.resourceReservations.Update(copyResourceReservation)
 	if err != nil {
 		return "", failureInternal, werror.Wrap(err, "failed to update resource reservation")
 	}
@@ -351,7 +402,9 @@ func (s *SparkSchedulerExtender) getNodes(ctx context.Context, nodeNames []strin
 
 func (s *SparkSchedulerExtender) usedResources(nodeNames []string) (resources.NodeGroupResources, error) {
 	resourceReservations := s.resourceReservations.List()
-	return resources.UsageForNodes(resourceReservations), nil
+	usage := resources.UsageForNodes(resourceReservations)
+	usage.Add(s.softReservationStore.UsedSoftReservationResources())
+	return usage, nil
 }
 
 func (s *SparkSchedulerExtender) createResourceReservations(
@@ -370,9 +423,8 @@ func (s *SparkSchedulerExtender) createResourceReservations(
 	return driverNode, success, nil
 }
 
-func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executor *v1.Pod, nodeNames []string, reservationName string, rr *v1beta1.ResourceReservation) (string, string, error) {
-	reservation := rr.Spec.Reservations[reservationName]
-	executorResources := &resources.Resources{CPU: reservation.CPU, Memory: reservation.Memory}
+func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executor *v1.Pod, nodeNames []string, applicationResources *sparkApplicationResources, createDemandIfNoFit bool) (string, string, error) {
+	executorResources := &resources.Resources{CPU: applicationResources.executorResources.CPU, Memory: applicationResources.executorResources.Memory}
 	availableNodes := s.getNodes(ctx, nodeNames)
 	usages, err := s.usedResources(nodeNames)
 	if err != nil {
@@ -385,7 +437,10 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 			return name, successRescheduled, nil
 		}
 	}
-	s.createDemandForExecutor(ctx, executor, executorResources)
+
+	if createDemandIfNoFit {
+		s.createDemandForExecutor(ctx, executor, executorResources)
+	}
 	return "", failureFit, werror.Error("not enough capacity to reschedule the executor")
 }
 
@@ -427,7 +482,6 @@ func (s *SparkSchedulerExtender) findUnboundReservations(ctx context.Context, ex
 			relocatableReservations = append(relocatableReservations, name)
 		}
 	}
-
 	if len(relocatableReservations) == 0 {
 		return nil, failureUnbound, werror.Error("failed to find unbound resource reservation", werror.SafeParams(logging.RRSafeParam(resourceReservation)))
 	}

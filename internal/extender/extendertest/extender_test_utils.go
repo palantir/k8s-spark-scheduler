@@ -104,10 +104,13 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		return nil, err
 	}
 
+	softReservationStore := sscache.NewSoftReservationStore(ctx, podInformerInterface)
+
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,
 		podLister,
 		resourceReservationCache,
+		softReservationStore,
 		nodeLister,
 		instanceGroupLabel,
 	)
@@ -119,6 +122,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		nodeLister,
 		extender.NewSparkPodLister(podLister, instanceGroupLabel),
 		resourceReservationCache,
+		softReservationStore,
 		fakeKubeClient.CoreV1(),
 		demandCache,
 		fakeAPIExtensionsClient,

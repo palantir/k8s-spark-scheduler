@@ -39,6 +39,7 @@ var (
 type OverheadComputer struct {
 	podLister            corelisters.PodLister
 	resourceReservations *cache.ResourceReservationCache
+	softReservationStore *cache.SoftReservationStore
 	nodeLister           corelisters.NodeLister
 	latestOverhead       Overhead
 	overheadLock         *sync.RWMutex
@@ -59,11 +60,13 @@ func NewOverheadComputer(
 	ctx context.Context,
 	podLister corelisters.PodLister,
 	resourceReservations *cache.ResourceReservationCache,
+	softReservationStore *cache.SoftReservationStore,
 	nodeLister corelisters.NodeLister,
 	instanceGroupLabel string) *OverheadComputer {
 	computer := &OverheadComputer{
 		podLister:            podLister,
 		resourceReservations: resourceReservations,
+		softReservationStore: softReservationStore,
 		nodeLister:           nodeLister,
 		overheadLock:         &sync.RWMutex{},
 		instanceGroupLabel:   instanceGroupLabel,
@@ -102,10 +105,16 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 			podsWithRRs[podName] = true
 		}
 	}
+	// TODO(rkaram): separate between regular overhead and dynamic allocation/spark overhead
 	rawOverhead := map[string]resources.NodeGroupResources{}
 	for _, p := range pods {
 		if podsWithRRs[p.Name] {
 			continue
+		}
+		if role, ok := p.Labels[SparkRoleLabel]; ok {
+			if role == Executor && o.softReservationStore.ExecutorHasSoftReservation(ctx, p) {
+				continue
+			}
 		}
 		if p.Spec.NodeName == "" || p.Status.Phase == v1.PodSucceeded || p.Status.Phase == v1.PodFailed {
 			// pending pod or pod succeeded or failed
