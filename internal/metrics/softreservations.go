@@ -53,12 +53,9 @@ func (s *SoftReservationMetrics) doStart(ctx context.Context) error {
 }
 
 func (s *SoftReservationMetrics) emitSoftReservationMetrics(ctx context.Context) {
-	softReservations := s.softReservationStore.GetAllSoftReservations()
-	var executorCount = 0
-	for _, sr := range softReservations {
-		executorCount += len(sr.Reservations)
-	}
+	softReservationsCount := s.softReservationStore.GetApplicationCount()
+	extraExecutorCount := s.softReservationStore.GetActiveExtraExecutorCount()
 
-	metrics.FromContext(ctx).Gauge(softReservationCount).Update(int64(len(softReservations)))
-	metrics.FromContext(ctx).Gauge(softReservationExecutorCount).Update(int64(executorCount))
+	metrics.FromContext(ctx).Gauge(softReservationCount).Update(int64(softReservationsCount))
+	metrics.FromContext(ctx).Gauge(softReservationExecutorCount).Update(int64(extraExecutorCount))
 }

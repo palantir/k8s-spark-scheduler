@@ -243,3 +243,24 @@ func (s *SoftReservationStore) deepCopySoftReservation(reservation *SoftReservat
 		Status:       statusCopy,
 	}
 }
+
+// Metric related methods
+
+// GetApplicationCount returns the distinct number of applications that are tracked in the SoftReservationStore (whether they currently have extra executors or not)
+func (s *SoftReservationStore) GetApplicationCount() int {
+	s.storeLock.RLock()
+	defer s.storeLock.RUnlock()
+	return len(s.store)
+}
+
+// GetActiveExtraExecutorCount returns the total number of extra executors that are currently allocated and have SoftReservations in the SoftReservationStore
+// (excluding the ones that are already marked as dead by the store)
+func (s *SoftReservationStore) GetActiveExtraExecutorCount() int {
+	s.storeLock.RLock()
+	defer s.storeLock.RUnlock()
+	var executorCount = 0
+	for _, sr := range s.store {
+		executorCount += len(sr.Reservations)
+	}
+	return executorCount
+}
