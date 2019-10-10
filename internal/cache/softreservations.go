@@ -16,6 +16,7 @@ package cache
 
 import (
 	"context"
+	"github.com/palantir/witchcraft-go-error"
 	"sync"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
@@ -44,7 +45,7 @@ const (
 type SoftReservationStore struct {
 	store     map[string]*SoftReservation // SparkAppID -> SoftReservation
 	storeLock sync.RWMutex
-	bgLogger  svc1log.Logger
+	logger    svc1log.Logger
 }
 
 // SoftReservation is an in-memory reservation for a particular spark application that keeps track of extra executors allocated over the
@@ -63,8 +64,8 @@ type SoftReservation struct {
 // NewSoftReservationStore builds and returns a SoftReservationStore and instantiates the needed background informer event handlers to keep the store up to date.
 func NewSoftReservationStore(ctx context.Context, informer coreinformers.PodInformer) *SoftReservationStore {
 	s := &SoftReservationStore{
-		store:    make(map[string]*SoftReservation),
-		bgLogger: svc1log.FromContext(ctx),
+		store:  make(map[string]*SoftReservation),
+		logger: svc1log.FromContext(ctx),
 	}
 
 	informer.Informer().AddEventHandler(
@@ -127,21 +128,22 @@ func (s *SoftReservationStore) CreateSoftReservationIfNotExists(appID string) {
 
 // AddReservationForPod adds a reservation for an extra executor pod, attaching the associated node and resources to it.
 // This is a noop if the reservation already exists.
-func (s *SoftReservationStore) AddReservationForPod(ctx context.Context, appID string, podName string, reservation v1beta1.Reservation) {
+func (s *SoftReservationStore) AddReservationForPod(ctx context.Context, appID string, podName string, reservation v1beta1.Reservation) error {
 	s.storeLock.Lock()
 	defer s.storeLock.Unlock()
 	appSoftReservation, ok := s.store[appID]
 	if !ok {
-		svc1log.FromContext(ctx).Info("Could not put reservation since appID does not exist in reservation store", svc1log.SafeParam("appID", appID))
-		return
+		return werror.Error("Could not add soft reservation since appID does not exist in reservation store",
+			werror.SafeParam("appID", appID))
 	}
 
 	if _, alreadyThere := appSoftReservation.Status[podName]; alreadyThere {
-		return
+		return nil
 	}
 
 	appSoftReservation.Reservations[podName] = reservation
 	appSoftReservation.Status[podName] = true
+	return nil
 }
 
 // ExecutorHasSoftReservation returns true when the passed executor pod currently has a SoftReservation, false otherwise.
@@ -183,15 +185,15 @@ func (s *SoftReservationStore) UsedSoftReservationResources() resources.NodeGrou
 func (s *SoftReservationStore) onPodDeletion(obj interface{}) {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		s.bgLogger.Error("failed to parse object as pod, trying to get from tombstone")
+		s.logger.Error("failed to parse object as pod, trying to get from tombstone")
 		tombstone, ok := obj.(clientcache.DeletedFinalStateUnknown)
 		if !ok {
-			s.bgLogger.Error("failed to get object from tombstone")
+			s.logger.Error("failed to get object from tombstone")
 			return
 		}
 		pod, ok = tombstone.Obj.(*v1.Pod)
 		if !ok {
-			s.bgLogger.Error("failed to get pod from tombstone")
+			s.logger.Error("failed to get pod from tombstone")
 			return
 		}
 	}

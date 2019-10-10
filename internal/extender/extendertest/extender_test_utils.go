@@ -110,6 +110,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		ctx,
 		podLister,
 		resourceReservationCache,
+		softReservationStore,
 		nodeLister,
 		instanceGroupLabel,
 	)

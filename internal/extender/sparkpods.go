@@ -171,7 +171,7 @@ func sparkResourceUsage(driverResources, executorResources *resources.Resources,
 }
 
 func (s SparkPodLister) getDriverPod(ctx context.Context, executor *v1.Pod) (*v1.Pod, error) {
-	selector := labels.Set(map[string]string{SparkRoleLabel: Driver}).AsSelector()
+	selector := labels.Set(map[string]string{SparkAppIDLabel: executor.Labels[SparkAppIDLabel], SparkRoleLabel: Driver}).AsSelector()
 	driver, err := s.Pods(executor.Namespace).List(selector)
 	if err != nil || len(driver) != 1 {
 		return nil, err

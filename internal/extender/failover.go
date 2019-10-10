@@ -150,11 +150,14 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 			if i >= (appResources.maxExecutorCount - appResources.minExecutorCount) {
 				break
 			}
-			r.softReservations.AddReservationForPod(ctx, sp.appID, extraExecutor.Name, v1beta1.Reservation{
+			err := r.softReservations.AddReservationForPod(ctx, sp.appID, extraExecutor.Name, v1beta1.Reservation{
 				Node:   extraExecutor.Spec.NodeName,
 				CPU:    appResources.executorResources.CPU,
 				Memory: appResources.executorResources.Memory,
 			})
+			if err != nil {
+				svc1log.FromContext(ctx).Error("failed to add soft reservation for executor on failover. skipping...", svc1log.Stacktrace(err))
+			}
 		}
 	}
 

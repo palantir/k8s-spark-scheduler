@@ -162,6 +162,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		ctx,
 		podLister,
 		resourceReservationCache,
+		softReservationStore,
 		nodeLister,
 		instanceGroupLabel,
 	)

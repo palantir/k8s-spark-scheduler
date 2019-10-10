@@ -306,7 +306,10 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	}
 	unboundReservations, outcome, unboundResErr := s.findUnboundReservations(ctx, executor, resourceReservation)
 	if unboundResErr != nil {
-		extraExecutorCount := s.getSoftReservationCount(executor.Labels[SparkAppIDLabel])
+		extraExecutorCount := 0
+		if sr, ok := s.softReservationStore.GetSoftReservation(executor.Labels[SparkAppIDLabel]); ok {
+			extraExecutorCount = len(sr.Reservations)
+		}
 		driver, err := s.podLister.getDriverPod(ctx, executor)
 		if err != nil {
 			return "", failureInternal, err
@@ -329,7 +332,10 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 				CPU:    sparkResources.executorResources.CPU,
 				Memory: sparkResources.executorResources.Memory,
 			}
-			s.softReservationStore.AddReservationForPod(ctx, driver.Labels[SparkAppIDLabel], executor.Name, softReservation)
+			err = s.softReservationStore.AddReservationForPod(ctx, driver.Labels[SparkAppIDLabel], executor.Name, softReservation)
+			if err != nil {
+				return "", failureInternal, err
+			}
 			return node, successScheduledExtraExecutor, nil
 		}
 		return "", outcome, unboundResErr
