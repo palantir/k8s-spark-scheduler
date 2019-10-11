@@ -28,7 +28,6 @@ import (
 )
 
 const (
-	tickInterval      = 30 * time.Second
 	decayThreshold    = 2 * tickInterval
 	stuckPodThreshold = 12 * time.Hour
 )

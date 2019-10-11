@@ -27,27 +27,31 @@ import (
 )
 
 const (
-	requestCounter           = "foundry.spark.scheduler.requests"
-	schedulingProcessingTime = "foundry.spark.scheduler.schedule.time"
-	reconciliationTime       = "foundry.spark.scheduler.reconciliation.time"
-	schedulingWaitTime       = "foundry.spark.scheduler.wait.time"
-	schedulingRetryTime      = "foundry.spark.scheduler.retry.time"
-	resourceUsageCPU         = "foundry.spark.scheduler.resource.usage.cpu"
-	resourceUsageMemory      = "foundry.spark.scheduler.resource.usage.memory"
-	lifecycleAgeMax          = "foundry.spark.scheduler.pod.lifecycle.max"
-	lifecycleAgeP95          = "foundry.spark.scheduler.pod.lifecycle.p95"
-	lifecycleAgeP50          = "foundry.spark.scheduler.pod.lifecycle.p50"
-	lifecycleCount           = "foundry.spark.scheduler.pod.lifecycle.count"
-	crossAzTraffic           = "foundry.spark.scheduler.az.cross.traffic"
-	totalTraffic             = "foundry.spark.scheduler.total.traffic"
-	requestLatency           = "foundry.spark.scheduler.client.request.latency"
-	requestResult            = "foundry.spark.scheduler.client.request.result"
-	cachedObjectCount        = "foundry.spark.scheduler.cache.objects.count"
-	inflightRequestCount     = "foundry.spark.scheduler.cache.inflight.count"
+	requestCounter                  = "foundry.spark.scheduler.requests"
+	schedulingProcessingTime        = "foundry.spark.scheduler.schedule.time"
+	reconciliationTime              = "foundry.spark.scheduler.reconciliation.time"
+	schedulingWaitTime              = "foundry.spark.scheduler.wait.time"
+	schedulingRetryTime             = "foundry.spark.scheduler.retry.time"
+	resourceUsageCPU                = "foundry.spark.scheduler.resource.usage.cpu"
+	resourceUsageMemory             = "foundry.spark.scheduler.resource.usage.memory"
+	lifecycleAgeMax                 = "foundry.spark.scheduler.pod.lifecycle.max"
+	lifecycleAgeP95                 = "foundry.spark.scheduler.pod.lifecycle.p95"
+	lifecycleAgeP50                 = "foundry.spark.scheduler.pod.lifecycle.p50"
+	lifecycleCount                  = "foundry.spark.scheduler.pod.lifecycle.count"
+	crossAzTraffic                  = "foundry.spark.scheduler.az.cross.traffic"
+	totalTraffic                    = "foundry.spark.scheduler.total.traffic"
+	requestLatency                  = "foundry.spark.scheduler.client.request.latency"
+	requestResult                   = "foundry.spark.scheduler.client.request.result"
+	cachedObjectCount               = "foundry.spark.scheduler.cache.objects.count"
+	inflightRequestCount            = "foundry.spark.scheduler.cache.inflight.count"
+	softReservationCount            = "foundry.spark.scheduler.softreservation.count"
+	softReservationExecutorCount    = "foundry.spark.scheduler.softreservation.executorcount"
+	executorsWithNoReservationCount = "foundry.spark.scheduler.softreservation.executorswithnoreservations"
 )
 
 const (
 	sparkRoleLabel       = "spark-role"
+	executor             = "executor"
 	sparkRoleTagName     = "sparkrole"
 	outcomeTagName       = "outcome"
 	instanceGroupTagName = "instance-group"
@@ -59,6 +63,10 @@ const (
 	verbTagName          = "requestverb"
 	statusCodeTagName    = "requeststatuscode"
 	queueIndexTagName    = "queueIndex"
+)
+
+const (
+	tickInterval = 30 * time.Second
 )
 
 var (
