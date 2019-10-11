@@ -31,7 +31,7 @@ func TestUnschedulablePodMarker(t *testing.T) {
 		t.Fatal("Could not setup test extender")
 	}
 
-	twoExecutorsDriver := extendertest.SparkApplicationPods("2-executor-app", 2)[0]
+	twoExecutorsDriver := extendertest.StaticAllocationSparkPods("2-executor-app", 2)[0]
 	doesExceed, err := testHarness.UnschedulablePodMarker.DoesPodExceedClusterCapacity(testHarness.Ctx, &twoExecutorsDriver)
 	if err != nil {
 		t.Errorf("exceeds capacity check should not cause an error: %s", err)
@@ -40,7 +40,7 @@ func TestUnschedulablePodMarker(t *testing.T) {
 		t.Error("The two executor application should fit to the cluster")
 	}
 
-	hundredExecutorsDriver := extendertest.SparkApplicationPods("100-executor-app", 100)[0]
+	hundredExecutorsDriver := extendertest.StaticAllocationSparkPods("100-executor-app", 100)[0]
 	doesExceed, err = testHarness.UnschedulablePodMarker.DoesPodExceedClusterCapacity(testHarness.Ctx, &hundredExecutorsDriver)
 	if err != nil {
 		t.Errorf("exceeds capacity check should not cause an error: %s", err)
