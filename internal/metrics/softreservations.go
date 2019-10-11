@@ -20,6 +20,7 @@ import (
 
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/pkg/metrics"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	v1 "k8s.io/api/core/v1"
@@ -65,14 +66,18 @@ func (s *SoftReservationMetrics) doStart(ctx context.Context) error {
 func (s *SoftReservationMetrics) emitSoftReservationMetrics(ctx context.Context) {
 	softReservationsCount := s.softReservationStore.GetApplicationCount()
 	extraExecutorCount := s.softReservationStore.GetActiveExtraExecutorCount()
-	execWithNoReservationCount := s.getAllocatedExecutorsWithNoReservationCount()
+	execWithNoReservationCount, err := s.getAllocatedExecutorsWithNoReservationCount()
+	if err != nil {
+		s.logger.Error("failed to emit executors with no reservation count metric", svc1log.Stacktrace(err))
+	} else {
+		metrics.FromContext(ctx).Gauge(executorsWithNoReservationCount).Update(int64(execWithNoReservationCount))
+	}
 
 	metrics.FromContext(ctx).Gauge(softReservationCount).Update(int64(softReservationsCount))
 	metrics.FromContext(ctx).Gauge(softReservationExecutorCount).Update(int64(extraExecutorCount))
-	metrics.FromContext(ctx).Gauge(executorsWithNoReservationCount).Update(int64(execWithNoReservationCount))
 }
 
-func (s *SoftReservationMetrics) getAllocatedExecutorsWithNoReservationCount() int {
+func (s *SoftReservationMetrics) getAllocatedExecutorsWithNoReservationCount() (int, error) {
 	podsWithNoReservationCount := 0
 	rrs := s.resourceReservations.List()
 	podsWithRRs := make(map[string]bool, len(rrs))
@@ -83,8 +88,7 @@ func (s *SoftReservationMetrics) getAllocatedExecutorsWithNoReservationCount() i
 	}
 	pods, err := s.podLister.List(labels.Everything())
 	if err != nil {
-		s.logger.Error("failed to list pods", svc1log.Stacktrace(err))
-		return 0
+		return 0, werror.Wrap(err, "failed to list pods")
 	}
 	for _, pod := range pods {
 		if podsWithRRs[pod.Name] {
@@ -96,5 +100,5 @@ func (s *SoftReservationMetrics) getAllocatedExecutorsWithNoReservationCount() i
 		}
 		podsWithNoReservationCount++
 	}
-	return podsWithNoReservationCount
+	return podsWithNoReservationCount, nil
 }
