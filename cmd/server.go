@@ -197,7 +197,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	queueReporter := metrics.NewQueueReporter(podLister, instanceGroupLabel)
 
-	softReservationReporter := metrics.NewSoftReservationMetrics(softReservationStore)
+	softReservationReporter := metrics.NewSoftReservationMetrics(ctx, softReservationStore, podLister, resourceReservationCache)
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(
 		nodeLister,

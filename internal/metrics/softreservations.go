@@ -20,18 +20,28 @@ import (
 
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/pkg/metrics"
+	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	corelisters "k8s.io/client-go/listers/core/v1"
 )
 
 // SoftReservationMetrics reports metrics on the SoftReservationStore passed
 type SoftReservationMetrics struct {
 	softReservationStore *cache.SoftReservationStore
+	podLister            corelisters.PodLister
+	resourceReservations *cache.ResourceReservationCache
+	logger               svc1log.Logger
 }
 
 // NewSoftReservationMetrics creates a SoftReservationMetrics
-func NewSoftReservationMetrics(store *cache.SoftReservationStore) *SoftReservationMetrics {
+func NewSoftReservationMetrics(ctx context.Context, store *cache.SoftReservationStore, podLister corelisters.PodLister, resourceReservations *cache.ResourceReservationCache) *SoftReservationMetrics {
 	return &SoftReservationMetrics{
 		softReservationStore: store,
+		podLister:            podLister,
+		resourceReservations: resourceReservations,
+		logger:               svc1log.FromContext(ctx),
 	}
 }
 
@@ -55,7 +65,36 @@ func (s *SoftReservationMetrics) doStart(ctx context.Context) error {
 func (s *SoftReservationMetrics) emitSoftReservationMetrics(ctx context.Context) {
 	softReservationsCount := s.softReservationStore.GetApplicationCount()
 	extraExecutorCount := s.softReservationStore.GetActiveExtraExecutorCount()
+	execWithNoReservationCount := s.getAllocatedExecutorsWithNoReservationCount()
 
 	metrics.FromContext(ctx).Gauge(softReservationCount).Update(int64(softReservationsCount))
 	metrics.FromContext(ctx).Gauge(softReservationExecutorCount).Update(int64(extraExecutorCount))
+	metrics.FromContext(ctx).Gauge(executorsWithNoReservationCount).Update(int64(execWithNoReservationCount))
+}
+
+func (s *SoftReservationMetrics) getAllocatedExecutorsWithNoReservationCount() int {
+	podsWithNoReservationCount := 0
+	rrs := s.resourceReservations.List()
+	podsWithRRs := make(map[string]bool, len(rrs))
+	for _, rr := range rrs {
+		for _, podName := range rr.Status.Pods {
+			podsWithRRs[podName] = true
+		}
+	}
+	pods, err := s.podLister.List(labels.Everything())
+	if err != nil {
+		s.logger.Error("failed to list pods", svc1log.Stacktrace(err))
+		return 0
+	}
+	for _, pod := range pods {
+		if podsWithRRs[pod.Name] {
+			continue
+		}
+		role, ok := pod.Labels[sparkRoleLabel]
+		if !ok || role != executor || pod.Spec.SchedulerName != sparkSchedulerName || pod.Spec.NodeName == "" || pod.Status.Phase == v1.PodSucceeded || pod.Status.Phase == v1.PodFailed {
+			continue
+		}
+		podsWithNoReservationCount++
+	}
+	return podsWithNoReservationCount
 }
