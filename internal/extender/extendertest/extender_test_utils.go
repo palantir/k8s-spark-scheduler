@@ -26,7 +26,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/witchcraft-go-logging/wlog"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -198,7 +198,7 @@ func NewNode(name string) v1.Node {
 			Kind: "node",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
+			Name: name,
 			Labels: map[string]string{
 				"resource_channel":                  "batch-medium-priority",
 				"com.palantir.rubix/instance-group": "batch-medium-priority",
@@ -235,11 +235,11 @@ func StaticAllocationSparkPods(sparkApplicationID string, numExecutors int) []v1
 // with the proper dynamic allocation annotations set for min and max executor counts
 func DynamicAllocationSparkPods(sparkApplicationID string, minExecutors int, maxExecutors int) []v1.Pod {
 	driverAnnotations := map[string]string{
-		"spark-driver-cpu":     "1",
-		"spark-driver-mem":     "1",
-		"spark-executor-cpu":   "1",
-		"spark-executor-mem":   "1",
-		"spark-dynamic-allocation-enabled": "true",
+		"spark-driver-cpu":                            "1",
+		"spark-driver-mem":                            "1",
+		"spark-executor-cpu":                          "1",
+		"spark-executor-mem":                          "1",
+		"spark-dynamic-allocation-enabled":            "true",
 		"spark-dynamic-allocation-min-executor-count": fmt.Sprintf("%d", minExecutors),
 		"spark-dynamic-allocation-max-executor-count": fmt.Sprintf("%d", maxExecutors),
 	}
