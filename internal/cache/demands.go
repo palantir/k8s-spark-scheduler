@@ -43,6 +43,7 @@ type DemandCache struct {
 
 // NewDemandCache creates a new cache
 func NewDemandCache(
+	ctx context.Context,
 	demandInformer demandinformers.DemandInformer,
 	demandKubeClient demandclient.ScalerV1alpha1Interface,
 ) (*DemandCache, error) {
@@ -50,12 +51,12 @@ func NewDemandCache(
 	if err != nil {
 		return nil, err
 	}
-	objectStore := store.NewStore()
+	objectStore := store.NewStore(ctx)
 	for _, d := range ds {
 		objectStore.Put(d)
 	}
 	queue := store.NewShardedUniqueQueue(demandClients)
-	cache := newCache(queue, objectStore, demandInformer.Informer())
+	cache := newCache(ctx, queue, objectStore, demandInformer.Informer())
 	asyncClient := &asyncClient{
 		client:      &demandClient{demandKubeClient},
 		queue:       queue,

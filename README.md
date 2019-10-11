@@ -54,6 +54,15 @@ As of [f6cc354d83](https://github.com/apache/spark/commit/f6cc354d83), spark sup
 "spark.kubernetes.executor.podTemplateFile": "/path/to/executor.template"
 ```
 
+### Dynamic Allocation
+`k8s-spark-scheduler-extender` also supports running Spark applications in dynamic allocation mode. You can find more information about how to configure Spark to make use of dynamic allocation in the [Spark documentation](http://spark.apache.org/docs/latest/configuration.html#dynamic-allocation).  
+To inform `k8s-spark-scheduler-extender` that you are running an application with dynamic allocation enabled, you should omit setting the `spark-executor-count` annotation on the driver pod, and instead set the following three annotations:
+- `spark-dynamic-allocation-enabled`: "true"
+- `spark-dynamic-allocation-min-executor-count`: minimum number of executors to always reserve resources for. Should be equal to the `spark.dynamicAllocation.minExecutors` value you set in the Spark configuration
+- `spark-dynamic-allocation-max-executor-count`: maximum number of executors to allow your application to request at a given time. Should be equal to the `spark.dynamicAllocation.maxExecutors` value you set in the Spark configuration
+
+If dynamic allocation is enabled, `k8s-spark-scheduler-extender` will guarantee that your application will only get scheduled if the driver and executors until the minimum executor count fit to the cluster. Executors over the minimum are not reserved for, and are only scheduled if there is capacity to do so when they are requested by the application.
+
 ## Configuration
 
 `k8s-spark-scheduler-extender` is a witchcraft service, and supports configuration options detailed in the [github documentation](https://github.com/palantir/witchcraft-go-server#configuration). Additional configuration options are:

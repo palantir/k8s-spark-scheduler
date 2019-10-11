@@ -104,15 +104,16 @@ func (sdc *SafeDemandCache) initializeCache(ctx context.Context) error {
 	if sdc.demandCRDInitialized.Load() {
 		return nil
 	}
-	informer := sdc.informerFactory.Scaler().V1alpha1().Demands()
+	informerInterface := sdc.informerFactory.Scaler().V1alpha1().Demands()
+	informer := informerInterface.Informer()
 	sdc.informerFactory.Start(ctx.Done())
 
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	if ok := clientcache.WaitForCacheSync(ctxWithTimeout.Done(), informer.Informer().HasSynced); !ok {
+	if ok := clientcache.WaitForCacheSync(ctxWithTimeout.Done(), informer.HasSynced); !ok {
 		return werror.Error("timeout syncing informer", werror.SafeParam("timeoutSeconds", 2))
 	}
-	demandCache, err := NewDemandCache(informer, sdc.demandKubeClient)
+	demandCache, err := NewDemandCache(ctx, informerInterface, sdc.demandKubeClient)
 	if err != nil {
 		return err
 	}

@@ -39,9 +39,11 @@ var (
 type OverheadComputer struct {
 	podLister            corelisters.PodLister
 	resourceReservations *cache.ResourceReservationCache
+	softReservationStore *cache.SoftReservationStore
 	nodeLister           corelisters.NodeLister
 	latestOverhead       Overhead
 	overheadLock         *sync.RWMutex
+	instanceGroupLabel   string
 }
 
 // Overhead represents the overall overhead in the cluster, indexed by instance groups
@@ -58,12 +60,16 @@ func NewOverheadComputer(
 	ctx context.Context,
 	podLister corelisters.PodLister,
 	resourceReservations *cache.ResourceReservationCache,
-	nodeLister corelisters.NodeLister) *OverheadComputer {
+	softReservationStore *cache.SoftReservationStore,
+	nodeLister corelisters.NodeLister,
+	instanceGroupLabel string) *OverheadComputer {
 	computer := &OverheadComputer{
 		podLister:            podLister,
 		resourceReservations: resourceReservations,
+		softReservationStore: softReservationStore,
 		nodeLister:           nodeLister,
 		overheadLock:         &sync.RWMutex{},
+		instanceGroupLabel:   instanceGroupLabel,
 	}
 	computer.compute(ctx)
 	return computer
@@ -105,6 +111,11 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 		if podsWithRRs[p.Name] {
 			continue
 		}
+		if role, ok := p.Labels[SparkRoleLabel]; ok {
+			if role == Executor && o.softReservationStore.ExecutorHasSoftReservation(ctx, p) {
+				continue
+			}
+		}
 		if p.Spec.NodeName == "" || p.Status.Phase == v1.PodSucceeded || p.Status.Phase == v1.PodFailed {
 			// pending pod or pod succeeded or failed
 			continue
@@ -115,7 +126,7 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 			continue
 		}
 		// found pod with not associated resource reservation, add to overhead
-		instanceGroup := node.Labels[instanceGroupNodeSelector]
+		instanceGroup := node.Labels[o.instanceGroupLabel]
 		if _, ok := rawOverhead[instanceGroup]; !ok {
 			rawOverhead[instanceGroup] = resources.NodeGroupResources{}
 		}
@@ -175,7 +186,7 @@ func (o OverheadComputer) GetOverhead(ctx context.Context, nodes []*v1.Node) res
 		return res
 	}
 	for _, n := range nodes {
-		instanceGroup := n.Labels[instanceGroupNodeSelector]
+		instanceGroup := n.Labels[o.instanceGroupLabel]
 		instanceGroupOverhead := o.latestOverhead[instanceGroup]
 		if instanceGroupOverhead == nil {
 			svc1log.FromContext(ctx).Warn("overhead for instance group does not exist", svc1log.SafeParam("instanceGroup", instanceGroup))

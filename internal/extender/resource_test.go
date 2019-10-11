@@ -170,7 +170,7 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 				expectedSoftReservations[expectedRes] = true
 			}
 			extraSoftReservations := make(map[string]bool)
-			for _, softReservation := range testHarness.SoftReservationStore.GetAllSoftReservations() {
+			for _, softReservation := range testHarness.SoftReservationStore.GetAllSoftReservationsCopy() {
 				for podName := range softReservation.Reservations {
 					if _, exists := expectedSoftReservations[podName]; exists {
 						delete(expectedSoftReservations, podName)

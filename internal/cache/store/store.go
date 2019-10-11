@@ -26,7 +26,7 @@ import (
 // ObjectStore is a thread safe store for kubernetes resources
 type ObjectStore interface {
 	Put(metav1.Object)
-	OverrideResourceVersionIfNewer(context.Context, metav1.Object) bool
+	OverrideResourceVersionIfNewer(metav1.Object) bool
 	PutIfAbsent(metav1.Object) bool
 	Get(Key) (metav1.Object, bool)
 	Delete(Key)
@@ -34,14 +34,16 @@ type ObjectStore interface {
 }
 
 type objectStore struct {
-	store map[Key]metav1.Object
-	lock  sync.RWMutex
+	store  map[Key]metav1.Object
+	lock   sync.RWMutex
+	logger svc1log.Logger
 }
 
 // NewStore creates an empty store
-func NewStore() ObjectStore {
+func NewStore(ctx context.Context) ObjectStore {
 	return &objectStore{
-		store: make(map[Key]metav1.Object),
+		store:  make(map[Key]metav1.Object),
+		logger: svc1log.FromContext(ctx),
 	}
 }
 
@@ -56,7 +58,7 @@ func (s *objectStore) Put(obj metav1.Object) {
 	s.store[KeyOf(obj)] = obj
 }
 
-func (s *objectStore) OverrideResourceVersionIfNewer(ctx context.Context, obj metav1.Object) bool {
+func (s *objectStore) OverrideResourceVersionIfNewer(obj metav1.Object) bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	key := KeyOf(obj)
@@ -65,7 +67,7 @@ func (s *objectStore) OverrideResourceVersionIfNewer(ctx context.Context, obj me
 		s.store[key] = obj
 		return true
 	}
-	isNewer := resourceVersion(ctx, currentObj) < resourceVersion(ctx, obj)
+	isNewer := s.resourceVersion(currentObj) < s.resourceVersion(obj)
 	if isNewer {
 		currentObj.SetResourceVersion(obj.GetResourceVersion())
 	}
@@ -111,14 +113,14 @@ func (s *objectStore) List() []metav1.Object {
 	return res
 }
 
-func resourceVersion(ctx context.Context, obj metav1.Object) uint64 {
+func (s *objectStore) resourceVersion(obj metav1.Object) uint64 {
 	rv := obj.GetResourceVersion()
 	if len(rv) == 0 {
 		return 0
 	}
 	version, err := strconv.ParseUint(rv, 10, 64)
 	if err != nil {
-		svc1log.FromContext(ctx).Error("failed to parse resourceVersion, using 0",
+		s.logger.Error("failed to parse resourceVersion, using 0",
 			svc1log.SafeParam("objectNamespace", obj.GetNamespace()),
 			svc1log.SafeParam("objectName", obj.GetNamespace()),
 			svc1log.Stacktrace(err))

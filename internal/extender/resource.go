@@ -65,10 +65,11 @@ type SparkSchedulerExtender struct {
 	demands             *cache.SafeDemandCache
 	apiExtensionsClient apiextensionsclientset.Interface
 
-	isFIFO           bool
-	binpacker        *Binpacker
-	overheadComputer *OverheadComputer
-	lastRequest      time.Time
+	isFIFO             bool
+	binpacker          *Binpacker
+	overheadComputer   *OverheadComputer
+	lastRequest        time.Time
+	instanceGroupLabel string
 }
 
 // NewExtender is responsible for creating and initializing a SparkSchedulerExtender
@@ -82,7 +83,8 @@ func NewExtender(
 	apiExtensionsClient apiextensionsclientset.Interface,
 	isFIFO bool,
 	binpacker *Binpacker,
-	overheadComputer *OverheadComputer) *SparkSchedulerExtender {
+	overheadComputer *OverheadComputer,
+	instanceGroupLabel string) *SparkSchedulerExtender {
 	return &SparkSchedulerExtender{
 		nodeLister:           nodeLister,
 		podLister:            podLister,
@@ -94,6 +96,7 @@ func NewExtender(
 		isFIFO:               isFIFO,
 		binpacker:            binpacker,
 		overheadComputer:     overheadComputer,
+		instanceGroupLabel:   instanceGroupLabel,
 	}
 }
 
@@ -102,12 +105,13 @@ func NewExtender(
 func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerapi.ExtenderArgs) *schedulerapi.ExtenderFilterResult {
 	params := internal.PodSafeParams(args.Pod)
 	role := args.Pod.Labels[SparkRoleLabel]
+	instanceGroup := args.Pod.Spec.NodeSelector[s.instanceGroupLabel]
 	params["podSparkRole"] = role
-	params["instanceGroup"] = args.Pod.Spec.NodeSelector[instanceGroupNodeSelector]
+	params["instanceGroup"] = instanceGroup
 	ctx = svc1log.WithLoggerParams(ctx, svc1log.SafeParams(params))
 	logger := svc1log.FromContext(ctx)
 
-	timer := metrics.NewScheduleTimer(ctx, &args.Pod)
+	timer := metrics.NewScheduleTimer(ctx, instanceGroup, &args.Pod)
 	logger.Info("starting scheduling pod")
 
 	err := s.reconcileIfNeeded(ctx, timer)
@@ -198,6 +202,20 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 }
 
 func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v1.Pod, nodeNames []string) (string, string, error) {
+	if rr, ok := s.resourceReservations.Get(driver.Namespace, driver.Labels[SparkAppIDLabel]); ok {
+		driverReservedNode := rr.Spec.Reservations["driver"].Node
+		for _, node := range nodeNames {
+			if driverReservedNode == node {
+				svc1log.FromContext(ctx).Info("Received request to schedule driver which already has a reservation. Returning previously reserved node.",
+					svc1log.SafeParam("driverReservedNode", driverReservedNode))
+				return driverReservedNode, success, nil
+			}
+		}
+		svc1log.FromContext(ctx).Warn("Received request to schedule driver which already has a reservation, but previously reserved node is not in list of nodes. Returning previously reserved node anyway.",
+			svc1log.SafeParam("driverReservedNode", driverReservedNode),
+			svc1log.SafeParam("nodeNames", nodeNames))
+		return driverReservedNode, success, nil
+	}
 	availableNodes, err := s.nodeLister.List(labels.Set(driver.Spec.NodeSelector).AsSelector())
 	if err != nil {
 		return "", failureInternal, err
@@ -288,7 +306,10 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	}
 	unboundReservations, outcome, unboundResErr := s.findUnboundReservations(ctx, executor, resourceReservation)
 	if unboundResErr != nil {
-		extraExecutorCount := s.getSoftReservationCount(executor.Labels[SparkAppIDLabel])
+		extraExecutorCount := 0
+		if sr, ok := s.softReservationStore.GetSoftReservation(executor.Labels[SparkAppIDLabel]); ok {
+			extraExecutorCount = len(sr.Reservations)
+		}
 		driver, err := s.podLister.getDriverPod(ctx, executor)
 		if err != nil {
 			return "", failureInternal, err
@@ -311,7 +332,10 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 				CPU:    sparkResources.executorResources.CPU,
 				Memory: sparkResources.executorResources.Memory,
 			}
-			s.softReservationStore.AddReservationForPod(ctx, driver.Labels[SparkAppIDLabel], executor.Name, softReservation)
+			err = s.softReservationStore.AddReservationForPod(ctx, driver.Labels[SparkAppIDLabel], executor.Name, softReservation)
+			if err != nil {
+				return "", failureInternal, err
+			}
 			return node, successScheduledExtraExecutor, nil
 		}
 		return "", outcome, unboundResErr
@@ -379,7 +403,7 @@ func (s *SparkSchedulerExtender) getNodes(ctx context.Context, nodeNames []strin
 func (s *SparkSchedulerExtender) usedResources(nodeNames []string) (resources.NodeGroupResources, error) {
 	resourceReservations := s.resourceReservations.List()
 	usage := resources.UsageForNodes(resourceReservations)
-	usage.Add(s.usedSoftReservationResources())
+	usage.Add(s.softReservationStore.UsedSoftReservationResources())
 	return usage, nil
 }
 
@@ -393,11 +417,7 @@ func (s *SparkSchedulerExtender) createResourceReservations(
 	rr := newResourceReservation(driverNode, executorNodes, driver, applicationResources.driverResources, applicationResources.executorResources)
 	err := s.resourceReservations.Create(rr)
 	if err != nil {
-		existingRR, ok := s.resourceReservations.Get(rr.Namespace, rr.Name)
-		if !ok {
-			return "", failureInternal, werror.Error("failed to get existing resource reservation")
-		}
-		return existingRR.Spec.Reservations["driver"].Node, success, nil
+		return "", failureInternal, werror.Wrap(err, "failed to create resource reservation", werror.SafeParam("reservationName", rr.Name))
 	}
 	logger.Debug("creating executor resource reservations", svc1log.SafeParams(logging.RRSafeParam(rr)))
 	return driverNode, success, nil

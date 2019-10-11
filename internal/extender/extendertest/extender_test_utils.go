@@ -45,6 +45,7 @@ const (
 // Harness is an extension of an extender with in-memory k8s stores
 type Harness struct {
 	Extender                 *extender.SparkSchedulerExtender
+	UnschedulablePodMarker   *extender.UnschedulablePodMarker
 	PodStore                 cache.Store
 	NodeStore                cache.Store
 	ResourceReservationCache *sscache.ResourceReservationCache
@@ -60,16 +61,19 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	fakeSchedulerClient := ssclientset.NewSimpleClientset()
 	fakeAPIExtensionsClient := apiextensionsfake.NewSimpleClientset()
 	kubeInformerFactory := informers.NewSharedInformerFactory(fakeKubeClient, 0)
-	nodeInformer := kubeInformerFactory.Core().V1().Nodes()
-	podInformer := kubeInformerFactory.Core().V1().Pods()
+	nodeInformerInterface := kubeInformerFactory.Core().V1().Nodes()
+	nodeInformer := nodeInformerInterface.Informer()
+	nodeLister := nodeInformerInterface.Lister()
+
+	podInformerInterface := kubeInformerFactory.Core().V1().Pods()
+	podInformer := podInformerInterface.Informer()
+	podLister := podInformerInterface.Lister()
 
 	sparkSchedulerInformerFactory := ssinformers.NewSharedInformerFactory(fakeSchedulerClient, 0)
-	resourceReservationInformerBeta := sparkSchedulerInformerFactory.Sparkscheduler().V1beta1().ResourceReservations()
+	resourceReservationInformerInterface := sparkSchedulerInformerFactory.Sparkscheduler().V1beta1().ResourceReservations()
+	resourceReservationInformer := resourceReservationInformerInterface.Informer()
 
-	// TODO: Remove this after race fix PR is merged into master
-	nodeInformer.Informer()
-	podInformer.Informer()
-	resourceReservationInformerBeta.Informer()
+	instanceGroupLabel := "resource_channel"
 
 	go func() {
 		kubeInformerFactory.Start(ctx.Done())
@@ -80,12 +84,13 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 
 	cache.WaitForCacheSync(
 		ctx.Done(),
-		nodeInformer.Informer().HasSynced,
-		podInformer.Informer().HasSynced,
-		resourceReservationInformerBeta.Informer().HasSynced)
+		nodeInformer.HasSynced,
+		podInformer.HasSynced,
+		resourceReservationInformer.HasSynced)
 
 	resourceReservationCache, err := sscache.NewResourceReservationCache(
-		resourceReservationInformerBeta,
+		ctx,
+		resourceReservationInformerInterface,
 		fakeSchedulerClient.SparkschedulerV1beta1(),
 	)
 	if err != nil {
@@ -100,21 +105,23 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	if err != nil {
 		return nil, err
 	}
-	softReservationStore := sscache.NewSoftReservationStore(podInformer)
+	softReservationStore := sscache.NewSoftReservationStore(ctx, podInformerInterface)
 
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,
-		podInformer.Lister(),
+		podLister,
 		resourceReservationCache,
-		nodeInformer.Lister(),
+		softReservationStore,
+		nodeLister,
+		instanceGroupLabel,
 	)
 
 	isFIFO := true
 	binpacker := extender.SelectBinpacker("tightly-pack")
 
-	extender := extender.NewExtender(
-		nodeInformer.Lister(),
-		extender.NewSparkPodLister(podInformer.Lister()),
+	sparkSchedulerExtender := extender.NewExtender(
+		nodeLister,
+		extender.NewSparkPodLister(podLister, instanceGroupLabel),
 		resourceReservationCache,
 		softReservationStore,
 		fakeKubeClient.CoreV1(),
@@ -123,12 +130,21 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		isFIFO,
 		binpacker,
 		overheadComputer,
+		instanceGroupLabel,
 	)
 
+	unschedulablePodMarker := extender.NewUnschedulablePodMarker(
+		nodeLister,
+		podLister,
+		fakeKubeClient.CoreV1(),
+		overheadComputer,
+		binpacker)
+
 	return &Harness{
-		Extender:                 extender,
-		PodStore:                 podInformer.Informer().GetStore(),
-		NodeStore:                nodeInformer.Informer().GetStore(),
+		Extender:                 sparkSchedulerExtender,
+		UnschedulablePodMarker:   unschedulablePodMarker,
+		PodStore:                 podInformer.GetStore(),
+		NodeStore:                nodeInformer.GetStore(),
 		ResourceReservationCache: resourceReservationCache,
 		SoftReservationStore:     softReservationStore,
 		Ctx:                      ctx,
@@ -184,7 +200,9 @@ func NewNode(name string) v1.Node {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Labels: map[string]string{
-				"resource_channel": "batch-medium-priority",
+				"resource_channel":                  "batch-medium-priority",
+				"com.palantir.rubix/instance-group": "batch-medium-priority",
+				"test":                              "something",
 			},
 			Annotations: map[string]string{},
 		},
@@ -246,7 +264,8 @@ func sparkApplicationPods(sparkApplicationID string, driverAnnotations map[strin
 		},
 		Spec: v1.PodSpec{
 			NodeSelector: map[string]string{
-				"resource_channel": "batch-medium-priority",
+				"resource_channel":                  "batch-medium-priority",
+				"com.palantir.rubix/instance-group": "batch-medium-priority",
 			},
 		},
 		Status: v1.PodStatus{
