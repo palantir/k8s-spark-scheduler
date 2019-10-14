@@ -53,6 +53,12 @@ func (s *SparkSchedulerExtender) syncResourceReservationsAndDemands(ctx context.
 	svc1log.FromContext(ctx).Info("starting reconciliation", svc1log.SafeParam("appCount", len(staleSparkPods)))
 
 	r := &reconciler{s.podLister, s.resourceReservations, s.softReservationStore, s.demands, availableResources, orderedNodes, s.instanceGroupLabel}
+	// Initialize SoftReservationStore with dynamic allocation applications currently running
+	err = r.syncApplicationSoftReservations(ctx)
+	if err != nil {
+		return err
+	}
+
 	for _, sp := range staleSparkPods {
 		r.syncResourceReservations(ctx, sp)
 		r.syncDemands(ctx, sp)
@@ -107,8 +113,13 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 			return
 		}
 
-		podsWithRR := make(map[string]bool, len(rr.Status.Pods))
-		for _, podName := range rr.Status.Pods {
+		newRR, ok := r.resourceReservations.Get(exec.Namespace, sp.appID)
+		if !ok {
+			logRR(ctx, "could not get new resource reservation, skipping", exec.Namespace, sp.appID)
+			return
+		}
+		podsWithRR := make(map[string]bool, len(newRR.Status.Pods))
+		for _, podName := range newRR.Status.Pods {
 			podsWithRR[podName] = true
 		}
 		for _, executor := range sp.inconsistentExecutors {
@@ -140,10 +151,6 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 		r.availableResources[instanceGroup].Sub(reservedResources)
 	}
 
-	// Create soft reservation object for drivers that can have extra executors even if they don't at the moment
-	if appResources.maxExecutorCount > appResources.minExecutorCount {
-		r.softReservations.CreateSoftReservationIfNotExists(sp.appID)
-	}
 	// Create soft reservations for the extra executors
 	if len(extraExecutors) > 0 {
 		for i, extraExecutor := range extraExecutors {
@@ -177,6 +184,35 @@ func (r *reconciler) deleteDemandIfExists(namespace, name string) {
 	if ok {
 		r.demands.Delete(namespace, name)
 	}
+}
+
+// syncApplicationSoftReservations creates empty SoftReservations for all applications that can have extra executors in dynamic allocation
+// in order to prefill the SoftReservationStore with the drivers currently running
+func (r *reconciler) syncApplicationSoftReservations(ctx context.Context) error {
+	selector := labels.Set(map[string]string{SparkRoleLabel: Driver}).AsSelector()
+	drivers, err := r.podLister.List(selector)
+	if err != nil {
+		return werror.Wrap(err, "failed to list drivers")
+	}
+
+	for _, d := range drivers {
+		if d.Spec.SchedulerName != SparkSchedulerName || d.Spec.NodeName == "" || d.Status.Phase == v1.PodSucceeded || d.Status.Phase == v1.PodFailed {
+			continue
+		}
+		appResources, err := sparkResources(ctx, d)
+		if err != nil {
+			svc1log.FromContext(ctx).Error("failed to get driver resources, skipping driver",
+				svc1log.SafeParam("faultyDriverName", d.Name),
+				svc1log.SafeParam("reason", err.Error),
+				svc1log.Stacktrace(err))
+			continue
+		}
+
+		if appResources.maxExecutorCount > appResources.minExecutorCount {
+			r.softReservations.CreateSoftReservationIfNotExists(d.Labels[SparkAppIDLabel])
+		}
+	}
+	return nil
 }
 
 func unreservedSparkPodsBySparkID(
