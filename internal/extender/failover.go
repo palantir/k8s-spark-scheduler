@@ -110,13 +110,8 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 			return nil
 		}
 
-		newRR, ok := r.resourceReservations.Get(exec.Namespace, sp.appID)
-		if !ok {
-			logRR(ctx, "could not get new resource reservation, skipping", exec.Namespace, sp.appID)
-			return nil
-		}
-		podsWithRR := make(map[string]bool, len(newRR.Status.Pods))
-		for _, podName := range newRR.Status.Pods {
+		podsWithRR := make(map[string]bool, len(rr.Status.Pods))
+		for _, podName := range rr.Status.Pods {
 			podsWithRR[podName] = true
 		}
 		for _, executor := range sp.inconsistentExecutors {
