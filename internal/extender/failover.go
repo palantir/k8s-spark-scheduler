@@ -101,17 +101,12 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 			logRR(ctx, "resource reservation deleted, ignoring", exec.Namespace, sp.appID)
 			return
 		}
-		err := r.patchResourceReservation(sp.inconsistentExecutors, rr.DeepCopy())
+		newRR, err := r.patchResourceReservation(sp.inconsistentExecutors, rr.DeepCopy())
 		if err != nil {
 			logRR(ctx, "resource reservation deleted, ignoring", exec.Namespace, sp.appID)
 			return
 		}
 
-		newRR, ok := r.resourceReservations.Get(exec.Namespace, sp.appID)
-		if !ok {
-			logRR(ctx, "could not get new resource reservation, skipping", exec.Namespace, sp.appID)
-			return
-		}
 		podsWithRR := make(map[string]bool, len(newRR.Status.Pods))
 		for _, podName := range newRR.Status.Pods {
 			podsWithRR[podName] = true
@@ -257,7 +252,7 @@ func availableResourcesPerInstanceGroup(
 }
 
 // patchResourceReservation gets a stale resource reservation and updates its status to reflect all given executors
-func (r *reconciler) patchResourceReservation(execs []*v1.Pod, rr *v1beta1.ResourceReservation) error {
+func (r *reconciler) patchResourceReservation(execs []*v1.Pod, rr *v1beta1.ResourceReservation) (*v1beta1.ResourceReservation, error) {
 	for _, e := range execs {
 		for name, reservation := range rr.Spec.Reservations {
 			if reservation.Node != e.Spec.NodeName {
@@ -276,7 +271,7 @@ func (r *reconciler) patchResourceReservation(execs []*v1.Pod, rr *v1beta1.Resou
 		}
 	}
 
-	return r.resourceReservations.Update(rr)
+	return rr, r.resourceReservations.Update(rr)
 }
 
 func (r *reconciler) constructResourceReservation(
