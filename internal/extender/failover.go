@@ -53,16 +53,20 @@ func (s *SparkSchedulerExtender) syncResourceReservationsAndDemands(ctx context.
 	svc1log.FromContext(ctx).Info("starting reconciliation", svc1log.SafeParam("appCount", len(staleSparkPods)))
 
 	r := &reconciler{s.podLister, s.resourceReservations, s.softReservationStore, s.demands, availableResources, orderedNodes, s.instanceGroupLabel}
-	// Initialize SoftReservationStore with dynamic allocation applications currently running
-	err = r.syncApplicationSoftReservations(ctx)
-	if err != nil {
-		return err
-	}
 
+	extraExecutorsWithNoRRs := make(map[string][]*v1.Pod)
 	for _, sp := range staleSparkPods {
-		r.syncResourceReservations(ctx, sp)
+		extraExecutors := r.syncResourceReservations(ctx, sp)
+		if len(extraExecutors) > 0 {
+			extraExecutorsWithNoRRs[sp.appID] = extraExecutors
+		}
 		r.syncDemands(ctx, sp)
 	}
+	err = r.syncSoftReservations(ctx, extraExecutorsWithNoRRs)
+	if err != nil {
+		return nil
+	}
+
 	// recompute overhead to account for newly created resource reservations
 	s.overheadComputer.compute(ctx)
 	return nil
@@ -89,34 +93,27 @@ type reconciler struct {
 	instanceGroupLabel   string
 }
 
-func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods) {
-	// if the driver is nil it already has an associated reservation, get the resource
-	// reservation object and update it so it has reservations for each stale executor
-	appResources, err := r.getAppResources(ctx, sp)
-	if err != nil {
-		svc1log.FromContext(ctx).Error("could not get application resources for application",
-			svc1log.SafeParam("appID", sp.appID), svc1log.Stacktrace(err))
-		return
-	}
+func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods) []*v1.Pod {
 	extraExecutors := make([]*v1.Pod, 0, len(sp.inconsistentExecutors))
-
 	if sp.inconsistentDriver == nil && len(sp.inconsistentExecutors) > 0 {
+		// if the driver is nil it already has an associated reservation, get the resource
+		// reservation object and update it so it has reservations for each stale executor
 		exec := sp.inconsistentExecutors[0]
 		rr, ok := r.resourceReservations.Get(exec.Namespace, sp.appID)
 		if !ok {
 			logRR(ctx, "resource reservation deleted, ignoring", exec.Namespace, sp.appID)
-			return
+			return nil
 		}
 		err := r.patchResourceReservation(sp.inconsistentExecutors, rr.DeepCopy())
 		if err != nil {
 			logRR(ctx, "resource reservation deleted, ignoring", exec.Namespace, sp.appID)
-			return
+			return nil
 		}
 
 		newRR, ok := r.resourceReservations.Get(exec.Namespace, sp.appID)
 		if !ok {
 			logRR(ctx, "could not get new resource reservation, skipping", exec.Namespace, sp.appID)
-			return
+			return nil
 		}
 		podsWithRR := make(map[string]bool, len(newRR.Status.Pods))
 		for _, podName := range newRR.Status.Pods {
@@ -129,6 +126,12 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 		}
 	} else if sp.inconsistentDriver != nil {
 		// the driver is stale, a new resource reservation object needs to be created
+		appResources, err := r.getAppResources(ctx, sp)
+		if err != nil {
+			svc1log.FromContext(ctx).Error("could not get application resources for application",
+				svc1log.SafeParam("appID", sp.appID), svc1log.Stacktrace(err))
+			return nil
+		}
 		instanceGroup := instanceGroup(sp.inconsistentDriver.Spec.NodeSelector[r.instanceGroupLabel])
 		endIdx := int(math.Min(float64(len(sp.inconsistentExecutors)), float64(appResources.minExecutorCount)))
 		executorsUpToMin := sp.inconsistentExecutors[0:endIdx]
@@ -137,7 +140,7 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 		newRR, reservedResources, err := r.constructResourceReservation(ctx, sp.inconsistentDriver, executorsUpToMin, instanceGroup)
 		if err != nil {
 			svc1log.FromContext(ctx).Error("failed to construct resource reservation", svc1log.Stacktrace(err))
-			return
+			return nil
 		}
 		err = r.resourceReservations.Create(newRR)
 		if err != nil {
@@ -145,29 +148,13 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 			updateErr := r.resourceReservations.Update(newRR)
 			if updateErr != nil {
 				logRR(ctx, "resource reservation deleted, ignoring", sp.inconsistentDriver.Namespace, sp.appID)
-				return
+				return nil
 			}
 		}
 		r.availableResources[instanceGroup].Sub(reservedResources)
 	}
 
-	// Create soft reservations for the extra executors
-	if len(extraExecutors) > 0 {
-		for i, extraExecutor := range extraExecutors {
-			if i >= (appResources.maxExecutorCount - appResources.minExecutorCount) {
-				break
-			}
-			err := r.softReservations.AddReservationForPod(ctx, sp.appID, extraExecutor.Name, v1beta1.Reservation{
-				Node:   extraExecutor.Spec.NodeName,
-				CPU:    appResources.executorResources.CPU,
-				Memory: appResources.executorResources.Memory,
-			})
-			if err != nil {
-				svc1log.FromContext(ctx).Error("failed to add soft reservation for executor on failover. skipping...", svc1log.Stacktrace(err))
-			}
-		}
-	}
-
+	return extraExecutors
 }
 
 func (r *reconciler) syncDemands(ctx context.Context, sp *sparkPods) {
@@ -184,6 +171,43 @@ func (r *reconciler) deleteDemandIfExists(namespace, name string) {
 	if ok {
 		r.demands.Delete(namespace, name)
 	}
+}
+
+func (r *reconciler) syncSoftReservations(ctx context.Context, extraExecutorsByApp map[string][]*v1.Pod) error {
+	// Initialize SoftReservationStore with dynamic allocation applications currently running
+	err := r.syncApplicationSoftReservations(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Sync executors
+	for appID, extraExecutors := range extraExecutorsByApp {
+		driver, err := r.podLister.getDriverPod(ctx, extraExecutors[0])
+		if err != nil {
+			svc1log.FromContext(ctx).Error("Error getting driver pod for executor, skipping...", svc1log.SafeParam("appID", appID), svc1log.Stacktrace(err))
+			continue
+		}
+		applicationResources, err := sparkResources(ctx, driver)
+		if err != nil {
+			svc1log.FromContext(ctx).Error("Error getting spark resources for application, skipping...", svc1log.SafeParam("appID", appID), svc1log.Stacktrace(err))
+			continue
+		}
+
+		for i, extraExecutor := range extraExecutors {
+			if i >= (applicationResources.maxExecutorCount - applicationResources.minExecutorCount) {
+				break
+			}
+			err := r.softReservations.AddReservationForPod(ctx, appID, extraExecutor.Name, v1beta1.Reservation{
+				Node:   extraExecutor.Spec.NodeName,
+				CPU:    applicationResources.executorResources.CPU,
+				Memory: applicationResources.executorResources.Memory,
+			})
+			if err != nil {
+				svc1log.FromContext(ctx).Error("failed to add soft reservation for executor on failover. skipping...", svc1log.SafeParam("appID", appID), svc1log.Stacktrace(err))
+			}
+		}
+	}
+	return nil
 }
 
 // syncApplicationSoftReservations creates empty SoftReservations for all applications that can have extra executors in dynamic allocation
