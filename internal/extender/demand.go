@@ -17,14 +17,12 @@ package extender
 import (
 	"context"
 	"encoding/json"
-	"time"
 
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/events"
 	werror "github.com/palantir/witchcraft-go-error"
-	"github.com/palantir/witchcraft-go-logging/wlog/evtlog/evt2log"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -110,11 +108,7 @@ func (s *SparkSchedulerExtender) doCreateDemand(ctx context.Context, newDemand *
 			return nil
 		}
 	}
-	evt2log.FromContext(ctx).Event(events.DemandCreated, evt2log.Values(map[string]interface{}{
-		"instanceGroup":   newDemand.Spec.InstanceGroup,
-		"demandNamespace": newDemand.Namespace,
-		"demandName":      newDemand.Name,
-	}))
+	events.EmitDemandCreated(ctx, newDemand)
 	return err
 }
 
@@ -127,14 +121,7 @@ func (s *SparkSchedulerExtender) removeDemandIfExists(ctx context.Context, pod *
 	if demand, ok := s.demands.Get(pod.Namespace, demandName); ok {
 		s.demands.Delete(pod.Namespace, demandName)
 		svc1log.FromContext(ctx).Info("Removed demand object because capacity exists for pod", svc1log.SafeParams(internal.DemandSafeParams(demandName, pod.Namespace)))
-
-		demandAge := time.Now().UTC().Sub(demand.CreationTimestamp.UTC())
-		evt2log.FromContext(ctx).Event(events.DemandDeleted, evt2log.Values(map[string]interface{}{
-			"instanceGroup":    demand.Spec.InstanceGroup,
-			"demandNamespace":  demand.Namespace,
-			"demandName":       demand.Name,
-			"demandAgeSeconds": int(demandAge.Seconds()),
-		}))
+		events.EmitDemandDeleted(ctx, demand)
 	}
 }
 

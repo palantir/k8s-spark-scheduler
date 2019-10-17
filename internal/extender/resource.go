@@ -27,7 +27,6 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/events"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	werror "github.com/palantir/witchcraft-go-error"
-	"github.com/palantir/witchcraft-go-logging/wlog/evtlog/evt2log"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -140,16 +139,15 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 			logger.Error("internal error scheduling pod", svc1log.Stacktrace(err))
 			return failWithMessage(ctx, args, err.Error())
 		}
-		evt2log.FromContext(ctx).Event(events.ApplicationScheduled, evt2log.Values(map[string]interface{}{
-			"instanceGroup":    instanceGroup,
-			"sparkAppId":       args.Pod.Labels[SparkAppIDLabel],
-			"driverCpu":        appResources.driverResources.CPU.Value(),
-			"driverMemory":     appResources.driverResources.Memory.Value(),
-			"executorCpu":      appResources.executorResources.CPU.Value(),
-			"executorMemory":   appResources.executorResources.Memory.Value(),
-			"minExecutorCount": appResources.minExecutorCount,
-			"maxExecutorCount": appResources.maxExecutorCount,
-		}))
+		events.EmitApplicationScheduled(
+			ctx,
+			instanceGroup,
+			args.Pod.Labels[SparkAppIDLabel],
+			args.Pod,
+			appResources.driverResources,
+			appResources.executorResources,
+			appResources.minExecutorCount,
+			appResources.maxExecutorCount)
 	}
 
 	logger.Info("scheduling pod to node", svc1log.SafeParam("nodeName", nodeName))
