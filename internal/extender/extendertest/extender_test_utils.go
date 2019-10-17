@@ -25,6 +25,7 @@ import (
 	sscache "github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/witchcraft-go-logging/wlog"
+	"github.com/palantir/witchcraft-go-logging/wlog/evtlog/evt2log"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
@@ -102,9 +103,6 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		fakeAPIExtensionsClient,
 		fakeSchedulerClient.ScalerV1alpha1(),
 	)
-	if err != nil {
-		return nil, err
-	}
 	softReservationStore := sscache.NewSoftReservationStore(ctx, podInformerInterface)
 
 	overheadComputer := extender.NewOverheadComputer(
@@ -301,8 +299,10 @@ func sparkApplicationPods(sparkApplicationID string, driverAnnotations map[strin
 }
 
 func newLoggingContext() context.Context {
-	logger := svc1log.New(os.Stdout, wlog.DebugLevel)
 	ctx := context.Background()
+	logger := svc1log.New(os.Stdout, wlog.DebugLevel)
 	ctx = svc1log.WithLogger(ctx, logger)
+	evtlogger := evt2log.New(os.Stdout)
+	ctx = evt2log.WithLogger(ctx, evtlogger)
 	return ctx
 }

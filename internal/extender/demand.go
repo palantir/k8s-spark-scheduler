@@ -21,6 +21,7 @@ import (
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
+	"github.com/palantir/k8s-spark-scheduler/internal/events"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
@@ -107,6 +108,7 @@ func (s *SparkSchedulerExtender) doCreateDemand(ctx context.Context, newDemand *
 			return nil
 		}
 	}
+	events.EmitDemandCreated(ctx, newDemand)
 	return err
 }
 
@@ -116,9 +118,10 @@ func (s *SparkSchedulerExtender) removeDemandIfExists(ctx context.Context, pod *
 		return
 	}
 	demandName := demandResourceName(pod)
-	if _, ok := s.demands.Get(pod.Namespace, demandName); ok {
+	if demand, ok := s.demands.Get(pod.Namespace, demandName); ok {
 		s.demands.Delete(pod.Namespace, demandName)
 		svc1log.FromContext(ctx).Info("Removed demand object because capacity exists for pod", svc1log.SafeParams(internal.DemandSafeParams(demandName, pod.Namespace)))
+		events.EmitDemandDeleted(ctx, demand)
 	}
 }
 

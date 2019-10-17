@@ -24,6 +24,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
+	"github.com/palantir/k8s-spark-scheduler/internal/events"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -131,6 +132,24 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 		}
 		return failWithMessage(ctx, args, err.Error())
 	}
+
+	if role == Driver {
+		appResources, err := sparkResources(ctx, &args.Pod)
+		if err != nil {
+			logger.Error("internal error scheduling pod", svc1log.Stacktrace(err))
+			return failWithMessage(ctx, args, err.Error())
+		}
+		events.EmitApplicationScheduled(
+			ctx,
+			instanceGroup,
+			args.Pod.Labels[SparkAppIDLabel],
+			args.Pod,
+			appResources.driverResources,
+			appResources.executorResources,
+			appResources.minExecutorCount,
+			appResources.maxExecutorCount)
+	}
+
 	logger.Info("scheduling pod to node", svc1log.SafeParam("nodeName", nodeName))
 	return &schedulerapi.ExtenderFilterResult{NodeNames: &[]string{nodeName}}
 }
