@@ -241,7 +241,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		return "", failureInternal, err
 	}
 
-	driverNodeNames, executorNodeNames := s.potentialNodes(ctx, availableNodes, driver, nodeNames)
+	driverNodeNames, executorNodeNames := s.potentialNodes(availableNodes, driver, nodeNames)
 	usages := s.usedResources(driverNodeNames)
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
 	availableResources := resources.AvailableForNodes(availableNodes, usages)
@@ -319,23 +319,7 @@ type scheduleContext struct {
 	availableCPU    resource.Quantity
 }
 
-func cpu(ctx context.Context, r *resources.Resources) resource.Quantity {
-	if r == nil {
-		svc1log.FromContext(ctx).Info("node with unknown cpu utilization, returning zero")
-		return *resource.NewQuantity(0, resource.BinarySI)
-	}
-	return r.CPU
-}
-
-func memory(ctx context.Context, r *resources.Resources) resource.Quantity {
-	if r == nil {
-		svc1log.FromContext(ctx).Info("node with unknown memory utilization, returning zero")
-		return *resource.NewQuantity(0, resource.BinarySI)
-	}
-	return r.Memory
-}
-
-func (s *SparkSchedulerExtender) sortNodes(ctx context.Context, nodes []*v1.Node) {
+func (s *SparkSchedulerExtender) sortNodes(nodes []*v1.Node) {
 	var nodeNames = make([]string, len(nodes))
 	for i, node := range nodes {
 		nodeNames[i] = node.Name
@@ -346,8 +330,8 @@ func (s *SparkSchedulerExtender) sortNodes(ctx context.Context, nodes []*v1.Node
 	for _, node := range nodes {
 		scheduleContexts[node.Name] = scheduleContext{
 			creationTime:    node.CreationTimestamp.Time,
-			availableMemory: memory(ctx, usableResources[node.Name]),
-			availableCPU:    cpu(ctx, usableResources[node.Name]),
+			availableMemory: usableResources[node.Name].Memory,
+			availableCPU:    usableResources[node.Name].CPU,
 		}
 	}
 
@@ -357,8 +341,8 @@ func (s *SparkSchedulerExtender) sortNodes(ctx context.Context, nodes []*v1.Node
 	})
 }
 
-func (s *SparkSchedulerExtender) potentialNodes(ctx context.Context, availableNodes []*v1.Node, driver *v1.Pod, nodeNames []string) (driverNodes, executorNodes []string) {
-	s.sortNodes(ctx, availableNodes)
+func (s *SparkSchedulerExtender) potentialNodes(availableNodes []*v1.Node, driver *v1.Pod, nodeNames []string) (driverNodes, executorNodes []string) {
+	s.sortNodes(availableNodes)
 	driverNodeNames := make([]string, 0, len(availableNodes))
 	executorNodeNames := make([]string, 0, len(availableNodes))
 
