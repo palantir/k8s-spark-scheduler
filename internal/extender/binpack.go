@@ -38,7 +38,7 @@ var binpackFunctions = map[string]*Binpacker{
 func SelectBinpacker(name string) *Binpacker {
 	binpacker, ok := binpackFunctions[name]
 	if !ok {
-		return binpackFunctions[distributeEvenly]
+		return binpackFunctions[tightlyPack]
 	}
 	return binpacker
 }
