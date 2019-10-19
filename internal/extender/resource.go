@@ -16,6 +16,7 @@ package extender
 
 import (
 	"context"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"sort"
 	"time"
 
@@ -240,11 +241,8 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		return "", failureInternal, err
 	}
 
-	driverNodeNames, executorNodeNames := s.potentialNodes(availableNodes, driver, nodeNames)
-	usages, err := s.usedResources(driverNodeNames)
-	if err != nil {
-		return "", failureInternal, err
-	}
+	driverNodeNames, executorNodeNames := s.potentialNodes(ctx, availableNodes, driver, nodeNames)
+	usages := s.usedResources(driverNodeNames)
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
 	availableResources := resources.AvailableForNodes(availableNodes, usages)
 	applicationResources, err := sparkResources(ctx, driver)
@@ -294,11 +292,74 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	return reservedDriverNode, outcome, err
 }
 
-func (s *SparkSchedulerExtender) potentialNodes(availableNodes []*v1.Node, driver *v1.Pod, nodeNames []string) (driverNodes, executorNodes []string) {
-	sort.Slice(availableNodes, func(i, j int) bool {
-		return availableNodes[j].CreationTimestamp.Before(&availableNodes[i].CreationTimestamp)
-	})
+const olderNodesThreshold = time.Duration(-2 * 3600 * 1000 * 1000 * 1000)
 
+// Sort older nodes before younger nodes.
+// Sort older nodes by node age ascending.
+// Sort younger nodes by resource usage descending, with RAM usage more important.
+func compareNodes(left scheduleContext, right scheduleContext, now time.Time) bool {
+	var threshold = now.Add(olderNodesThreshold)
+	if left.creationTime.Before(threshold) && right.creationTime.Before(threshold) {
+		return left.creationTime.After(right.creationTime)
+	} else if left.creationTime.Before(threshold) {
+		return true
+	} else if right.creationTime.Before(threshold) {
+		return false
+	} else if left.availableMemory.Cmp(right.availableMemory) != 0 {
+		return left.availableMemory.Cmp(right.availableMemory) == -1
+	} else if left.availableCpu.Cmp(right.availableCpu) != 0 {
+		return left.availableCpu.Cmp(right.availableCpu) == -1
+	} else {
+		return left.creationTime.Before(right.creationTime)
+	}
+}
+
+type scheduleContext struct {
+	creationTime    time.Time
+	availableMemory resource.Quantity
+	availableCpu    resource.Quantity
+}
+
+func cpu(ctx context.Context, r *resources.Resources) resource.Quantity {
+	if r == nil {
+		svc1log.FromContext(ctx).Info("node with unknown cpu utilization, returning zero")
+		return *resource.NewQuantity(0, resource.BinarySI)
+	}
+	return r.CPU
+}
+
+func memory(ctx context.Context, r *resources.Resources) resource.Quantity {
+	if r == nil {
+		svc1log.FromContext(ctx).Info("node with unknown memory utilization, returning zero")
+		return *resource.NewQuantity(0, resource.BinarySI)
+	}
+	return r.Memory
+}
+
+func (s *SparkSchedulerExtender) sortNodes(ctx context.Context, nodes []*v1.Node) {
+	var nodeNames = make([]string, len(nodes))
+	for i, node := range nodes {
+		nodeNames[i] = node.Name
+	}
+	var usableResources = resources.AvailableForNodes(nodes, s.usedResources(nodeNames))
+
+	var scheduleContexts = make([]scheduleContext, len(nodes))
+	for i, node := range nodes {
+		scheduleContexts[i] = scheduleContext{
+			creationTime:    node.CreationTimestamp.Time,
+			availableMemory: memory(ctx, usableResources[node.Name]),
+			availableCpu:    cpu(ctx, usableResources[node.Name]),
+		}
+	}
+
+	var now = time.Now()
+	sort.Slice(nodes, func(i, j int) bool {
+		return compareNodes(scheduleContexts[i], scheduleContexts[j], now)
+	})
+}
+
+func (s *SparkSchedulerExtender) potentialNodes(ctx context.Context, availableNodes []*v1.Node, driver *v1.Pod, nodeNames []string) (driverNodes, executorNodes []string) {
+	s.sortNodes(ctx, availableNodes)
 	driverNodeNames := make([]string, 0, len(availableNodes))
 	executorNodeNames := make([]string, 0, len(availableNodes))
 
@@ -419,11 +480,11 @@ func (s *SparkSchedulerExtender) getNodes(ctx context.Context, nodeNames []strin
 	return availableNodes
 }
 
-func (s *SparkSchedulerExtender) usedResources(nodeNames []string) (resources.NodeGroupResources, error) {
+func (s *SparkSchedulerExtender) usedResources(nodeNames []string) resources.NodeGroupResources {
 	resourceReservations := s.resourceReservations.List()
 	usage := resources.UsageForNodes(resourceReservations)
 	usage.Add(s.softReservationStore.UsedSoftReservationResources())
-	return usage, nil
+	return usage
 }
 
 func (s *SparkSchedulerExtender) createResourceReservations(
@@ -445,10 +506,7 @@ func (s *SparkSchedulerExtender) createResourceReservations(
 func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executor *v1.Pod, nodeNames []string, applicationResources *sparkApplicationResources, createDemandIfNoFit bool) (string, string, error) {
 	executorResources := &resources.Resources{CPU: applicationResources.executorResources.CPU, Memory: applicationResources.executorResources.Memory}
 	availableNodes := s.getNodes(ctx, nodeNames)
-	usages, err := s.usedResources(nodeNames)
-	if err != nil {
-		return "", failureInternal, err
-	}
+	usages := s.usedResources(nodeNames)
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
 	availableResources := resources.AvailableForNodes(availableNodes, usages)
 	for _, name := range nodeNames {
