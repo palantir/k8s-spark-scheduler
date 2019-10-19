@@ -294,7 +294,11 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 
 // Sort nodes by available resources ascending, with RAM usage more important.
 func compareNodes(left scheduleContext, right scheduleContext) bool {
-	return left.availableMemory.Cmp(right.availableMemory) == -1 || left.availableCPU.Cmp(right.availableCPU) == -1
+	var memoryCompared = left.availableMemory.Cmp(right.availableMemory)
+	if memoryCompared != 0 {
+		return memoryCompared == -1
+	}
+	return left.availableCPU.Cmp(right.availableCPU) == -1
 }
 
 type scheduleContext struct {
