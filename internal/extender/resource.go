@@ -296,7 +296,7 @@ const olderNodesThreshold = time.Duration(-2 * 3600 * 1000 * 1000 * 1000)
 
 // Sort older nodes before younger nodes.
 // Sort older nodes by node age ascending.
-// Sort younger nodes by resource usage descending, with RAM usage more important.
+// Sort younger nodes by available resources ascending, with RAM usage more important.
 func compareNodes(left scheduleContext, right scheduleContext, now time.Time) bool {
 	var threshold = now.Add(olderNodesThreshold)
 	if left.creationTime.Before(threshold) && right.creationTime.Before(threshold) {
