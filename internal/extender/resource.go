@@ -467,6 +467,11 @@ func (s *SparkSchedulerExtender) usedResources(nodeNames []string) resources.Nod
 	resourceReservations := s.resourceReservations.List()
 	usage := resources.UsageForNodes(resourceReservations)
 	usage.Add(s.softReservationStore.UsedSoftReservationResources())
+	for _, name := range nodeNames {
+		if usage[name] == nil {
+			usage[name] = resources.Zero()
+		}
+	}
 	return usage
 }
 
