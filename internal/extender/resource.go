@@ -307,17 +307,16 @@ func compareNodes(left scheduleContext, right scheduleContext, now time.Time) bo
 		return false
 	} else if left.availableMemory.Cmp(right.availableMemory) != 0 {
 		return left.availableMemory.Cmp(right.availableMemory) == -1
-	} else if left.availableCpu.Cmp(right.availableCpu) != 0 {
-		return left.availableCpu.Cmp(right.availableCpu) == -1
-	} else {
-		return left.creationTime.Before(right.creationTime)
+	} else if left.availableCPU.Cmp(right.availableCPU) != 0 {
+		return left.availableCPU.Cmp(right.availableCPU) == -1
 	}
+	return left.creationTime.Before(right.creationTime)
 }
 
 type scheduleContext struct {
 	creationTime    time.Time
 	availableMemory resource.Quantity
-	availableCpu    resource.Quantity
+	availableCPU    resource.Quantity
 }
 
 func cpu(ctx context.Context, r *resources.Resources) resource.Quantity {
@@ -348,7 +347,7 @@ func (s *SparkSchedulerExtender) sortNodes(ctx context.Context, nodes []*v1.Node
 		scheduleContexts[i] = scheduleContext{
 			creationTime:    node.CreationTimestamp.Time,
 			availableMemory: memory(ctx, usableResources[node.Name]),
-			availableCpu:    cpu(ctx, usableResources[node.Name]),
+			availableCPU:    cpu(ctx, usableResources[node.Name]),
 		}
 	}
 
