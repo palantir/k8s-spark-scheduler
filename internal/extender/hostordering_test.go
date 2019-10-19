@@ -1,9 +1,10 @@
 package extender
 
 import (
-	"k8s.io/apimachinery/pkg/api/resource"
 	"testing"
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func TestNodeSorting(t *testing.T) {
