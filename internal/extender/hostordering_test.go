@@ -35,13 +35,13 @@ func TestNodeSorting(t *testing.T) {
 	}
 
 	if compareNodes(freeMemory, node) || !compareNodes(node, freeMemory) {
-		t.Error("Young nodes should be sorted by how much memory is available ascending")
+		t.Error("Nodes should be sorted by how much memory is available ascending")
 	}
 	var freeCPU = scheduleContext{
 		one,
 		two,
 	}
 	if compareNodes(freeCPU, node) || !compareNodes(node, freeCPU) {
-		t.Error("If used memory is equal, young nodes should be sorted by how much CPU is available ascending")
+		t.Error("If used memory is equal, nodes should be sorted by how much CPU is available ascending")
 	}
 }
