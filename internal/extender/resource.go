@@ -342,9 +342,9 @@ func (s *SparkSchedulerExtender) sortNodes(ctx context.Context, nodes []*v1.Node
 	}
 	var usableResources = resources.AvailableForNodes(nodes, s.usedResources(nodeNames))
 
-	var scheduleContexts = make([]scheduleContext, len(nodes))
-	for i, node := range nodes {
-		scheduleContexts[i] = scheduleContext{
+	var scheduleContexts = make(map[string]scheduleContext, len(nodes))
+	for _, node := range nodes {
+		scheduleContexts[node.Name] = scheduleContext{
 			creationTime:    node.CreationTimestamp.Time,
 			availableMemory: memory(ctx, usableResources[node.Name]),
 			availableCPU:    cpu(ctx, usableResources[node.Name]),
@@ -353,7 +353,7 @@ func (s *SparkSchedulerExtender) sortNodes(ctx context.Context, nodes []*v1.Node
 
 	var now = time.Now()
 	sort.Slice(nodes, func(i, j int) bool {
-		return compareNodes(scheduleContexts[i], scheduleContexts[j], now)
+		return compareNodes(scheduleContexts[nodes[i].Name], scheduleContexts[nodes[j].Name], now)
 	})
 }
 
