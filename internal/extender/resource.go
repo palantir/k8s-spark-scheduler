@@ -292,29 +292,15 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	return reservedDriverNode, outcome, err
 }
 
-const olderNodesThreshold = time.Duration(-2 * 3600 * 1000 * 1000 * 1000)
-
-// Sort older nodes before younger nodes.
-// Sort older nodes by node age ascending.
-// Sort younger nodes by available resources ascending, with RAM usage more important.
+// Sort nodes by available resources ascending, with RAM usage more important.
 func compareNodes(left scheduleContext, right scheduleContext, now time.Time) bool {
-	var threshold = now.Add(olderNodesThreshold)
-	if left.creationTime.Before(threshold) && right.creationTime.Before(threshold) {
-		return left.creationTime.After(right.creationTime)
-	} else if left.creationTime.Before(threshold) {
-		return true
-	} else if right.creationTime.Before(threshold) {
-		return false
-	} else if left.availableMemory.Cmp(right.availableMemory) != 0 {
+	if left.availableMemory.Cmp(right.availableMemory) != 0 {
 		return left.availableMemory.Cmp(right.availableMemory) == -1
-	} else if left.availableCPU.Cmp(right.availableCPU) != 0 {
-		return left.availableCPU.Cmp(right.availableCPU) == -1
 	}
-	return left.creationTime.Before(right.creationTime)
+	return left.availableCPU.Cmp(right.availableCPU) == -1
 }
 
 type scheduleContext struct {
-	creationTime    time.Time
 	availableMemory resource.Quantity
 	availableCPU    resource.Quantity
 }
@@ -329,7 +315,6 @@ func (s *SparkSchedulerExtender) sortNodes(nodes []*v1.Node) {
 	var scheduleContexts = make(map[string]scheduleContext, len(nodes))
 	for _, node := range nodes {
 		scheduleContexts[node.Name] = scheduleContext{
-			creationTime:    node.CreationTimestamp.Time,
 			availableMemory: usableResources[node.Name].Memory,
 			availableCPU:    usableResources[node.Name].CPU,
 		}

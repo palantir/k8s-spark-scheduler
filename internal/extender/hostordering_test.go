@@ -22,38 +22,22 @@ import (
 )
 
 func TestNodeSorting(t *testing.T) {
-	var now = time.Unix(10000, 0)
+	var now = time.Unix(0, 0)
 	var zero = *resource.NewQuantity(0, resource.BinarySI)
 	var one = *resource.NewQuantity(1, resource.BinarySI)
 	var two = *resource.NewQuantity(2, resource.BinarySI)
 
-	var oldest = scheduleContext{
-		time.Unix(0, 0),
-		zero,
-		zero,
-	}
-	var older = scheduleContext{
-		time.Unix(500, 0),
-		zero,
-		zero,
-	}
-	if compareNodes(oldest, older, now) || !compareNodes(older, oldest, now) {
-		t.Error("Old nodes should be sorted youngest first")
-	}
-	var youngNode = scheduleContext{
+	var node = scheduleContext{
 		now,
 		one,
 		one,
-	}
-	if compareNodes(youngNode, oldest, now) || !compareNodes(oldest, youngNode, now) {
-		t.Error("Old nodes should be sorted before young nodes")
 	}
 	var freeMemory = scheduleContext{
 		now,
 		two,
 		zero,
 	}
-	if compareNodes(freeMemory, youngNode, now) || !compareNodes(youngNode, freeMemory, now) {
+	if compareNodes(freeMemory, node, now) || !compareNodes(node, freeMemory, now) {
 		t.Error("Young nodes should be sorted by how much memory is available ascending")
 	}
 	var freeCPU = scheduleContext{
@@ -61,7 +45,7 @@ func TestNodeSorting(t *testing.T) {
 		one,
 		two,
 	}
-	if compareNodes(freeCPU, youngNode, now) || !compareNodes(youngNode, freeCPU, now) {
+	if compareNodes(freeCPU, node, now) || !compareNodes(node, freeCPU, now) {
 		t.Error("If used memory is equal, young nodes should be sorted by how much CPU is available ascending")
 	}
 	var allThingsEqual = scheduleContext{
@@ -69,7 +53,7 @@ func TestNodeSorting(t *testing.T) {
 		one,
 		one,
 	}
-	if compareNodes(allThingsEqual, youngNode, now) || !compareNodes(youngNode, allThingsEqual, now) {
+	if compareNodes(allThingsEqual, node, now) || !compareNodes(node, allThingsEqual, now) {
 		t.Error("If all other things are equal, we should prefer scheduling on the oldest young nodes")
 	}
 }
