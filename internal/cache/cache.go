@@ -99,8 +99,17 @@ func (c *cache) onObjUpdate(oldObj interface{}, newObj interface{}) {
 func (c *cache) onObjDelete(obj interface{}) {
 	typedObject, ok := obj.(metav1.Object)
 	if !ok {
-		c.logger.Warn("failed to parse object")
-		return
+		c.logger.Warn("failed to parse object, trying to get from tombstone")
+		tombstone, ok := obj.(clientcache.DeletedFinalStateUnknown)
+		if !ok {
+			c.logger.Error("failed to get tombstone for object")
+			return
+		}
+		typedObject, ok = tombstone.Obj.(metav1.Object)
+		if !ok {
+			c.logger.Error("failed to get object from tombstone")
+			return
+		}
 	}
 	c.logger.Info("received deletion event", ObjectSafeParams(typedObject.GetName(), typedObject.GetNamespace()))
 	c.store.Delete(store.KeyOf(typedObject))

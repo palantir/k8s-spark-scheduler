@@ -185,7 +185,7 @@ func (s *SoftReservationStore) UsedSoftReservationResources() resources.NodeGrou
 func (s *SoftReservationStore) onPodDeletion(obj interface{}) {
 	pod, ok := obj.(*v1.Pod)
 	if !ok {
-		s.logger.Error("failed to parse object as pod, trying to get from tombstone")
+		s.logger.Warn("failed to parse object as pod, trying to get from tombstone")
 		tombstone, ok := obj.(clientcache.DeletedFinalStateUnknown)
 		if !ok {
 			s.logger.Error("failed to get object from tombstone")
