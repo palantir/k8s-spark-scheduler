@@ -355,6 +355,8 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 			if err != nil {
 				return "", failureInternal, err
 			}
+			// We might have created a demand object for this executor when we were under min count, so we should remove if it exists
+			s.removeDemandIfExists(ctx, executor)
 			return node, successScheduledExtraExecutor, nil
 		}
 		return "", outcome, unboundResErr
