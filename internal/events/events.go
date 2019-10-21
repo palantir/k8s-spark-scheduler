@@ -70,10 +70,10 @@ func EmitDemandCreated(ctx context.Context, demand *v1alpha1.Demand) {
 func EmitDemandDeleted(ctx context.Context, demand *v1alpha1.Demand) {
 	demandAge := time.Now().UTC().Sub(demand.CreationTimestamp.UTC())
 	evt2log.FromContext(ctx).Event(demandDeleted, evt2log.Values(map[string]interface{}{
-		"instanceGroup":    demand.Spec.InstanceGroup,
-		"demandNamespace":  demand.Namespace,
-		"demandName":       demand.Name,
-		"demandAgeSeconds": int(demandAge.Seconds()),
+		"instanceGroup":      demand.Spec.InstanceGroup,
+		"demandNamespace":    demand.Namespace,
+		"demandName":         demand.Name,
+		"demandAgeSeconds":   int(demandAge.Seconds()),
 		"demandCreationTime": demand.CreationTimestamp.UTC(),
 	}))
 }
