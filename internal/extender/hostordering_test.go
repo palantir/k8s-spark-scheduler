@@ -15,6 +15,7 @@
 package extender
 
 import (
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -25,23 +26,23 @@ func TestNodeSorting(t *testing.T) {
 	var one = *resource.NewQuantity(1, resource.BinarySI)
 	var two = *resource.NewQuantity(2, resource.BinarySI)
 
-	var node = scheduleContext{
+	var node = resources.Resources{
 		one,
 		one,
 	}
-	var freeMemory = scheduleContext{
+	var freeMemory = resources.Resources{
 		two,
 		zero,
 	}
 
-	if compareNodes(freeMemory, node) || !compareNodes(node, freeMemory) {
+	if lessThan(freeMemory, node) || !lessThan(node, freeMemory) {
 		t.Error("Nodes should be sorted by how much memory is available ascending")
 	}
-	var freeCPU = scheduleContext{
+	var freeCPU = resources.Resources{
 		one,
 		two,
 	}
-	if compareNodes(freeCPU, node) || !compareNodes(node, freeCPU) {
+	if lessThan(freeCPU, node) || !lessThan(node, freeCPU) {
 		t.Error("If used memory is equal, nodes should be sorted by how much CPU is available ascending")
 	}
 }

@@ -30,7 +30,6 @@ import (
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
@@ -293,17 +292,12 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 }
 
 // Sort nodes by available resources ascending, with RAM usage more important.
-func compareNodes(left scheduleContext, right scheduleContext) bool {
-	var memoryCompared = left.availableMemory.Cmp(right.availableMemory)
+func lessThan(left resources.Resources, right resources.Resources) bool {
+	var memoryCompared = left.Memory.Cmp(right.Memory)
 	if memoryCompared != 0 {
 		return memoryCompared == -1
 	}
-	return left.availableCPU.Cmp(right.availableCPU) == -1
-}
-
-type scheduleContext struct {
-	availableMemory resource.Quantity
-	availableCPU    resource.Quantity
+	return left.CPU.Cmp(right.CPU) == -1
 }
 
 func (s *SparkSchedulerExtender) sortNodes(nodes []*v1.Node) {
@@ -313,16 +307,16 @@ func (s *SparkSchedulerExtender) sortNodes(nodes []*v1.Node) {
 	}
 	var usableResources = resources.AvailableForNodes(nodes, s.usedResources(nodeNames))
 
-	var scheduleContexts = make(map[string]scheduleContext, len(nodes))
+	var scheduleContexts = make(map[string]resources.Resources, len(nodes))
 	for _, node := range nodes {
-		scheduleContexts[node.Name] = scheduleContext{
-			availableMemory: usableResources[node.Name].Memory,
-			availableCPU:    usableResources[node.Name].CPU,
+		scheduleContexts[node.Name] = resources.Resources{
+			Memory: usableResources[node.Name].Memory,
+			CPU:    usableResources[node.Name].CPU,
 		}
 	}
 
 	sort.Slice(nodes, func(i, j int) bool {
-		return compareNodes(scheduleContexts[nodes[i].Name], scheduleContexts[nodes[j].Name])
+		return lessThan(scheduleContexts[nodes[i].Name], scheduleContexts[nodes[j].Name])
 	})
 }
 
