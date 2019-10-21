@@ -70,6 +70,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	kubeconfig.QPS = install.QPS
 	kubeconfig.Burst = install.Burst
 	instanceGroupLabel := install.InstanceGroupLabel
+	useExperimentalHostPriorities := install.UseExperimentalHostPriorities
 	if instanceGroupLabel == "" {
 		// for back-compat, as instanceGroupLabel was once hard-coded to this value
 		instanceGroupLabel = "resource_channel"
@@ -181,6 +182,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		binpacker,
 		overheadComputer,
 		instanceGroupLabel,
+		useExperimentalHostPriorities,
 	)
 
 	resourceReporter := metrics.NewResourceReporter(

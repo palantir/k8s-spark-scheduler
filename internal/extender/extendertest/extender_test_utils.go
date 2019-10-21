@@ -129,6 +129,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		binpacker,
 		overheadComputer,
 		instanceGroupLabel,
+		true,
 	)
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(

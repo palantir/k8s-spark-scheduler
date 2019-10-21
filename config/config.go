@@ -20,14 +20,15 @@ import (
 
 // Install contains the install time configuration of the server and kubernetes dependency
 type Install struct {
-	config.Install     `yaml:",inline"`
-	config.Runtime     `yaml:",inline"`
-	Kubeconfig         string  `yaml:"kube-config,omitempty"`
-	FIFO               bool    `yaml:"fifo,omitempty"`
-	QPS                float32 `yaml:"qps,omitempty"`
-	Burst              int     `yaml:"burst,omitempty"`
-	BinpackAlgo        string  `yaml:"binpack,omitempty"`
-	InstanceGroupLabel string  `yaml:"instance-group-label,omitempty"`
+	config.Install                `yaml:",inline"`
+	config.Runtime                `yaml:",inline"`
+	Kubeconfig                    string  `yaml:"kube-config,omitempty"`
+	FIFO                          bool    `yaml:"fifo,omitempty"`
+	QPS                           float32 `yaml:"qps,omitempty"`
+	Burst                         int     `yaml:"burst,omitempty"`
+	BinpackAlgo                   string  `yaml:"binpack,omitempty"`
+	InstanceGroupLabel            string  `yaml:"instance-group-label,omitempty"`
+	UseExperimentalHostPriorities bool    `yaml:"use-experimental-host-priorities,omitempty"`
 
 	ResourceReservationCRDAnnotations map[string]string `yaml:"resource-reservation-crd-annotations,omitempty"`
 }

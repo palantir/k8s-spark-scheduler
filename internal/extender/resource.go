@@ -66,11 +66,12 @@ type SparkSchedulerExtender struct {
 	demands             *cache.SafeDemandCache
 	apiExtensionsClient apiextensionsclientset.Interface
 
-	isFIFO             bool
-	binpacker          *Binpacker
-	overheadComputer   *OverheadComputer
-	lastRequest        time.Time
-	instanceGroupLabel string
+	isFIFO                        bool
+	binpacker                     *Binpacker
+	overheadComputer              *OverheadComputer
+	lastRequest                   time.Time
+	instanceGroupLabel            string
+	useExperimentalHostPriorities bool
 }
 
 // NewExtender is responsible for creating and initializing a SparkSchedulerExtender
@@ -85,19 +86,21 @@ func NewExtender(
 	isFIFO bool,
 	binpacker *Binpacker,
 	overheadComputer *OverheadComputer,
-	instanceGroupLabel string) *SparkSchedulerExtender {
+	instanceGroupLabel string,
+	useExperimentalHostPriorities bool) *SparkSchedulerExtender {
 	return &SparkSchedulerExtender{
-		nodeLister:           nodeLister,
-		podLister:            podLister,
-		resourceReservations: resourceReservations,
-		softReservationStore: softReservationStore,
-		coreClient:           coreClient,
-		demands:              demands,
-		apiExtensionsClient:  apiExtensionsClient,
-		isFIFO:               isFIFO,
-		binpacker:            binpacker,
-		overheadComputer:     overheadComputer,
-		instanceGroupLabel:   instanceGroupLabel,
+		nodeLister:                    nodeLister,
+		podLister:                     podLister,
+		resourceReservations:          resourceReservations,
+		softReservationStore:          softReservationStore,
+		coreClient:                    coreClient,
+		demands:                       demands,
+		apiExtensionsClient:           apiExtensionsClient,
+		isFIFO:                        isFIFO,
+		binpacker:                     binpacker,
+		overheadComputer:              overheadComputer,
+		instanceGroupLabel:            instanceGroupLabel,
+		useExperimentalHostPriorities: useExperimentalHostPriorities,
 	}
 }
 
