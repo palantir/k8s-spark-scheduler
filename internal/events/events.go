@@ -74,5 +74,6 @@ func EmitDemandDeleted(ctx context.Context, demand *v1alpha1.Demand) {
 		"demandNamespace":  demand.Namespace,
 		"demandName":       demand.Name,
 		"demandAgeSeconds": int(demandAge.Seconds()),
+		"demandCreationTime": demand.CreationTimestamp.UTC(),
 	}))
 }
