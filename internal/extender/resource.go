@@ -303,7 +303,14 @@ func lessThan(left resources.Resources, right resources.Resources) bool {
 	return left.CPU.Cmp(right.CPU) == -1
 }
 
-func sortNodes(nodes []*v1.Node, availableResources resources.NodeGroupResources) {
+func (s *SparkSchedulerExtender) sortNodes(nodes []*v1.Node, availableResources resources.NodeGroupResources) {
+	if !s.useExperimentalHostPriorities {
+		sort.Slice(nodes, func(i, j int) bool {
+			return nodes[j].CreationTimestamp.Before(&nodes[i].CreationTimestamp)
+		})
+		return
+	}
+
 	var nodeNames = make([]string, len(nodes))
 	for i, node := range nodes {
 		nodeNames[i] = node.Name
@@ -323,7 +330,7 @@ func sortNodes(nodes []*v1.Node, availableResources resources.NodeGroupResources
 }
 
 func (s *SparkSchedulerExtender) potentialNodes(availableNodes []*v1.Node, driver *v1.Pod, nodeNames []string, availableResources resources.NodeGroupResources) (driverNodes, executorNodes []string) {
-	sortNodes(availableNodes, availableResources)
+	s.sortNodes(availableNodes, availableResources)
 	driverNodeNames := make([]string, 0, len(availableNodes))
 	executorNodeNames := make([]string, 0, len(availableNodes))
 
