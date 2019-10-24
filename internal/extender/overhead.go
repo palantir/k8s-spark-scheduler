@@ -16,13 +16,13 @@ package extender
 
 import (
 	"context"
-	"github.com/palantir/witchcraft-go-error"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	v1 "k8s.io/api/core/v1"
@@ -38,14 +38,14 @@ var (
 
 // OverheadComputer computes non spark scheduler managed pods total resources periodically
 type OverheadComputer struct {
-	podLister            corelisters.PodLister
-	resourceReservations *cache.ResourceReservationCache
-	softReservationStore *cache.SoftReservationStore
-	nodeLister           corelisters.NodeLister
-	latestOverhead       Overhead
-	latestNonSchedulableOverhead       Overhead
-	overheadLock         *sync.RWMutex
-	instanceGroupLabel   string
+	podLister                    corelisters.PodLister
+	resourceReservations         *cache.ResourceReservationCache
+	softReservationStore         *cache.SoftReservationStore
+	nodeLister                   corelisters.NodeLister
+	latestOverhead               Overhead
+	latestNonSchedulableOverhead Overhead
+	overheadLock                 *sync.RWMutex
+	instanceGroupLabel           string
 }
 
 // Overhead represents the overall overhead in the cluster, indexed by instance groups
@@ -88,8 +88,9 @@ func (o OverheadComputer) GetOverhead(ctx context.Context, nodes []*v1.Node) res
 	return o.getOverheadByNode(ctx, o.latestOverhead, nodes)
 }
 
-// GetOverhead fills overhead information for given nodes, and falls back to the median overhead
-// of the instance group if the node is not found
+// GetNonSchedulableOverhead fills non-schedulable overhead information for given nodes, and falls back to the median overhead
+// of the instance group if the node is not found.
+// Non-schedulable overhead is overhead by pods that are running, but do not have 'spark-scheduler' as their scheduler name.
 func (o OverheadComputer) GetNonSchedulableOverhead(ctx context.Context, nodes []*v1.Node) resources.NodeGroupResources {
 	return o.getOverheadByNode(ctx, o.latestNonSchedulableOverhead, nodes)
 }
