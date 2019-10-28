@@ -136,18 +136,18 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 			continue
 		}
 
-		// found pod with no associated resource reservation, add to overhead
-		if err := o.addPodResourcesToGroupResources(ctx, rawOverhead, p); err != nil {
-			svc1log.FromContext(ctx).Warn("could not add pod resources to overhead, skipping", svc1log.SafeParam("failedPod", p.Name), svc1log.Stacktrace(err))
+		instanceGroup, err := o.getPodNodeInstanceGroup(p)
+		if err != nil {
+			svc1log.FromContext(ctx).Warn("could not get instance group for node where pod is running, skipping", svc1log.SafeParam("failedPod", p.Name), svc1log.Stacktrace(err))
 			continue
 		}
 
+		// found pod with no associated resource reservation, add to overhead
+		o.addPodResourcesToGroupResources(ctx, rawOverhead, p, instanceGroup)
+
 		if p.Spec.SchedulerName != SparkSchedulerName {
 			// add all pods that this scheduler does not deal with to the non-schedulable overhead
-			if err := o.addPodResourcesToGroupResources(ctx, rawNonSchedulableOverhead, p); err != nil {
-				svc1log.FromContext(ctx).Warn("could not add pod resources to non-schedulable overhead, skipping", svc1log.SafeParam("failedPod", p.Name), svc1log.Stacktrace(err))
-				continue
-			}
+			o.addPodResourcesToGroupResources(ctx, rawNonSchedulableOverhead, p, instanceGroup)
 		}
 	}
 	overhead := Overhead{}
@@ -181,13 +181,7 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 	o.overheadLock.Unlock()
 }
 
-func (o *OverheadComputer) addPodResourcesToGroupResources(ctx context.Context, groupResources map[string]resources.NodeGroupResources, pod *v1.Pod) error {
-	node, err := o.nodeLister.Get(pod.Spec.NodeName)
-	if err != nil {
-		return werror.Wrap(err, "node does not exist in cache", werror.SafeParam("nodeName", pod.Spec.NodeName))
-	}
-	instanceGroup := node.Labels[o.instanceGroupLabel]
-
+func (o *OverheadComputer) addPodResourcesToGroupResources(ctx context.Context, groupResources map[string]resources.NodeGroupResources, pod *v1.Pod, instanceGroup string) {
 	if _, ok := groupResources[instanceGroup]; !ok {
 		groupResources[instanceGroup] = resources.NodeGroupResources{}
 	}
@@ -196,7 +190,6 @@ func (o *OverheadComputer) addPodResourcesToGroupResources(ctx context.Context, 
 		currentOverhead[pod.Spec.NodeName] = resources.Zero()
 	}
 	currentOverhead[pod.Spec.NodeName].Add(podToResources(ctx, pod))
-	return nil
 }
 
 func calculateMedianResources(nodeGroupResources resources.NodeGroupResources) *resources.Resources {
@@ -224,6 +217,14 @@ func podToResources(ctx context.Context, pod *v1.Pod) *resources.Resources {
 		res.AddFromResourceList(resourceRequests)
 	}
 	return res
+}
+
+func (o *OverheadComputer) getPodNodeInstanceGroup(pod *v1.Pod) (string, error) {
+	node, err := o.nodeLister.Get(pod.Spec.NodeName)
+	if err != nil {
+		return "", werror.Wrap(err, "node does not exist in cache", werror.SafeParam("nodeName", pod.Spec.NodeName))
+	}
+	return node.Labels[o.instanceGroupLabel], nil
 }
 
 func (o OverheadComputer) getOverheadByNode(ctx context.Context, overhead Overhead, nodes []*v1.Node) resources.NodeGroupResources {
