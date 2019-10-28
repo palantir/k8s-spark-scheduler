@@ -85,6 +85,8 @@ func (o *OverheadComputer) Start(ctx context.Context) {
 // GetOverhead fills overhead information for given nodes, and falls back to the median overhead
 // of the instance group if the node is not found
 func (o OverheadComputer) GetOverhead(ctx context.Context, nodes []*v1.Node) resources.NodeGroupResources {
+	o.overheadLock.RLock()
+	defer o.overheadLock.RUnlock()
 	return o.getOverheadByNode(ctx, o.latestOverhead, nodes)
 }
 
@@ -92,6 +94,8 @@ func (o OverheadComputer) GetOverhead(ctx context.Context, nodes []*v1.Node) res
 // of the instance group if the node is not found.
 // Non-schedulable overhead is overhead by pods that are running, but do not have 'spark-scheduler' as their scheduler name.
 func (o OverheadComputer) GetNonSchedulableOverhead(ctx context.Context, nodes []*v1.Node) resources.NodeGroupResources {
+	o.overheadLock.RLock()
+	defer o.overheadLock.RUnlock()
 	return o.getOverheadByNode(ctx, o.latestNonSchedulableOverhead, nodes)
 }
 
@@ -228,8 +232,6 @@ func (o *OverheadComputer) getPodNodeInstanceGroup(pod *v1.Pod) (string, error) 
 }
 
 func (o OverheadComputer) getOverheadByNode(ctx context.Context, overhead Overhead, nodes []*v1.Node) resources.NodeGroupResources {
-	o.overheadLock.RLock()
-	defer o.overheadLock.RUnlock()
 	res := resources.NodeGroupResources{}
 	if overhead == nil {
 		return res
