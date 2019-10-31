@@ -157,7 +157,7 @@ func (s *SoftReservationStore) ExecutorHasSoftReservation(ctx context.Context, e
 			svc1log.SafeParam("expectedLabel", SparkAppIDLabel))
 		return false
 	}
-	if sr, ok := s.GetSoftReservation(appID); ok {
+	if sr, ok := s.store[appID]; ok {
 		_, ok := sr.Reservations[executor.Name]
 		return ok
 	}
