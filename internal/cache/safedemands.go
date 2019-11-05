@@ -32,6 +32,12 @@ import (
 	clientcache "k8s.io/client-go/tools/cache"
 )
 
+const (
+	informerSyncRetryCount          = 5
+	informerSyncTimeout             = 2 * time.Second
+	informerSyncRetryInitialBackoff = 500 * time.Millisecond
+)
+
 // SafeDemandCache wraps a demand cache by checking if the demand
 // CRD exists before each operation
 type SafeDemandCache struct {
@@ -109,11 +115,19 @@ func (sdc *SafeDemandCache) initializeCache(ctx context.Context) error {
 	informer := informerInterface.Informer()
 	sdc.informerFactory.Start(ctx.Done())
 
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	if ok := clientcache.WaitForCacheSync(ctxWithTimeout.Done(), informer.HasSynced); !ok {
-		return werror.Error("timeout syncing informer", werror.SafeParam("timeoutSeconds", 2))
+	err := retry.Do(ctx, func() error {
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, informerSyncTimeout)
+		defer cancel()
+		if ok := clientcache.WaitForCacheSync(ctxWithTimeout.Done(), informer.HasSynced); !ok {
+			return werror.Error("timeout syncing informer", werror.SafeParam("timeoutSeconds", informerSyncTimeout.Seconds()))
+		}
+		return nil
+	}, retry.WithMaxAttempts(informerSyncRetryCount), retry.WithInitialBackoff(informerSyncRetryInitialBackoff))
+
+	if err != nil {
+		return err
 	}
+
 	demandCache, err := NewDemandCache(ctx, informerInterface, sdc.demandKubeClient)
 	if err != nil {
 		return err
