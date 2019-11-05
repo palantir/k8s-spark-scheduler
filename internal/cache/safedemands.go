@@ -23,6 +23,7 @@ import (
 	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
+	"github.com/palantir/pkg/retry"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
