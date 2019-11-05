@@ -219,11 +219,12 @@
   version = "0.0.2"
 
 [[projects]]
-  digest = "1:7333112fb5d692599fba64c3c36237b34c31b5d62fb8be0aef224106ad8a7f53"
+  digest = "1:adda8befb1b3e6b1f939034d4396a12570348c97412847bd819c4d8ec29e5d9c"
   name = "github.com/palantir/pkg"
   packages = [
     "cobracli",
     "metrics",
+    "retry",
     "safejson",
     "signals",
     "tlsconfig",
@@ -882,6 +883,7 @@
     "github.com/palantir/k8s-spark-scheduler-lib/pkg/resources",
     "github.com/palantir/pkg/cobracli",
     "github.com/palantir/pkg/metrics",
+    "github.com/palantir/pkg/retry",
     "github.com/palantir/pkg/signals",
     "github.com/palantir/witchcraft-go-error",
     "github.com/palantir/witchcraft-go-logging/wlog",

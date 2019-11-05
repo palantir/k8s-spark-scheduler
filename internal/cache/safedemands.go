@@ -23,12 +23,19 @@ import (
 	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
+	"github.com/palantir/pkg/retry"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	"go.uber.org/atomic"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	clientcache "k8s.io/client-go/tools/cache"
+)
+
+const (
+	informerSyncRetryCount          = 5
+	informerSyncTimeout             = 2 * time.Second
+	informerSyncRetryInitialBackoff = 500 * time.Millisecond
 )
 
 // SafeDemandCache wraps a demand cache by checking if the demand
@@ -108,11 +115,19 @@ func (sdc *SafeDemandCache) initializeCache(ctx context.Context) error {
 	informer := informerInterface.Informer()
 	sdc.informerFactory.Start(ctx.Done())
 
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	if ok := clientcache.WaitForCacheSync(ctxWithTimeout.Done(), informer.HasSynced); !ok {
-		return werror.Error("timeout syncing informer", werror.SafeParam("timeoutSeconds", 2))
+	err := retry.Do(ctx, func() error {
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, informerSyncTimeout)
+		defer cancel()
+		if ok := clientcache.WaitForCacheSync(ctxWithTimeout.Done(), informer.HasSynced); !ok {
+			return werror.Error("timeout syncing informer", werror.SafeParam("timeoutSeconds", informerSyncTimeout.Seconds()))
+		}
+		return nil
+	}, retry.WithMaxAttempts(informerSyncRetryCount), retry.WithInitialBackoff(informerSyncRetryInitialBackoff))
+
+	if err != nil {
+		return err
 	}
+
 	demandCache, err := NewDemandCache(ctx, informerInterface, sdc.demandKubeClient)
 	if err != nil {
 		return err
