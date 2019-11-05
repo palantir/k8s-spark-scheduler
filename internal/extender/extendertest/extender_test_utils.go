@@ -191,7 +191,7 @@ func (h *Harness) AssertFailedSchedule(t *testing.T, pod v1.Pod, nodeNames []str
 }
 
 // NewNode creates a new dummy node with the given name
-func NewNode(name, zone string) v1.Node {
+func NewNode(name string) v1.Node {
 	return v1.Node{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "node",
@@ -199,7 +199,6 @@ func NewNode(name, zone string) v1.Node {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
-				"failure-domain.beta.kubernetes.io/zone": zone,
 				"resource_channel":                       "batch-medium-priority",
 				"com.palantir.rubix/instance-group":      "batch-medium-priority",
 				"test":                                   "something",

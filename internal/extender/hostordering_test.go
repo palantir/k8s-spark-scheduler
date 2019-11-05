@@ -109,26 +109,11 @@ func TestAZAwareScheduling(t *testing.T) {
 
 func NewNode(name, zone string) v1.Node {
 	return v1.Node{
-		TypeMeta: metav1.TypeMeta{
-			Kind: "node",
-		},
+		TypeMeta: metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
 				"failure-domain.beta.kubernetes.io/zone": zone,
-				"resource_channel":                       "batch-medium-priority",
-				"com.palantir.rubix/instance-group":      "batch-medium-priority",
-				"test":                                   "something",
-			},
-			Annotations: map[string]string{},
-		},
-		Spec: v1.NodeSpec{
-			Unschedulable: false,
-		},
-		Status: v1.NodeStatus{
-			Allocatable: v1.ResourceList{
-				v1.ResourceCPU:    *resource.NewQuantity(8, resource.DecimalSI),
-				v1.ResourceMemory: *resource.NewQuantity(8*1024*1024*1024, resource.BinarySI),
 			},
 		},
 	}

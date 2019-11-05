@@ -24,8 +24,8 @@ import (
 )
 
 func TestScheduler(t *testing.T) {
-	node1 := extendertest.NewNode("node1", "zone1")
-	node2 := extendertest.NewNode("node2", "zone2")
+	node1 := extendertest.NewNode("node1")
+	node2 := extendertest.NewNode("node2")
 	nodeNames := []string{node1.Name, node2.Name}
 	podsToSchedule := extendertest.StaticAllocationSparkPods("2-executor-app", 2)
 
@@ -125,8 +125,8 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			node1 := extendertest.NewNode("node1", "zone1")
-			node2 := extendertest.NewNode("node2", "zone2")
+			node1 := extendertest.NewNode("node1")
+			node2 := extendertest.NewNode("node2")
 			nodeNames := []string{node1.Name, node2.Name}
 			harnessArgs := make([]runtime.Object, 0, len(test.podsToSchedule)+2)
 			harnessArgs = append(harnessArgs, &node1, &node2)
