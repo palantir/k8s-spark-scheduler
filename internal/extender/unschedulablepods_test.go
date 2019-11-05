@@ -21,8 +21,8 @@ import (
 )
 
 func TestUnschedulablePodMarker(t *testing.T) {
-	node1 := extendertest.NewNode("node1")
-	node2 := extendertest.NewNode("node2")
+	node1 := extendertest.NewNode("node1", "zone1")
+	node2 := extendertest.NewNode("node2", "zone2")
 
 	testHarness, err := extendertest.NewTestExtender(
 		&node1,

@@ -318,15 +318,13 @@ func (s *SparkSchedulerExtender) sortNodes(nodes []*v1.Node, availableResources 
 	var nodesByAZ = make(map[string][]*v1.Node)
 	for i, node := range nodes {
 		azLabel, ok := node.Labels[kubernetesFailureDomainLabel]
-		if ok {
-			nodesByAZ[azLabel] = append(nodesByAZ[azLabel], nodes[i])
-		} else {
-			nodesByAZ[azPlaceholder] = append(nodesByAZ[azPlaceholder], nodes[i])
+		if !ok {
+			azLabel = azPlaceholder
 		}
+		nodesByAZ[azLabel] = append(nodesByAZ[azLabel], nodes[i])
 	}
 
-	var allAZLabels = make([]string, len(nodesByAZ))
-
+	var allAZLabels = make([]string, 0, len(nodesByAZ))
 	for azLabel := range nodesByAZ {
 		allAZLabels = append(allAZLabels, azLabel)
 	}
@@ -334,15 +332,12 @@ func (s *SparkSchedulerExtender) sortNodes(nodes []*v1.Node, availableResources 
 	var availableResourcesByAZ = make(map[string]*resources.Resources, len(nodesByAZ))
 	for azLabel, nodesInAz := range nodesByAZ {
 		var azResources = resources.Zero()
+		var scheduleContexts = make(map[string]*resources.Resources, len(nodesInAz))
 		for _, node := range nodesInAz {
 			azResources.Add(availableResources[node.Name])
-		}
-		availableResourcesByAZ[azLabel] = azResources
-
-		var scheduleContexts = make(map[string]*resources.Resources, len(nodesInAz))
-		for _, node := range nodes {
 			scheduleContexts[node.Name] = availableResources[node.Name]
 		}
+		availableResourcesByAZ[azLabel] = azResources
 
 		sort.Slice(nodesInAz, func(i, j int) bool {
 			return lessThan(scheduleContexts[nodesInAz[i].Name], scheduleContexts[nodesInAz[j].Name])
@@ -352,11 +347,11 @@ func (s *SparkSchedulerExtender) sortNodes(nodes []*v1.Node, availableResources 
 	sort.Slice(allAZLabels, func(i, j int) bool {
 		return lessThan(availableResourcesByAZ[allAZLabels[i]], availableResourcesByAZ[allAZLabels[j]])
 	})
-	for i := range nodes {
-		for _, nodesInAz := range nodesByAZ {
-			for _, node := range nodesInAz {
-				nodes[i] = node
-			}
+	i := 0
+	for _, azLabel := range allAZLabels {
+		for _, node := range nodesByAZ[azLabel] {
+			nodes[i] = node
+			i++
 		}
 	}
 }
