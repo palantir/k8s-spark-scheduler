@@ -199,9 +199,9 @@ func NewNode(name string) v1.Node {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
-				"resource_channel":                       "batch-medium-priority",
-				"com.palantir.rubix/instance-group":      "batch-medium-priority",
-				"test":                                   "something",
+				"resource_channel":                  "batch-medium-priority",
+				"com.palantir.rubix/instance-group": "batch-medium-priority",
+				"test":                              "something",
 			},
 			Annotations: map[string]string{},
 		},
