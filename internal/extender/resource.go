@@ -307,6 +307,26 @@ func lessThan(left *resources.Resources, right *resources.Resources) bool {
 	return left.CPU.Cmp(right.CPU) == -1
 }
 
+func groupNodesByAZ(nodes []*v1.Node) (nodesByAZ map[string][]*v1.Node) {
+	nodesByAZ = make(map[string][]*v1.Node)
+	for i, node := range nodes {
+		azLabel, ok := node.Labels[kubernetesFailureDomainLabel]
+		if !ok {
+			azLabel = azPlaceholder
+		}
+		nodesByAZ[azLabel] = append(nodesByAZ[azLabel], nodes[i])
+	}
+	return nodesByAZ
+}
+
+func getAllAZLabels(nodeGroupsByAZ map[string][]*v1.Node) (azLabels []string) {
+	azLabels = make([]string, 0, len(nodeGroupsByAZ))
+	for key := range nodeGroupsByAZ {
+		azLabels = append(azLabels, key)
+	}
+	return azLabels
+}
+
 func (s *SparkSchedulerExtender) sortNodes(nodes []*v1.Node, availableResources resources.NodeGroupResources) {
 	if !s.useExperimentalHostPriorities {
 		sort.Slice(nodes, func(i, j int) bool {
@@ -315,19 +335,8 @@ func (s *SparkSchedulerExtender) sortNodes(nodes []*v1.Node, availableResources 
 		return
 	}
 
-	var nodesByAZ = make(map[string][]*v1.Node)
-	for i, node := range nodes {
-		azLabel, ok := node.Labels[kubernetesFailureDomainLabel]
-		if !ok {
-			azLabel = azPlaceholder
-		}
-		nodesByAZ[azLabel] = append(nodesByAZ[azLabel], nodes[i])
-	}
-
-	var allAZLabels = make([]string, 0, len(nodesByAZ))
-	for azLabel := range nodesByAZ {
-		allAZLabels = append(allAZLabels, azLabel)
-	}
+	var nodesByAZ = groupNodesByAZ(nodes)
+	var allAZLabels = getAllAZLabels(nodesByAZ)
 
 	var availableResourcesByAZ = make(map[string]*resources.Resources, len(nodesByAZ))
 	for azLabel, nodesInAz := range nodesByAZ {

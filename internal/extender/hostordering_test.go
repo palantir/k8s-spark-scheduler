@@ -17,9 +17,8 @@ package extender
 import (
 	"testing"
 
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
