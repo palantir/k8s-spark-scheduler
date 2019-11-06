@@ -40,6 +40,7 @@ const (
 	lifecycleCount                  = "foundry.spark.scheduler.pod.lifecycle.count"
 	crossAzTraffic                  = "foundry.spark.scheduler.az.cross.traffic"
 	totalTraffic                    = "foundry.spark.scheduler.total.traffic"
+	applicationZonesCount           = "foundry.spark.scheduler.application.zones.count"
 	requestLatency                  = "foundry.spark.scheduler.client.request.latency"
 	requestResult                   = "foundry.spark.scheduler.client.request.result"
 	cachedObjectCount               = "foundry.spark.scheduler.cache.objects.count"
@@ -206,9 +207,11 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 	totalNumPods := len(executorNodeNames) + 1
 	crossZonePairs := int64(crossZoneTraffic(numPodsPerZone, totalNumPods))
 	totalPairs := int64(totalNumPods * (totalNumPods - 1) / 2)
+	numberOfZones := int64(len(numPodsPerZone))
 
 	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(crossZonePairs)
 	metrics.FromContext(ctx).Histogram(totalTraffic).Update(totalPairs)
+	metrics.FromContext(ctx).Histogram(applicationZonesCount).Update(numberOfZones)
 }
 
 // crossZoneTraffic calculates the total number of pairs of pods, where the 2 pods are in different zones.
