@@ -16,7 +16,6 @@ package extender
 
 import (
 	"context"
-	"sort"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
@@ -294,43 +293,8 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	return reservedDriverNode, outcome, err
 }
 
-// Sort nodes by available resources ascending, with RAM usage more important.
-func lessThan(left resources.Resources, right resources.Resources) bool {
-	var memoryCompared = left.Memory.Cmp(right.Memory)
-	if memoryCompared != 0 {
-		return memoryCompared == -1
-	}
-	return left.CPU.Cmp(right.CPU) == -1
-}
-
-func (s *SparkSchedulerExtender) sortNodes(nodes []*v1.Node, availableResources resources.NodeGroupResources) {
-	if !s.useExperimentalHostPriorities {
-		sort.Slice(nodes, func(i, j int) bool {
-			return nodes[j].CreationTimestamp.Before(&nodes[i].CreationTimestamp)
-		})
-		return
-	}
-
-	var nodeNames = make([]string, len(nodes))
-	for i, node := range nodes {
-		nodeNames[i] = node.Name
-	}
-
-	var scheduleContexts = make(map[string]resources.Resources, len(nodes))
-	for _, node := range nodes {
-		scheduleContexts[node.Name] = resources.Resources{
-			Memory: availableResources[node.Name].Memory,
-			CPU:    availableResources[node.Name].CPU,
-		}
-	}
-
-	sort.Slice(nodes, func(i, j int) bool {
-		return lessThan(scheduleContexts[nodes[i].Name], scheduleContexts[nodes[j].Name])
-	})
-}
-
 func (s *SparkSchedulerExtender) potentialNodes(availableNodes []*v1.Node, driver *v1.Pod, nodeNames []string, availableResources resources.NodeGroupResources) (driverNodes, executorNodes []string) {
-	s.sortNodes(availableNodes, availableResources)
+	sortNodes(s.useExperimentalHostPriorities, availableNodes, availableResources)
 	driverNodeNames := make([]string, 0, len(availableNodes))
 	executorNodeNames := make([]string, 0, len(availableNodes))
 
