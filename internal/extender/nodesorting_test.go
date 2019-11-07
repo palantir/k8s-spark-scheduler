@@ -68,7 +68,7 @@ func TestScheduleContextSorting(t *testing.T) {
 		azPriority:    0,
 		nodeResources: lessResources,
 	}
-	lowerAzRank := scheduleContext{
+	lowerAzPriority := scheduleContext{
 		azPriority:    1,
 		nodeResources: lessResources,
 	}
@@ -77,12 +77,12 @@ func TestScheduleContextSorting(t *testing.T) {
 		nodeResources: moreResources,
 	}
 
-	if scheduleContextLessThan(lowerAzRank, base) || !scheduleContextLessThan(base, lowerAzRank) {
-		t.Error("Nodes should be sorted by the rank of the AZ they belong to, ascending")
+	if scheduleContextLessThan(lowerAzPriority, base) || !scheduleContextLessThan(base, lowerAzPriority) {
+		t.Error("Nodes should be sorted by the priority of the AZ they belong to, ascending")
 	}
 
 	if scheduleContextLessThan(moreNodeResources, base) || !scheduleContextLessThan(base, moreNodeResources) {
-		t.Error("If AZ rank is equal, nodes should be sorted by the available resources, ascending")
+		t.Error("If AZ priority is equal, nodes should be sorted by the available resources, ascending")
 	}
 }
 
