@@ -16,7 +16,6 @@ package extender
 
 import (
 	"context"
-	"sort"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
@@ -51,10 +50,6 @@ const (
 	// leaderElectionInterval is the default LeaseDuration for core clients.
 	// obtained from k8s.io/component-base/config/v1alpha1
 	leaderElectionInterval = 15 * time.Second
-	// Used to identify an AWS node's zone, example "us-east-1c"
-	// https://kubernetes.io/docs/reference/kubernetes-api/labels-annotations-taints/#failure-domainbetakubernetesiozone
-	kubernetesFailureDomainLabel = "failure-domain.beta.kubernetes.io/zone"
-	azPlaceholder                = "default"
 )
 
 // SparkSchedulerExtender is a kubernetes scheduler extended responsible for ensuring
@@ -298,75 +293,8 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	return reservedDriverNode, outcome, err
 }
 
-// Sort by available resources ascending, with RAM usage more important.
-func lessThan(left *resources.Resources, right *resources.Resources) bool {
-	var memoryCompared = left.Memory.Cmp(right.Memory)
-	if memoryCompared != 0 {
-		return memoryCompared == -1
-	}
-	return left.CPU.Cmp(right.CPU) == -1
-}
-
-func groupNodesByAZ(nodes []*v1.Node) (nodesByAZ map[string][]*v1.Node) {
-	nodesByAZ = make(map[string][]*v1.Node)
-	for i, node := range nodes {
-		azLabel, ok := node.Labels[kubernetesFailureDomainLabel]
-		if !ok {
-			azLabel = azPlaceholder
-		}
-		nodesByAZ[azLabel] = append(nodesByAZ[azLabel], nodes[i])
-	}
-	return nodesByAZ
-}
-
-func getAllAZLabels(nodeGroupsByAZ map[string][]*v1.Node) (azLabels []string) {
-	azLabels = make([]string, 0, len(nodeGroupsByAZ))
-	for key := range nodeGroupsByAZ {
-		azLabels = append(azLabels, key)
-	}
-	return azLabels
-}
-
-func (s *SparkSchedulerExtender) sortNodes(nodes []*v1.Node, availableResources resources.NodeGroupResources) {
-	if !s.useExperimentalHostPriorities {
-		sort.Slice(nodes, func(i, j int) bool {
-			return nodes[j].CreationTimestamp.Before(&nodes[i].CreationTimestamp)
-		})
-		return
-	}
-
-	var nodesByAZ = groupNodesByAZ(nodes)
-	var allAZLabels = getAllAZLabels(nodesByAZ)
-
-	var availableResourcesByAZ = make(map[string]*resources.Resources, len(nodesByAZ))
-	for azLabel, nodesInAz := range nodesByAZ {
-		var azResources = resources.Zero()
-		var scheduleContexts = make(map[string]*resources.Resources, len(nodesInAz))
-		for _, node := range nodesInAz {
-			azResources.Add(availableResources[node.Name])
-			scheduleContexts[node.Name] = availableResources[node.Name]
-		}
-		availableResourcesByAZ[azLabel] = azResources
-
-		sort.Slice(nodesInAz, func(i, j int) bool {
-			return lessThan(scheduleContexts[nodesInAz[i].Name], scheduleContexts[nodesInAz[j].Name])
-		})
-	}
-
-	sort.Slice(allAZLabels, func(i, j int) bool {
-		return lessThan(availableResourcesByAZ[allAZLabels[i]], availableResourcesByAZ[allAZLabels[j]])
-	})
-	i := 0
-	for _, azLabel := range allAZLabels {
-		for _, node := range nodesByAZ[azLabel] {
-			nodes[i] = node
-			i++
-		}
-	}
-}
-
 func (s *SparkSchedulerExtender) potentialNodes(availableNodes []*v1.Node, driver *v1.Pod, nodeNames []string, availableResources resources.NodeGroupResources) (driverNodes, executorNodes []string) {
-	s.sortNodes(availableNodes, availableResources)
+	sortNodes(s.useExperimentalHostPriorities, availableNodes, availableResources)
 	driverNodeNames := make([]string, 0, len(availableNodes))
 	executorNodeNames := make([]string, 0, len(availableNodes))
 
