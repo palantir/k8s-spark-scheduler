@@ -15,11 +15,12 @@
 package extender
 
 import (
+	"testing"
+
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 )
 
 const (
@@ -63,15 +64,15 @@ func TestScheduleContextSorting(t *testing.T) {
 		CPU:    one,
 		Memory: two,
 	}
-	base := ScheduleContext{
+	base := scheduleContext{
 		azPriority:    0,
 		nodeResources: lessResources,
 	}
-	lowerAzRank := ScheduleContext{
+	lowerAzRank := scheduleContext{
 		azPriority:    1,
 		nodeResources: lessResources,
 	}
-	moreNodeResources := ScheduleContext{
+	moreNodeResources := scheduleContext{
 		azPriority:    0,
 		nodeResources: moreResources,
 	}
