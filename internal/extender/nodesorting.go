@@ -106,8 +106,8 @@ func groupNodesByAZ(nodes []*v1.Node) map[string][]*v1.Node {
 	return nodesByAZ
 }
 
-func getAllAZLabels(nodeGroupsByAZ map[string][]*v1.Node) (azLabels []string) {
-	azLabels = make([]string, 0, len(nodeGroupsByAZ))
+func getAllAZLabels(nodeGroupsByAZ map[string][]*v1.Node) []string {
+	azLabels := make([]string, 0, len(nodeGroupsByAZ))
 	for key := range nodeGroupsByAZ {
 		azLabels = append(azLabels, key)
 	}
