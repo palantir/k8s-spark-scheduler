@@ -175,7 +175,7 @@ func getNodeWithZoneLabel(name, zone string) v1.Node {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 			Labels: map[string]string{
-				"failure-domain.beta.kubernetes.io/zone": zone,
+				v1.LabelZoneFailureDomain: zone,
 			},
 		},
 	}
