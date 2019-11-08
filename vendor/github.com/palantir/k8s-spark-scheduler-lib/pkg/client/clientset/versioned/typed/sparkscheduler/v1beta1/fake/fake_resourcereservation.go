@@ -131,7 +131,7 @@ func (c *FakeResourceReservations) DeleteCollection(options *v1.DeleteOptions, l
 // Patch applies the patch and returns the patched resourceReservation.
 func (c *FakeResourceReservations) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1beta1.ResourceReservation, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(resourcereservationsResource, c.ns, name, data, subresources...), &v1beta1.ResourceReservation{})
+		Invokes(testing.NewPatchSubresourceAction(resourcereservationsResource, c.ns, name, pt, data, subresources...), &v1beta1.ResourceReservation{})
 
 	if obj == nil {
 		return nil, err

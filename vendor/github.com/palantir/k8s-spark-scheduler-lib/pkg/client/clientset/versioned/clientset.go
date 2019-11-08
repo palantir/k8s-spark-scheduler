@@ -29,11 +29,7 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	ScalerV1alpha1() scalerv1alpha1.ScalerV1alpha1Interface
-	// Deprecated: please explicitly pick a version if possible.
-	Scaler() scalerv1alpha1.ScalerV1alpha1Interface
 	SparkschedulerV1beta1() sparkschedulerv1beta1.SparkschedulerV1beta1Interface
-	// Deprecated: please explicitly pick a version if possible.
-	Sparkscheduler() sparkschedulerv1beta1.SparkschedulerV1beta1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
@@ -49,20 +45,8 @@ func (c *Clientset) ScalerV1alpha1() scalerv1alpha1.ScalerV1alpha1Interface {
 	return c.scalerV1alpha1
 }
 
-// Deprecated: Scaler retrieves the default version of ScalerClient.
-// Please explicitly pick a version.
-func (c *Clientset) Scaler() scalerv1alpha1.ScalerV1alpha1Interface {
-	return c.scalerV1alpha1
-}
-
 // SparkschedulerV1beta1 retrieves the SparkschedulerV1beta1Client
 func (c *Clientset) SparkschedulerV1beta1() sparkschedulerv1beta1.SparkschedulerV1beta1Interface {
-	return c.sparkschedulerV1beta1
-}
-
-// Deprecated: Sparkscheduler retrieves the default version of SparkschedulerClient.
-// Please explicitly pick a version.
-func (c *Clientset) Sparkscheduler() sparkschedulerv1beta1.SparkschedulerV1beta1Interface {
 	return c.sparkschedulerV1beta1
 }
 
