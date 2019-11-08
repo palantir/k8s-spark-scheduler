@@ -59,7 +59,6 @@ const (
 	hostTagName          = "nodename"
 	lifecycleTagName     = "lifecycle"
 	sparkSchedulerName   = "spark-scheduler"
-	nodeZoneLabel        = "failure-domain.beta.kubernetes.io/zone"
 	pathTagName          = "requestpath"
 	verbTagName          = "requestverb"
 	statusCodeTagName    = "requeststatuscode"
@@ -195,7 +194,7 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 	numPodsPerZone := make(map[string]int)
 	for _, n := range nodes {
 		if numPods, ok := numPodsPerNode[n.Name]; ok {
-			executorZone, ok := n.Labels[nodeZoneLabel]
+			executorZone, ok := n.Labels[v1.LabelZoneFailureDomain]
 			if !ok {
 				svc1log.FromContext(ctx).Warn("zone label not found for node", svc1log.SafeParam("nodeName", n.Name))
 				executorZone = "unknown-zone"

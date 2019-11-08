@@ -22,9 +22,6 @@ import (
 )
 
 const (
-	// Used to identify an AWS node's zone, example "us-east-1c"
-	// https://kubernetes.io/docs/reference/kubernetes-api/labels-annotations-taints/#failure-domainbetakubernetesiozone
-	nodeZoneLabel   = "failure-domain.beta.kubernetes.io/zone"
 	zonePlaceholder = "default"
 )
 
@@ -97,7 +94,7 @@ func getAvailableResourcesByAZ(nodesByAZ map[string][]*v1.Node, availableResourc
 func groupNodesByAZ(nodes []*v1.Node) map[string][]*v1.Node {
 	nodesByAZ := make(map[string][]*v1.Node)
 	for i, node := range nodes {
-		azLabel, ok := node.Labels[nodeZoneLabel]
+		azLabel, ok := node.Labels[v1.LabelZoneFailureDomain]
 		if !ok {
 			azLabel = zonePlaceholder
 		}
