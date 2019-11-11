@@ -39,6 +39,7 @@ const (
 	lifecycleAgeP50                 = "foundry.spark.scheduler.pod.lifecycle.p50"
 	lifecycleCount                  = "foundry.spark.scheduler.pod.lifecycle.count"
 	crossAzTraffic                  = "foundry.spark.scheduler.az.cross.traffic"
+	crossAzShuffle                  = "foundry.spark.scheduler.az.cross.shuffle"
 	totalTraffic                    = "foundry.spark.scheduler.total.traffic"
 	applicationZonesCount           = "foundry.spark.scheduler.application.zones.count"
 	requestLatency                  = "foundry.spark.scheduler.client.request.latency"
@@ -207,10 +208,12 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 	crossZonePairs := int64(crossZoneTraffic(numPodsPerZone, totalNumPods))
 	totalPairs := int64(totalNumPods * (totalNumPods - 1) / 2)
 	numberOfZones := int64(len(numPodsPerZone))
+	crossZoneShuffleTransfer := crossZoneShuffleTransfer(numPodsPerZone, totalNumPods)
 
 	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(crossZonePairs)
 	metrics.FromContext(ctx).Histogram(totalTraffic).Update(totalPairs)
 	metrics.FromContext(ctx).Histogram(applicationZonesCount).Update(numberOfZones)
+	metrics.FromContext(ctx).Histogram(crossAzShuffle).Update(crossZoneShuffleTransfer)
 }
 
 // crossZoneTraffic calculates the total number of pairs of pods, where the 2 pods are in different zones.
@@ -223,6 +226,16 @@ func crossZoneTraffic(numPodsPerZone map[string]int, totalNumPods int) int {
 		crossZoneTraffic += numPodsInZone * numPodsInDifferentZone
 	}
 	return crossZoneTraffic
+}
+
+// crossZoneShuffleTransfer calculates the percentage of data that will be sent across AZs due to shuffle
+func crossZoneShuffleTransfer(numPodsPerZone map[string]int, totalNumPods int) int64 {
+	var crossZoneShuffleTransfer int
+	for _, numPodsInZone := range numPodsPerZone {
+		numPodsInDifferentZone := totalNumPods - numPodsInZone
+		crossZoneShuffleTransfer += numPodsInZone * numPodsInDifferentZone
+	}
+	return int64(100 * crossZoneShuffleTransfer / (totalNumPods * totalNumPods))
 }
 
 type latencyAdapter struct{}
