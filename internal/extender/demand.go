@@ -150,18 +150,21 @@ func newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit) 
 }
 
 func demandResources(applicationResources *sparkApplicationResources) []demandapi.DemandUnit {
-	return []demandapi.DemandUnit{
+	demandUnits := []demandapi.DemandUnit{
 		{
 			Count:  1,
 			CPU:    applicationResources.driverResources.CPU,
 			Memory: applicationResources.driverResources.Memory,
 		},
-		{
+	}
+	if applicationResources.minExecutorCount > 0 {
+		demandUnits = append(demandUnits, demandapi.DemandUnit{
 			Count:  applicationResources.minExecutorCount,
 			CPU:    applicationResources.executorResources.CPU,
 			Memory: applicationResources.executorResources.Memory,
-		},
+		})
 	}
+	return demandUnits
 }
 
 func demandResourceName(pod *v1.Pod) string {
