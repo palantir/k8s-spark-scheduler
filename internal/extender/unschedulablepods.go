@@ -130,7 +130,7 @@ func (u *UnschedulablePodMarker) DoesPodExceedClusterCapacity(ctx context.Contex
 			svc1log.SafeParam("nodeSelector", driver.Spec.NodeSelector))
 	}
 
-	availableResources := resources.AvailableForNodes(nodes, u.overheadComputer.GetNonSchedulableOverhead(ctx, nodes))
+	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(nodes, u.overheadComputer.GetNonSchedulableOverhead(ctx, nodes))
 	applicationResources, err := sparkResources(ctx, driver)
 	if err != nil {
 		return false, err
@@ -142,7 +142,7 @@ func (u *UnschedulablePodMarker) DoesPodExceedClusterCapacity(ctx context.Contex
 		applicationResources.minExecutorCount,
 		nodeNames,
 		nodeNames,
-		availableResources)
+		availableNodesSchedulingMetadata)
 
 	return !hasCapacity, nil
 }

@@ -26,7 +26,7 @@ type SparkBinPackFunction func(
 	driverResources, executorResources *resources.Resources,
 	executorCount int,
 	driverNodePriorityOrder, executorNodePriorityOrder []string,
-	availableResources resources.NodeGroupResources) (driverNode string, executorNodes []string, hasCapacity bool)
+	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) (driverNode string, executorNodes []string, hasCapacity bool)
 
 // GenericBinPackFunction is a function type for assigning nodes to a batch of equivalent pods
 type GenericBinPackFunction func(
@@ -34,7 +34,8 @@ type GenericBinPackFunction func(
 	itemResources *resources.Resources,
 	itemCount int,
 	nodePriorityOrder []string,
-	availableResources, reserved resources.NodeGroupResources) (nodes []string, hasCapacity bool)
+	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata,
+	reservedResources resources.NodeGroupResources) (nodes []string, hasCapacity bool)
 
 // SparkBinPack places the driver first and calls distributeExecutors function to place executors
 func SparkBinPack(
@@ -42,16 +43,17 @@ func SparkBinPack(
 	driverResources, executorResources *resources.Resources,
 	executorCount int,
 	driverNodePriorityOrder, executorNodePriorityOrder []string,
-	availableResources resources.NodeGroupResources,
+	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata,
 	distributeExecutors GenericBinPackFunction) (driverNode string, executorNodes []string, hasCapacity bool) {
 	for _, name := range driverNodePriorityOrder {
-		if driverResources.GreaterThan(availableResources[name]) {
+		nodeSchedulingMetadata, ok := nodesSchedulingMetadata[name]
+		if !ok || driverResources.GreaterThan(nodeSchedulingMetadata.AvailableResources) {
 			continue
 		}
-		reserved := make(resources.NodeGroupResources, len(availableResources))
+		reserved := make(resources.NodeGroupResources, len(nodesSchedulingMetadata))
 		reserved[name] = driverResources.Copy()
 		executorNodes, ok := distributeExecutors(
-			ctx, executorResources, executorCount, executorNodePriorityOrder, availableResources, reserved)
+			ctx, executorResources, executorCount, executorNodePriorityOrder, nodesSchedulingMetadata, reserved)
 		if ok {
 			return name, executorNodes, true
 		}

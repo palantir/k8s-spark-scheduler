@@ -18,9 +18,7 @@ import (
 	"testing"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -87,79 +85,86 @@ func TestScheduleContextSorting(t *testing.T) {
 }
 
 func TestAZAwareNodeSorting(t *testing.T) {
-	zone1Node1 := getNodeWithZoneLabel("zone1Node1", "zone1")
-	zone1Node2 := getNodeWithZoneLabel("zone1Node2", "zone1")
-	zone1Node3 := getNodeWithZoneLabel("zone1Node3", "zone1")
-	zone2Node1 := getNodeWithZoneLabel("zone2Node1", "zone2")
-
 	one := *resource.NewQuantity(1, resource.BinarySI)
 	two := *resource.NewQuantity(2, resource.BinarySI)
 
-	zone1Node1AvailableResources := &resources.Resources{
-		CPU:    one,
-		Memory: one,
+	zone1Node1SchedulingMetadata := &resources.NodeSchedulingMetadata{
+		AvailableResources: &resources.Resources{
+			CPU:    one,
+			Memory: one,
+		},
+		ZoneLabel: "zone1",
 	}
-	zone1Node2FreeMemory := &resources.Resources{
-		CPU:    one,
-		Memory: two,
+	zone1Node2FreeMemory := &resources.NodeSchedulingMetadata{
+		AvailableResources: &resources.Resources{
+			CPU:    one,
+			Memory: two,
+		},
+		ZoneLabel: "zone1",
 	}
-	zone1Node3FreeCPU := &resources.Resources{
-		CPU:    two,
-		Memory: one,
+	zone1Node3FreeCPU := &resources.NodeSchedulingMetadata{
+		AvailableResources: &resources.Resources{
+			CPU:    two,
+			Memory: one,
+		},
+		ZoneLabel: "zone1",
 	}
-	zone2Node1AvailableResources := &resources.Resources{
-		CPU:    one,
-		Memory: one,
+	zone2Node1SchedulingMetadata := &resources.NodeSchedulingMetadata{
+		AvailableResources: &resources.Resources{
+			CPU:    one,
+			Memory: one,
+		},
+		ZoneLabel: "zone2",
 	}
-	availableResources := resources.NodeGroupResources{
-		zone1Node1.Name: zone1Node1AvailableResources,
-		zone1Node2.Name: zone1Node2FreeMemory,
-		zone1Node3.Name: zone1Node3FreeCPU,
-		zone2Node1.Name: zone2Node1AvailableResources,
+	nodesSchedulingMetadata := resources.NodeGroupSchedulingMetadata{
+		"zone1Node1": zone1Node1SchedulingMetadata,
+		"zone1Node2": zone1Node2FreeMemory,
+		"zone1Node3": zone1Node3FreeCPU,
+		"zone2Node1": zone2Node1SchedulingMetadata,
 	}
-	actualNodes := []*v1.Node{&zone1Node1, &zone1Node2, &zone1Node3, &zone2Node1}
+	actual := getNodeNamesInPriorityOrder(useExperimentalPriorities, nodesSchedulingMetadata)
 
-	sortNodes(useExperimentalPriorities, actualNodes, availableResources)
-	expectedResult := []*v1.Node{&zone2Node1, &zone1Node1, &zone1Node3, &zone1Node2}
+	expectedResult := []string{"zone2Node1", "zone1Node1", "zone1Node3", "zone1Node2"}
 
-	compareActualToExpected(actualNodes, expectedResult, t)
+	compareActualToExpected(actual, expectedResult, t)
 }
 
 func TestAZAwareNodeSortingWorksIfZoneLabelIsMissing(t *testing.T) {
-	node1 := getNode("node1")
-	node2 := getNode("node2")
-	node3 := getNode("node3")
-
 	one := *resource.NewQuantity(1, resource.BinarySI)
 	two := *resource.NewQuantity(2, resource.BinarySI)
 
-	node1AvailableResources := &resources.Resources{
-		CPU:    two,
-		Memory: one,
+	node1SchedulingMetadata := &resources.NodeSchedulingMetadata{
+		AvailableResources: &resources.Resources{
+			CPU:    two,
+			Memory: one,
+		},
 	}
-	node2AvailableResources := &resources.Resources{
-		CPU:    one,
-		Memory: two,
+	node2SchedulingMetadata := &resources.NodeSchedulingMetadata{
+		AvailableResources: &resources.Resources{
+			CPU:    two,
+			Memory: one,
+		},
 	}
-	node3AvailableResources := &resources.Resources{
-		CPU:    one,
-		Memory: one,
+	node3SchedulingMetadata := &resources.NodeSchedulingMetadata{
+		AvailableResources: &resources.Resources{
+			CPU:    one,
+			Memory: one,
+		},
 	}
-	availableResources := resources.NodeGroupResources{
-		node1.Name: node1AvailableResources,
-		node2.Name: node2AvailableResources,
-		node3.Name: node3AvailableResources,
-	}
-	actualNodes := []*v1.Node{&node1, &node2, &node3}
 
-	sortNodes(useExperimentalPriorities, actualNodes, availableResources)
+	nodesSchedulingMetadata := resources.NodeGroupSchedulingMetadata{
+		"node1": node1SchedulingMetadata,
+		"node2": node2SchedulingMetadata,
+		"node3": node3SchedulingMetadata,
+	}
+	actual := getNodeNamesInPriorityOrder(useExperimentalPriorities, nodesSchedulingMetadata)
 
-	expectedResult := []*v1.Node{&node3, &node1, &node2}
+	expectedResult := []string{"node3", "node1", "node2"}
 
-	compareActualToExpected(actualNodes, expectedResult, t)
+	compareActualToExpected(actual, expectedResult, t)
 }
 
-func compareActualToExpected(actualNodes []*v1.Node, expectedResult []*v1.Node, t *testing.T) {
+func compareActualToExpected(actualNodes []string, expectedResult []string, t *testing.T) {
 	if len(actualNodes) != len(expectedResult) {
 		t.Error("Length of nodes slice shouldn't change on sorting")
 	}
@@ -167,24 +172,5 @@ func compareActualToExpected(actualNodes []*v1.Node, expectedResult []*v1.Node, 
 		if expectedNode != actualNodes[i] {
 			t.Error("Each element in the sorted result should match the expected result. Element unmatched: ", i)
 		}
-	}
-}
-
-func getNodeWithZoneLabel(name, zone string) v1.Node {
-	return v1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-			Labels: map[string]string{
-				v1.LabelZoneFailureDomain: zone,
-			},
-		},
-	}
-}
-
-func getNode(name string) v1.Node {
-	return v1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
 	}
 }

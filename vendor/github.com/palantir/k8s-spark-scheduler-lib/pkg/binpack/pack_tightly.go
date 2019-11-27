@@ -27,8 +27,8 @@ var TightlyPack = SparkBinPackFunction(func(
 	driverResources, executorResources *resources.Resources,
 	executorCount int,
 	driverNodePriorityOrder, executorNodePriorityOrder []string,
-	availableResources resources.NodeGroupResources) (string, []string, bool) {
-	return SparkBinPack(ctx, driverResources, executorResources, executorCount, driverNodePriorityOrder, executorNodePriorityOrder, availableResources, tightlyPackExecutors)
+	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) (string, []string, bool) {
+	return SparkBinPack(ctx, driverResources, executorResources, executorCount, driverNodePriorityOrder, executorNodePriorityOrder, nodesSchedulingMetadata, tightlyPackExecutors)
 })
 
 func tightlyPackExecutors(
@@ -36,18 +36,20 @@ func tightlyPackExecutors(
 	executorResources *resources.Resources,
 	executorCount int,
 	nodePriorityOrder []string,
-	availableResources, reserved resources.NodeGroupResources) ([]string, bool) {
+	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata,
+	reservedResources resources.NodeGroupResources) ([]string, bool) {
 	executorNodes := make([]string, 0, executorCount)
 	if executorCount == 0 {
 		return executorNodes, true
 	}
 	for _, n := range nodePriorityOrder {
-		if reserved[n] == nil {
-			reserved[n] = resources.Zero()
+		if reservedResources[n] == nil {
+			reservedResources[n] = resources.Zero()
 		}
 		for {
-			reserved[n].Add(executorResources)
-			if reserved[n].GreaterThan(availableResources[n]) {
+			reservedResources[n].Add(executorResources)
+			nodeSchedulingMetadata, ok := nodesSchedulingMetadata[n]
+			if !ok || reservedResources[n].GreaterThan(nodeSchedulingMetadata.AvailableResources) {
 				break
 			}
 			executorNodes = append(executorNodes, n)

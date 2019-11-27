@@ -27,8 +27,8 @@ var DistributeEvenly = SparkBinPackFunction(func(
 	driverResources, executorResources *resources.Resources,
 	executorCount int,
 	driverNodePriorityOrder, executorNodePriorityOrder []string,
-	availableResources resources.NodeGroupResources) (string, []string, bool) {
-	return SparkBinPack(ctx, driverResources, executorResources, executorCount, driverNodePriorityOrder, executorNodePriorityOrder, availableResources, distributeExecutorsEvenly)
+	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) (string, []string, bool) {
+	return SparkBinPack(ctx, driverResources, executorResources, executorCount, driverNodePriorityOrder, executorNodePriorityOrder, nodesSchedulingMetadata, distributeExecutorsEvenly)
 })
 
 func distributeExecutorsEvenly(
@@ -36,7 +36,8 @@ func distributeExecutorsEvenly(
 	executorResources *resources.Resources,
 	executorCount int,
 	nodePriorityOrder []string,
-	availableResources, reserved resources.NodeGroupResources) ([]string, bool) {
+	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata,
+	reservedResources resources.NodeGroupResources) ([]string, bool) {
 	availableNodes := make(map[string]bool, len(nodePriorityOrder))
 	for _, name := range nodePriorityOrder {
 		availableNodes[name] = true
@@ -51,11 +52,12 @@ func distributeExecutorsEvenly(
 				continue
 			}
 
-			if reserved[n] == nil {
-				reserved[n] = resources.Zero()
+			if reservedResources[n] == nil {
+				reservedResources[n] = resources.Zero()
 			}
-			reserved[n].Add(executorResources)
-			if reserved[n].GreaterThan(availableResources[n]) {
+			reservedResources[n].Add(executorResources)
+			nodeSchedulingMetadata, ok := nodesSchedulingMetadata[n]
+			if !ok || reservedResources[n].GreaterThan(nodeSchedulingMetadata.AvailableResources) {
 				// can not allocate a resource to this node
 				delete(availableNodes, n)
 			} else {

@@ -189,12 +189,12 @@ func (s *SparkSchedulerExtender) selectNode(ctx context.Context, role string, po
 }
 
 // fitEarlierDrivers binpacks all given spark applications to the cluster and
-// adds their resource usage to availableResources
+// accounts for their resource usage in availableNodesSchedulingMetadata
 func (s *SparkSchedulerExtender) fitEarlierDrivers(
 	ctx context.Context,
 	drivers []*v1.Pod,
 	nodeNames, executorNodeNames []string,
-	availableResources resources.NodeGroupResources) bool {
+	availableNodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) bool {
 	for _, driver := range drivers {
 		applicationResources, err := sparkResources(ctx, driver)
 		if err != nil {
@@ -208,13 +208,13 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 			applicationResources.driverResources,
 			applicationResources.executorResources,
 			applicationResources.minExecutorCount,
-			nodeNames, executorNodeNames, availableResources)
+			nodeNames, executorNodeNames, availableNodesSchedulingMetadata)
 		if !hasCapacity {
 			svc1log.FromContext(ctx).Warn("failed to fit one of the earlier drivers",
 				svc1log.SafeParam("earlierDriverName", driver.Name))
 			return false
 		}
-		availableResources.Sub(sparkResourceUsage(
+		availableNodesSchedulingMetadata.SubtractUsageIfExists(sparkResourceUsage(
 			applicationResources.driverResources,
 			applicationResources.executorResources,
 			driverNode, executorNodes))
@@ -244,8 +244,8 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 
 	usages := s.usedResources()
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
-	availableResources := resources.AvailableForNodes(availableNodes, usages)
-	driverNodeNames, executorNodeNames := s.potentialNodes(availableNodes, driver, nodeNames, availableResources)
+	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usages)
+	driverNodeNames, executorNodeNames := s.potentialNodes(availableNodesSchedulingMetadata, driver, nodeNames)
 	applicationResources, err := sparkResources(ctx, driver)
 	if err != nil {
 		return "", failureInternal, werror.Wrap(err, "failed to get spark resources")
@@ -255,7 +255,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		if err != nil {
 			return "", failureInternal, werror.Wrap(err, "failed to list earlier drivers")
 		}
-		ok := s.fitEarlierDrivers(ctx, queuedDrivers, driverNodeNames, executorNodeNames, availableResources)
+		ok := s.fitEarlierDrivers(ctx, queuedDrivers, driverNodeNames, executorNodeNames, availableNodesSchedulingMetadata)
 		if !ok {
 			s.createDemandForApplication(ctx, driver, applicationResources)
 			return "", failureEarlierDriver, werror.Error("earlier drivers do not fit to the cluster")
@@ -266,9 +266,11 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		applicationResources.driverResources,
 		applicationResources.executorResources,
 		applicationResources.minExecutorCount,
-		driverNodeNames, executorNodeNames, availableResources)
+		driverNodeNames,
+		executorNodeNames,
+		availableNodesSchedulingMetadata)
 	svc1log.FromContext(ctx).Debug("binpacking result",
-		svc1log.SafeParam("availableResources", availableResources),
+		svc1log.SafeParam("availableNodesSchedulingMetadata", availableNodesSchedulingMetadata),
 		svc1log.SafeParam("driverResources", applicationResources.driverResources),
 		svc1log.SafeParam("executorResources", applicationResources.executorResources),
 		svc1log.SafeParam("minExecutorCount", applicationResources.minExecutorCount),
@@ -293,22 +295,22 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	return reservedDriverNode, outcome, err
 }
 
-func (s *SparkSchedulerExtender) potentialNodes(availableNodes []*v1.Node, driver *v1.Pod, nodeNames []string, availableResources resources.NodeGroupResources) (driverNodes, executorNodes []string) {
-	sortNodes(s.useExperimentalHostPriorities, availableNodes, availableResources)
-	driverNodeNames := make([]string, 0, len(availableNodes))
-	executorNodeNames := make([]string, 0, len(availableNodes))
+func (s *SparkSchedulerExtender) potentialNodes(availableNodesSchedulingMetadata resources.NodeGroupSchedulingMetadata, driver *v1.Pod, nodeNames []string) (driverNodes, executorNodes []string) {
+	nodesInPriorityOrder := getNodeNamesInPriorityOrder(s.useExperimentalHostPriorities, availableNodesSchedulingMetadata)
+	driverNodeNames := make([]string, 0, len(nodesInPriorityOrder))
+	executorNodeNames := make([]string, 0, len(nodesInPriorityOrder))
 
 	nodeNamesSet := make(map[string]interface{})
 	for _, item := range nodeNames {
 		nodeNamesSet[item] = nil
 	}
 
-	for _, node := range availableNodes {
-		if _, ok := nodeNamesSet[node.Name]; ok {
-			driverNodeNames = append(driverNodeNames, node.Name)
+	for _, nodeName := range nodesInPriorityOrder {
+		if _, ok := nodeNamesSet[nodeName]; ok {
+			driverNodeNames = append(driverNodeNames, nodeName)
 		}
-		if !node.Spec.Unschedulable {
-			executorNodeNames = append(executorNodeNames, node.Name)
+		if !availableNodesSchedulingMetadata[nodeName].Unschedulable {
+			executorNodeNames = append(executorNodeNames, nodeName)
 		}
 	}
 	return driverNodeNames, executorNodeNames

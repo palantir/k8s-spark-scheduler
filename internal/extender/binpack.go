@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	distributeEvenly string = "distribute-evenly"
-	tightlyPack      string = "tightly-pack"
+	distributeEvenly   string = "distribute-evenly"
+	tightlyPack        string = "tightly-pack"
+	azAwareTightlyPack string = "az-aware-tightly-pack"
 )
 
 // Binpacker is a BinpackFunc with a known name
@@ -30,8 +31,9 @@ type Binpacker struct {
 }
 
 var binpackFunctions = map[string]*Binpacker{
-	tightlyPack:      {tightlyPack, binpack.TightlyPack},
-	distributeEvenly: {distributeEvenly, binpack.DistributeEvenly},
+	tightlyPack:        {tightlyPack, binpack.TightlyPack},
+	distributeEvenly:   {distributeEvenly, binpack.DistributeEvenly},
+	azAwareTightlyPack: {azAwareTightlyPack, binpack.AzAwareTightlyPack},
 }
 
 // SelectBinpacker selects the binpack function from the given name
