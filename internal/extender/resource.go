@@ -214,7 +214,7 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 				svc1log.SafeParam("earlierDriverName", driver.Name))
 			return false
 		}
-		availableNodesSchedulingMetadata.SubtractUsage(sparkResourceUsage(
+		availableNodesSchedulingMetadata.SubtractUsageIfExists(sparkResourceUsage(
 			applicationResources.driverResources,
 			applicationResources.executorResources,
 			driverNode, executorNodes))

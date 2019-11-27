@@ -47,11 +47,7 @@ func SparkBinPack(
 	distributeExecutors GenericBinPackFunction) (driverNode string, executorNodes []string, hasCapacity bool) {
 	for _, name := range driverNodePriorityOrder {
 		nodeSchedulingMetadata, ok := nodesSchedulingMetadata[name]
-		if !ok {
-			continue
-		}
-
-		if driverResources.GreaterThan(nodeSchedulingMetadata.AvailableResources) {
+		if !ok || driverResources.GreaterThan(nodeSchedulingMetadata.AvailableResources) {
 			continue
 		}
 		reserved := make(resources.NodeGroupResources, len(nodesSchedulingMetadata))

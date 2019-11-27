@@ -171,7 +171,7 @@
   revision = "a1d3024b37d8cdd6c19d748051f7228155f0a0d9"
 
 [[projects]]
-  digest = "1:4d19410af4232ce34d2ecba058961deab0fc2e424a3f685fe5f102f199f43b6a"
+  digest = "1:d0fdcf03fc5df3e8a056ccee0e2ee57cc81c7d4a3b2438fc1261b3051f69f6e5"
   name = "github.com/palantir/k8s-spark-scheduler-lib"
   packages = [
     "pkg/apis/scaler/v1alpha1",
@@ -196,8 +196,8 @@
     "pkg/resources",
   ]
   pruneopts = "UT"
-  revision = "a4b5a80548f4f4b8b68ecda52bc5decb492c7a3c"
-  version = "0.1.2"
+  revision = "5b5188d04f766a14cc503306cc1ed6fab8c79977"
+  version = "0.2.0"
 
 [[projects]]
   digest = "1:adda8befb1b3e6b1f939034d4396a12570348c97412847bd819c4d8ec29e5d9c"

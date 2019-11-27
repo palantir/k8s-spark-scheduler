@@ -102,8 +102,8 @@ func (nodeResources NodeGroupResources) Sub(other NodeGroupResources) {
 	}
 }
 
-// SubtractUsage subtracts all resources in other from the receiver, modifies receiver
-func (nodesSchedulingMetadata NodeGroupSchedulingMetadata) SubtractUsage(usedResourcesByNodeName NodeGroupResources) {
+// SubtractUsageIfExists subtracts usedResourcesByNodeName from the receiver, modifies receiver, only for nodes that exist in receiver
+func (nodesSchedulingMetadata NodeGroupSchedulingMetadata) SubtractUsageIfExists(usedResourcesByNodeName NodeGroupResources) {
 	for nodeName, usedResources := range usedResourcesByNodeName {
 		if nodeSchedulingMetadata, ok := nodesSchedulingMetadata[nodeName]; ok {
 			nodeSchedulingMetadata.AvailableResources.Sub(usedResources)
