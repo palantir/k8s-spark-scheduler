@@ -15,9 +15,15 @@
 package resources
 
 import (
+	"time"
+
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+)
+
+const (
+	zoneLabelPlaceholder = "default"
 )
 
 // UsageForNodes tallies resource usages per node from the given list of resource reservations
@@ -35,7 +41,7 @@ func UsageForNodes(resourceReservations []*v1beta1.ResourceReservation) NodeGrou
 	return res
 }
 
-// AvailableForNodes finds available resources by substracting current usage from allocatable per node
+// AvailableForNodes finds available resources by subtracting current usage from allocatable per node
 func AvailableForNodes(nodes []*v1.Node, currentUsage NodeGroupResources) NodeGroupResources {
 	res := NodeGroupResources(make(map[string]*Resources, len(nodes)))
 	for _, n := range nodes {
@@ -43,13 +49,38 @@ func AvailableForNodes(nodes []*v1.Node, currentUsage NodeGroupResources) NodeGr
 		if !ok {
 			currentUsageForNode = Zero()
 		}
-		res[n.Name] = substractFromResourceList(n.Status.Allocatable, currentUsageForNode)
+		res[n.Name] = subtractFromResourceList(n.Status.Allocatable, currentUsageForNode)
 	}
 	return res
 }
 
+// NodeSchedulingMetadataForNodes calculate available resources by subtracting current usage from allocatable per node
+func NodeSchedulingMetadataForNodes(nodes []*v1.Node, currentUsage NodeGroupResources) NodeGroupSchedulingMetadata {
+	nodeGroupSchedulingMetadata := make(NodeGroupSchedulingMetadata, len(nodes))
+	for _, node := range nodes {
+		currentUsageForNode, ok := currentUsage[node.Name]
+		if !ok {
+			currentUsageForNode = Zero()
+		}
+		zoneLabel, ok := node.Labels[v1.LabelZoneFailureDomain]
+		if !ok {
+			zoneLabel = zoneLabelPlaceholder
+		}
+		nodeGroupSchedulingMetadata[node.Name] = &NodeSchedulingMetadata{
+			AvailableResources: subtractFromResourceList(node.Status.Allocatable, currentUsageForNode),
+			CreationTimestamp:  node.CreationTimestamp.Time,
+			ZoneLabel:          zoneLabel,
+			Unschedulable:      node.Spec.Unschedulable,
+		}
+	}
+	return nodeGroupSchedulingMetadata
+}
+
 // NodeGroupResources represents resources for a group of nodes
 type NodeGroupResources map[string]*Resources
+
+// NodeGroupSchedulingMetadata represents NodeSchedulingMetadata for a group of nodes
+type NodeGroupSchedulingMetadata map[string]*NodeSchedulingMetadata
 
 // Add adds all resources in other into the receiver, modifies receiver
 func (nodeResources NodeGroupResources) Add(other NodeGroupResources) {
@@ -61,7 +92,7 @@ func (nodeResources NodeGroupResources) Add(other NodeGroupResources) {
 	}
 }
 
-// Sub substracts all resources in other from the receiver, modifies receiver
+// Sub subtract all resources in other from the receiver, modifies receiver
 func (nodeResources NodeGroupResources) Sub(other NodeGroupResources) {
 	for node, r := range other {
 		if _, ok := nodeResources[node]; !ok {
@@ -71,7 +102,16 @@ func (nodeResources NodeGroupResources) Sub(other NodeGroupResources) {
 	}
 }
 
-func substractFromResourceList(resourceList v1.ResourceList, resources *Resources) *Resources {
+// SubtractUsage subtracts all resources in other from the receiver, modifies receiver
+func (nodesSchedulingMetadata NodeGroupSchedulingMetadata) SubtractUsage(usedResourcesByNodeName NodeGroupResources) {
+	for nodeName, usedResources := range usedResourcesByNodeName {
+		if nodeSchedulingMetadata, ok := nodesSchedulingMetadata[nodeName]; ok {
+			nodeSchedulingMetadata.AvailableResources.Sub(usedResources)
+		}
+	}
+}
+
+func subtractFromResourceList(resourceList v1.ResourceList, resources *Resources) *Resources {
 	// (a - b) == -(b - a)
 	copyResources := resources.Copy()
 	copyResources.CPU.Sub(resourceList[v1.ResourceCPU])
@@ -85,6 +125,14 @@ func substractFromResourceList(resourceList v1.ResourceList, resources *Resource
 type Resources struct {
 	CPU    resource.Quantity
 	Memory resource.Quantity
+}
+
+// NodeSchedulingMetadata represents various parameters of a node that are considered in scheduling decisions
+type NodeSchedulingMetadata struct {
+	AvailableResources *Resources
+	CreationTimestamp  time.Time
+	ZoneLabel          string
+	Unschedulable      bool
 }
 
 // Zero returns a Resources object with quantities of zero

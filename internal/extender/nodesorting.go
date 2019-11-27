@@ -18,11 +18,6 @@ import (
 	"sort"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	v1 "k8s.io/api/core/v1"
-)
-
-const (
-	zonePlaceholder = "default"
 )
 
 type scheduleContext struct {
@@ -48,65 +43,73 @@ func scheduleContextLessThan(left scheduleContext, right scheduleContext) bool {
 	return resourcesLessThan(left.nodeResources, right.nodeResources)
 }
 
-func sortNodes(useExperimentalHostPriorities bool, nodes []*v1.Node, availableResources resources.NodeGroupResources) {
+func getNodeNamesInPriorityOrder(useExperimentalHostPriorities bool, nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) []string {
+	nodeNames := getNodeNames(nodesSchedulingMetadata)
 	if !useExperimentalHostPriorities {
-		sort.Slice(nodes, func(i, j int) bool {
-			return nodes[j].CreationTimestamp.Before(&nodes[i].CreationTimestamp)
+		sort.Slice(nodeNames, func(i, j int) bool {
+			return nodesSchedulingMetadata[nodeNames[j]].CreationTimestamp.Before(nodesSchedulingMetadata[nodeNames[i]].CreationTimestamp)
 		})
-		return
+		return nodeNames
 	}
 
-	var nodesByAZ = groupNodesByAZ(nodes)
-	var allAzLabels = getAllAZLabels(nodesByAZ)
-	var availableResourcesByAZ = getAvailableResourcesByAZ(nodesByAZ, availableResources)
+	var nodeNamesByAZ = groupNodeNamesByAZ(nodesSchedulingMetadata)
+	var allAzLabels = getAllAZLabels(nodeNamesByAZ)
+	var availableResourcesByAZ = getAvailableResourcesByAZ(nodeNamesByAZ, nodesSchedulingMetadata)
 
 	sort.Slice(allAzLabels, func(i, j int) bool {
 		return resourcesLessThan(availableResourcesByAZ[allAzLabels[i]], availableResourcesByAZ[allAzLabels[j]])
 	})
 
-	var scheduleContexts = make(map[string]scheduleContext, len(nodes))
+	var scheduleContexts = make(map[string]scheduleContext, len(nodeNames))
 	for azPriority, azLabel := range allAzLabels {
-		for _, node := range nodesByAZ[azLabel] {
-			scheduleContexts[node.Name] = scheduleContext{
+		for _, nodeName := range nodeNamesByAZ[azLabel] {
+			scheduleContexts[nodeName] = scheduleContext{
 				azPriority,
-				availableResources[node.Name],
+				nodesSchedulingMetadata[nodeName].AvailableResources,
 			}
 		}
 	}
 
-	sort.Slice(nodes, func(i, j int) bool {
-		return scheduleContextLessThan(scheduleContexts[nodes[i].Name], scheduleContexts[nodes[j].Name])
+	sort.Slice(nodeNames, func(i, j int) bool {
+		return scheduleContextLessThan(scheduleContexts[nodeNames[i]], scheduleContexts[nodeNames[j]])
 	})
+
+	return nodeNames
 }
 
-func getAvailableResourcesByAZ(nodesByAZ map[string][]*v1.Node, availableResources resources.NodeGroupResources) map[string]*resources.Resources {
+func getAvailableResourcesByAZ(nodesByAZ map[string][]string, nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) map[string]*resources.Resources {
 	var availableResourcesByAZ = make(map[string]*resources.Resources, len(nodesByAZ))
 	for azLabel, nodesInAz := range nodesByAZ {
 		var azResources = resources.Zero()
-		for _, node := range nodesInAz {
-			azResources.Add(availableResources[node.Name])
+		for _, nodeName := range nodesInAz {
+			azResources.Add(nodesSchedulingMetadata[nodeName].AvailableResources)
 		}
 		availableResourcesByAZ[azLabel] = azResources
 	}
 	return availableResourcesByAZ
 }
 
-func groupNodesByAZ(nodes []*v1.Node) map[string][]*v1.Node {
-	nodesByAZ := make(map[string][]*v1.Node)
-	for i, node := range nodes {
-		azLabel, ok := node.Labels[v1.LabelZoneFailureDomain]
-		if !ok {
-			azLabel = zonePlaceholder
-		}
-		nodesByAZ[azLabel] = append(nodesByAZ[azLabel], nodes[i])
+func groupNodeNamesByAZ(nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) map[string][]string {
+	nodesByAZ := make(map[string][]string)
+	for nodeName, nodeSchedulingMetadata := range nodesSchedulingMetadata {
+		azLabel := nodeSchedulingMetadata.ZoneLabel
+		nodesByAZ[azLabel] = append(nodesByAZ[azLabel], nodeName)
 	}
 	return nodesByAZ
 }
 
-func getAllAZLabels(nodeGroupsByAZ map[string][]*v1.Node) []string {
-	azLabels := make([]string, 0, len(nodeGroupsByAZ))
-	for key := range nodeGroupsByAZ {
+func getAllAZLabels(nodesByAZ map[string][]string) []string {
+	azLabels := make([]string, 0)
+	for key := range nodesByAZ {
 		azLabels = append(azLabels, key)
 	}
 	return azLabels
+}
+
+func getNodeNames(nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) []string {
+	nodeNames := make([]string, 0, len(nodesSchedulingMetadata))
+	for key := range nodesSchedulingMetadata {
+		nodeNames = append(nodeNames, key)
+	}
+	return nodeNames
 }
