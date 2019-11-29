@@ -8,7 +8,7 @@ working_dir: &working_dir
 darwin-linux-no-cgo: &darwin-linux-no-cgo
   <<: *working_dir
   docker:
-    - image: nmiyake/go:go-darwin-linux-no-cgo-1.11.2-java-8u181-t137
+    - image: palantirtechnologies/go:go-darwin-linux-no-cgo-1.13.4-java-11-t28
       environment:
         CGO_ENABLED: 0
 
@@ -16,7 +16,7 @@ darwin-linux-no-cgo: &darwin-linux-no-cgo
 go-docker: &go-docker
   <<: *working_dir
   docker:
-    - image: nmiyake/go:go-1.11.2-docker-17.06.0-ce-t137
+    - image: palantirtechnologies/go:go-1.13.4-docker-17.12.1-ce-t28
 
 # Operations for saving and loading gödel cache, which contains all of the plugin and asset executables. Cache is keyed
 # on checksum of godelw and godel/config/godel.yml, as the content of these files should be enough to identify the
