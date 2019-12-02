@@ -213,6 +213,12 @@ func NewNode(name string) v1.Node {
 				v1.ResourceCPU:    *resource.NewQuantity(8, resource.DecimalSI),
 				v1.ResourceMemory: *resource.NewQuantity(8*1024*1024*1024, resource.BinarySI),
 			},
+			Conditions: []v1.NodeCondition{
+				{
+					Type:   v1.NodeReady,
+					Status: v1.ConditionTrue,
+				},
+			},
 		},
 	}
 }
