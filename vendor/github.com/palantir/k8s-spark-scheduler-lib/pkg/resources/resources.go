@@ -66,11 +66,19 @@ func NodeSchedulingMetadataForNodes(nodes []*v1.Node, currentUsage NodeGroupReso
 		if !ok {
 			zoneLabel = zoneLabelPlaceholder
 		}
+
+		nodeReady := false
+		for _, condition := range node.Status.Conditions {
+			if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
+				nodeReady = true
+			}
+		}
 		nodeGroupSchedulingMetadata[node.Name] = &NodeSchedulingMetadata{
 			AvailableResources: subtractFromResourceList(node.Status.Allocatable, currentUsageForNode),
 			CreationTimestamp:  node.CreationTimestamp.Time,
 			ZoneLabel:          zoneLabel,
 			Unschedulable:      node.Spec.Unschedulable,
+			Ready:              nodeReady,
 		}
 	}
 	return nodeGroupSchedulingMetadata
@@ -133,6 +141,7 @@ type NodeSchedulingMetadata struct {
 	CreationTimestamp  time.Time
 	ZoneLabel          string
 	Unschedulable      bool
+	Ready              bool
 }
 
 // Zero returns a Resources object with quantities of zero
