@@ -171,7 +171,6 @@
   revision = "a1d3024b37d8cdd6c19d748051f7228155f0a0d9"
 
 [[projects]]
-  branch = "aj/node-ready"
   digest = "1:eca6161234acc67c6a88635f7da9997cfa121e5aedf8cef03a7277dbc8b2ce63"
   name = "github.com/palantir/k8s-spark-scheduler-lib"
   packages = [
@@ -197,7 +196,8 @@
     "pkg/resources",
   ]
   pruneopts = "UT"
-  revision = "610b35a6f609c4443c59fa29663827209f22eed7"
+  revision = "3bd80935dd3983c4978df92889e0a87dd128f92e"
+  version = "0.2.1"
 
 [[projects]]
   digest = "1:adda8befb1b3e6b1f939034d4396a12570348c97412847bd819c4d8ec29e5d9c"

@@ -18,7 +18,7 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
 
 [[constraint]]
   name = "github.com/palantir/k8s-spark-scheduler-lib"
-  branch = "aj/node-ready"
+  version = "0.2.1"
 
 [[constraint]]
   version = "kubernetes-1.14.9"
