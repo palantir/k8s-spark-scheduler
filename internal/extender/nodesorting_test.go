@@ -138,18 +138,21 @@ func TestAZAwareNodeSortingWorksIfZoneLabelIsMissing(t *testing.T) {
 			CPU:    two,
 			Memory: one,
 		},
+		Ready: true,
 	}
 	node2SchedulingMetadata := &resources.NodeSchedulingMetadata{
 		AvailableResources: &resources.Resources{
 			CPU:    two,
 			Memory: one,
 		},
+		Ready: true,
 	}
 	node3SchedulingMetadata := &resources.NodeSchedulingMetadata{
 		AvailableResources: &resources.Resources{
 			CPU:    one,
 			Memory: one,
 		},
+		Ready: true,
 	}
 
 	nodesSchedulingMetadata := resources.NodeGroupSchedulingMetadata{

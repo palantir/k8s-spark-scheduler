@@ -309,7 +309,7 @@ func (s *SparkSchedulerExtender) potentialNodes(availableNodesSchedulingMetadata
 		if _, ok := nodeNamesSet[nodeName]; ok {
 			driverNodeNames = append(driverNodeNames, nodeName)
 		}
-		if !availableNodesSchedulingMetadata[nodeName].Unschedulable {
+		if !availableNodesSchedulingMetadata[nodeName].Unschedulable && availableNodesSchedulingMetadata[nodeName].Ready {
 			executorNodeNames = append(executorNodeNames, nodeName)
 		}
 	}

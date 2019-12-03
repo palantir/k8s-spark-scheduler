@@ -48,7 +48,7 @@ func (s *SparkSchedulerExtender) syncResourceReservationsAndDemands(ctx context.
 	rrs := s.resourceReservations.List()
 	overhead := s.overheadComputer.GetOverhead(ctx, nodes)
 	softReservationOverhead := s.softReservationStore.UsedSoftReservationResources()
-	availableResources, orderedNodes := availableResourcesPerInstanceGroup(ctx, s.instanceGroupLabel, rrs, nodes, overhead, softReservationOverhead)
+	availableResources, orderedNodes := availableResourcesPerInstanceGroup(s.instanceGroupLabel, rrs, nodes, overhead, softReservationOverhead)
 	staleSparkPods := unreservedSparkPodsBySparkID(ctx, rrs, s.softReservationStore, pods)
 	svc1log.FromContext(ctx).Info("starting reconciliation", svc1log.SafeParam("appCount", len(staleSparkPods)))
 
@@ -278,7 +278,6 @@ func isNotScheduledSparkPod(pod *v1.Pod) bool {
 }
 
 func availableResourcesPerInstanceGroup(
-	ctx context.Context,
 	instanceGroupLabel string,
 	rrs []*v1beta1.ResourceReservation,
 	nodes []*v1.Node,
@@ -293,6 +292,17 @@ func availableResourcesPerInstanceGroup(
 		if n.Spec.Unschedulable {
 			continue
 		}
+
+		nodeReady := false
+		for _, n := range n.Status.Conditions {
+			if n.Type == v1.NodeReady && n.Status == v1.ConditionTrue {
+				nodeReady = true
+			}
+		}
+		if !nodeReady {
+			continue
+		}
+
 		instanceGroup := instanceGroup(n.Labels[instanceGroupLabel])
 		schedulableNodes[instanceGroup] = append(schedulableNodes[instanceGroup], n)
 	}
