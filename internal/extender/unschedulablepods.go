@@ -23,6 +23,7 @@ import (
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithm/predicates"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
@@ -117,7 +118,9 @@ func (u *UnschedulablePodMarker) scanForUnschedulablePods(ctx context.Context) {
 
 // DoesPodExceedClusterCapacity checks if the provided driver pod could ever fit to the cluster
 func (u *UnschedulablePodMarker) DoesPodExceedClusterCapacity(ctx context.Context, driver *v1.Pod) (bool, error) {
-	nodes, err := u.nodeLister.List(labels.Set(driver.Spec.NodeSelector).AsSelector())
+	nodes, err := u.nodeLister.ListWithPredicate(func(node *v1.Node) bool {
+		return predicates.PodMatchesNodeSelectorAndAffinityTerms(driver, node)
+	});
 	if err != nil {
 		return false, err
 	}

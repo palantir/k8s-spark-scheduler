@@ -103,16 +103,34 @@ func NewExtender(
 	}
 }
 
+func findInstanceGroup(podSpec v1.PodSpec, instanceGroupLabel string) (instanceGroup string, success bool) {
+	for _, nodeSelectorTerm := range podSpec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
+		for _, matchExpression := range nodeSelectorTerm.MatchExpressions {
+			if matchExpression.Key == instanceGroupLabel {
+				if len(matchExpression.Values) == 1 {
+					return matchExpression.Values[0], true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
 // Predicate is responsible for returning a filtered list of nodes that qualify to schedule the pod provided in the
 // ExtenderArgs
 func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerapi.ExtenderArgs) *schedulerapi.ExtenderFilterResult {
 	params := internal.PodSafeParams(args.Pod)
 	role := args.Pod.Labels[SparkRoleLabel]
-	instanceGroup := args.Pod.Spec.NodeSelector[s.instanceGroupLabel]
-	params["podSparkRole"] = role
-	params["instanceGroup"] = instanceGroup
 	ctx = svc1log.WithLoggerParams(ctx, svc1log.SafeParams(params))
 	logger := svc1log.FromContext(ctx)
+	instanceGroup, success := findInstanceGroup(args.Pod.Spec, s.instanceGroupLabel)
+	if !success {
+		msg := "failed to get instance group"
+		logger.Error(msg)
+		return failWithMessage(ctx, args, msg)
+	}
+	params["podSparkRole"] = role
+	params["instanceGroup"] = instanceGroup
 
 	timer := metrics.NewScheduleTimer(ctx, instanceGroup, &args.Pod)
 	logger.Info("starting scheduling pod")
@@ -237,7 +255,12 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 			svc1log.SafeParam("nodeNames", nodeNames))
 		return driverReservedNode, success, nil
 	}
-	availableNodes, err := s.nodeLister.List(labels.Set(driver.Spec.NodeSelector).AsSelector())
+	instanceGroup, ok := findInstanceGroup(driver.Spec, s.instanceGroupLabel)
+	if !ok {
+		return "", failureEarlierDriver, werror.Error("Could not find instance group label on driver.")
+	}
+
+	availableNodes, err := s.nodeLister.List(labels.Set(map[string]string{s.instanceGroupLabel: instanceGroup}).AsSelector())
 	if err != nil {
 		return "", failureInternal, err
 	}

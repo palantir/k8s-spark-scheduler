@@ -74,7 +74,7 @@ func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context,
 }
 
 func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, demandUnits []demandapi.DemandUnit) {
-	instanceGroup, ok := pod.Spec.NodeSelector[s.instanceGroupLabel]
+	instanceGroup, ok := findInstanceGroup(pod.Spec, s.instanceGroupLabel)
 	if !ok {
 		svc1log.FromContext(ctx).Error("No instanceGroup label exists. Cannot map to InstanceGroup. Skipping demand object",
 			svc1log.SafeParam("expectedLabel", s.instanceGroupLabel))
