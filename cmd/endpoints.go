@@ -22,7 +22,7 @@ import (
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-server/rest"
 	"github.com/palantir/witchcraft-go-server/wrouter"
-	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
+	schedulerapi "k8s.io/kubernetes/pkg/scheduler/api"
 )
 
 func registerExtenderEndpoints(r wrouter.Router, sparkSchedulerExtender *extender.SparkSchedulerExtender) error {
