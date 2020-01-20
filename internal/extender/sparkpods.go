@@ -94,7 +94,7 @@ func filterToEarliestAndSort(driver *v1.Pod, allDrivers []*v1.Pod, instanceGroup
 		// add only unscheduled drivers with the same instance group and targeted to the same scheduler
 		if len(p.Spec.NodeName) == 0 &&
 			p.Spec.SchedulerName == driver.Spec.SchedulerName &&
-			findInstanceGroup(p.Spec, instanceGroupLabel) == findInstanceGroup(driver.Spec, instanceGroupLabel) &&
+			FindInstanceGroup(p.Spec, instanceGroupLabel) == FindInstanceGroup(driver.Spec, instanceGroupLabel) &&
 			p.CreationTimestamp.Before(&driver.CreationTimestamp) &&
 			p.DeletionTimestamp == nil {
 			earlierDrivers = append(earlierDrivers, p)
