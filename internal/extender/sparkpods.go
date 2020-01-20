@@ -17,6 +17,7 @@ package extender
 import (
 	"context"
 	"fmt"
+	"github.com/palantir/k8s-spark-scheduler/internal"
 	"sort"
 	"strconv"
 
@@ -94,7 +95,7 @@ func filterToEarliestAndSort(driver *v1.Pod, allDrivers []*v1.Pod, instanceGroup
 		// add only unscheduled drivers with the same instance group and targeted to the same scheduler
 		if len(p.Spec.NodeName) == 0 &&
 			p.Spec.SchedulerName == driver.Spec.SchedulerName &&
-			FindInstanceGroup(p.Spec, instanceGroupLabel) == FindInstanceGroup(driver.Spec, instanceGroupLabel) &&
+			internal.FindInstanceGroupFromNodeAffinity(p.Spec, instanceGroupLabel) == FindInstanceGroupFromNodeAffinity(driver.Spec, instanceGroupLabel) &&
 			p.CreationTimestamp.Before(&driver.CreationTimestamp) &&
 			p.DeletionTimestamp == nil {
 			earlierDrivers = append(earlierDrivers, p)

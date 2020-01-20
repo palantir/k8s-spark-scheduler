@@ -16,7 +16,7 @@ package metrics
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal/extender"
+	"github.com/palantir/k8s-spark-scheduler/internal"
 	"time"
 
 	"github.com/palantir/pkg/metrics"
@@ -129,7 +129,7 @@ func (p PodHistograms) Inc(key PodTags) {
 
 // MarkTimes inspects pod conditions and marks lifecycle transition times
 func (p PodHistograms) MarkTimes(ctx context.Context, pod *v1.Pod, instanceGroupTagLabel string, now time.Time) {
-	ig, _ := extender.FindInstanceGroup(pod.Spec, instanceGroupTagLabel)
+	ig, _ := internal.FindInstanceGroupFromNodeAffinity(pod.Spec, instanceGroupTagLabel)
 	instanceGroupTag := InstanceGroupTag(ctx, ig)
 	sparkRoleTag := SparkRoleTag(ctx, pod.Labels[sparkRoleLabel])
 	podConditions := NewSparkPodConditions(pod.Status.Conditions)

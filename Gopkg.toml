@@ -29,10 +29,6 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
   name = "k8s.io/apimachinery"
 
 [[constraint]]
-  version = "kubernetes-1.14.9"
-  name = "k8s.io/pkg"
-
-[[constraint]]
   version = "v1.1.0"
   name = "github.com/palantir/witchcraft-go-logging"
 

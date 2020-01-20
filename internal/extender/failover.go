@@ -127,7 +127,7 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 				svc1log.SafeParam("appID", sp.appID), svc1log.Stacktrace(err))
 			return nil
 		}
-		ig, _ := FindInstanceGroup(sp.inconsistentDriver.Spec, r.instanceGroupLabel)
+		ig, _ := internal.FindInstanceGroupFromNodeAffinity(sp.inconsistentDriver.Spec, r.instanceGroupLabel)
 		instanceGroup := instanceGroup(ig)
 		endIdx := int(math.Min(float64(len(sp.inconsistentExecutors)), float64(appResources.minExecutorCount)))
 		executorsUpToMin := sp.inconsistentExecutors[0:endIdx]
