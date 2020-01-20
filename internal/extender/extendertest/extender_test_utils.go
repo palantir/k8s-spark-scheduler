@@ -268,9 +268,27 @@ func sparkApplicationPods(sparkApplicationID string, driverAnnotations map[strin
 			Annotations: driverAnnotations,
 		},
 		Spec: v1.PodSpec{
-			NodeSelector: map[string]string{
-				"resource_channel":                  "batch-medium-priority",
-				"com.palantir.rubix/instance-group": "batch-medium-priority",
+			Affinity: &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+						NodeSelectorTerms: []v1.NodeSelectorTerm{
+							{
+								MatchExpressions: []v1.NodeSelectorRequirement{
+									{
+										Key:      "resource_channel",
+										Operator: v1.NodeSelectorOpIn,
+										Values:   []string{"batch-medium-priority"},
+									},
+									{
+										Key:      "com.palantir.rubix/instance-group",
+										Operator: v1.NodeSelectorOpIn,
+										Values:   []string{"batch-medium-priority" },
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 		Status: v1.PodStatus{
@@ -292,8 +310,22 @@ func sparkApplicationPods(sparkApplicationID string, driverAnnotations map[strin
 				},
 			},
 			Spec: v1.PodSpec{
-				NodeSelector: map[string]string{
-					"resource_channel": resourceChannel,
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "resource_channel",
+											Operator: v1.NodeSelectorOpIn,
+											Values:   []string{resourceChannel},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 			Status: v1.PodStatus{

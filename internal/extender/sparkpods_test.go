@@ -114,7 +114,23 @@ func createPod(seconds int64, uid, instanceGroupLabel, instanceGroup string) *v1
 			CreationTimestamp: metav1.NewTime(time.Unix(seconds, 0)),
 		},
 		Spec: v1.PodSpec{
-			NodeSelector: map[string]string{instanceGroupLabel: instanceGroup},
+			Affinity: &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+						NodeSelectorTerms: []v1.NodeSelectorTerm{
+							{
+								MatchExpressions: []v1.NodeSelectorRequirement{
+									{
+										Key:      instanceGroupLabel,
+										Operator: v1.NodeSelectorOpIn,
+										Values:   []string{instanceGroup},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 }
