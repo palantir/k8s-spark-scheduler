@@ -90,10 +90,11 @@ func (s SparkPodLister) ListEarlierDrivers(driver *v1.Pod) ([]*v1.Pod, error) {
 func filterToEarliestAndSort(driver *v1.Pod, allDrivers []*v1.Pod, instanceGroupLabel string) []*v1.Pod {
 	earlierDrivers := make([]*v1.Pod, 0, 10)
 	for _, p := range allDrivers {
+
 		// add only unscheduled drivers with the same instance group and targeted to the same scheduler
 		if len(p.Spec.NodeName) == 0 &&
 			p.Spec.SchedulerName == driver.Spec.SchedulerName &&
-			p.Spec.NodeSelector[instanceGroupLabel] == driver.Spec.NodeSelector[instanceGroupLabel] &&
+			findInstanceGroup(p.Spec, instanceGroupLabel) == findInstanceGroup(driver.Spec, instanceGroupLabel) &&
 			p.CreationTimestamp.Before(&driver.CreationTimestamp) &&
 			p.DeletionTimestamp == nil {
 			earlierDrivers = append(earlierDrivers, p)

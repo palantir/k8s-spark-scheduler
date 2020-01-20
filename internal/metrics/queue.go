@@ -126,9 +126,23 @@ func (p PodHistograms) Inc(key PodTags) {
 	p[key].Counter.Inc(1)
 }
 
+func findInstanceGroup(podSpec v1.PodSpec, instanceGroupLabel string) (instanceGroup string, success bool) {
+	for _, nodeSelectorTerm := range podSpec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
+		for _, matchExpression := range nodeSelectorTerm.MatchExpressions {
+			if matchExpression.Key == instanceGroupLabel {
+				if len(matchExpression.Values) == 1 {
+					return matchExpression.Values[0], true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
 // MarkTimes inspects pod conditions and marks lifecycle transition times
 func (p PodHistograms) MarkTimes(ctx context.Context, pod *v1.Pod, instanceGroupTagLabel string, now time.Time) {
-	instanceGroupTag := InstanceGroupTag(ctx, pod.Spec.NodeSelector[instanceGroupTagLabel])
+	ig, _ := findInstanceGroup(pod.Spec, instanceGroupTagLabel)
+	instanceGroupTag := InstanceGroupTag(ctx, ig)
 	sparkRoleTag := SparkRoleTag(ctx, pod.Labels[sparkRoleLabel])
 	podConditions := NewSparkPodConditions(pod.Status.Conditions)
 
