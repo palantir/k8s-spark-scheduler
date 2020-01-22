@@ -243,7 +243,7 @@
   revision = "a1d3024b37d8cdd6c19d748051f7228155f0a0d9"
 
 [[projects]]
-  digest = "1:89f77d43261ade49deca7691b180cc03f10d980434491f0870619c1b72cd7b93"
+  digest = "1:e26ddcfb84c084e71c20aef969e3a00ddbef631a9c76ae373321e71014e46a86"
   name = "github.com/palantir/k8s-spark-scheduler-lib"
   packages = [
     "pkg/apis/scaler/v1alpha1",
@@ -268,8 +268,8 @@
     "pkg/resources",
   ]
   pruneopts = "UT"
-  revision = "449951e1af649a97acb2653d16bc1a9a3e03d9f1"
-  version = "v0.2.3"
+  revision = "c7f4733c4ca0109c0ec75f6a4e3b7441028a414c"
+  version = "v0.2.4"
 
 [[projects]]
   digest = "1:adda8befb1b3e6b1f939034d4396a12570348c97412847bd819c4d8ec29e5d9c"
@@ -1263,6 +1263,7 @@
     "k8s.io/kubernetes/pkg/api/v1/pod",
     "k8s.io/kubernetes/pkg/scheduler/algorithm/predicates",
     "k8s.io/kubernetes/pkg/scheduler/api",
+    "k8s.io/kubernetes/pkg/scheduler/apis/extender/v1",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1
