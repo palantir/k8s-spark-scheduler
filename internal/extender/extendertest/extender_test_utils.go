@@ -35,7 +35,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
-	schedulerapi "k8s.io/kubernetes/pkg/scheduler/api"
+	schedulerapi "k8s.io/kubernetes/pkg/scheduler/apis/extender/v1"
 )
 
 const (
@@ -153,7 +153,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 // Schedule calls the extender's Predicate method for the given pod and nodes
 func (h *Harness) Schedule(pod v1.Pod, nodeNames []string) *schedulerapi.ExtenderFilterResult {
 	return h.Extender.Predicate(h.Ctx, schedulerapi.ExtenderArgs{
-		Pod:       pod,
+		Pod:       &pod,
 		NodeNames: &nodeNames,
 	})
 }
