@@ -169,4 +169,4 @@ workflows:
       - push-docker-release:
           <<: *release-requires-filter
       - push-docker-snapshot:
-          <<: *master-requires-filter
+          <<: *all-tags-filter
