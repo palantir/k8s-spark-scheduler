@@ -110,7 +110,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 	role := args.Pod.Labels[SparkRoleLabel]
 	ctx = svc1log.WithLoggerParams(ctx, svc1log.SafeParams(params))
 	logger := svc1log.FromContext(ctx)
-	instanceGroup, success := internal.FindInstanceGroupFromNodeAffinity(args.Pod.Spec, s.instanceGroupLabel)
+	instanceGroup, success := internal.FindInstanceGroupFromPodSpec(args.Pod.Spec, s.instanceGroupLabel)
 	if !success {
 		msg := "failed to get instance group"
 		logger.Error(msg)
@@ -242,7 +242,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 			svc1log.SafeParam("nodeNames", nodeNames))
 		return driverReservedNode, success, nil
 	}
-	instanceGroup, ok := internal.FindInstanceGroupFromNodeAffinity(driver.Spec, s.instanceGroupLabel)
+	instanceGroup, ok := internal.FindInstanceGroupFromPodSpec(driver.Spec, s.instanceGroupLabel)
 	if !ok {
 		return "", failureEarlierDriver, werror.Error("Could not find instance group label on driver.")
 	}

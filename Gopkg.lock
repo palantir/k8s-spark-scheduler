@@ -1137,7 +1137,7 @@
   revision = "33be087ad058f99c78e067996202b60230737e49"
 
 [[projects]]
-  digest = "1:7c398bfcea552426a79a8b19794bbacb398d9973d33b2ad68f8efb3f4372c50f"
+  digest = "1:250c3ea7aad7481211482791b46c73197c8a0807f024e64a868a3969e944d068"
   name = "k8s.io/kubernetes"
   packages = [
     "pkg/api/legacyscheme",
@@ -1154,7 +1154,6 @@
     "pkg/scheduler/algorithm",
     "pkg/scheduler/algorithm/predicates",
     "pkg/scheduler/algorithm/priorities/util",
-    "pkg/scheduler/api",
     "pkg/scheduler/apis/extender/v1",
     "pkg/scheduler/listers",
     "pkg/scheduler/nodeinfo",
@@ -1262,7 +1261,6 @@
     "k8s.io/code-generator/cmd/client-gen",
     "k8s.io/kubernetes/pkg/api/v1/pod",
     "k8s.io/kubernetes/pkg/scheduler/algorithm/predicates",
-    "k8s.io/kubernetes/pkg/scheduler/api",
     "k8s.io/kubernetes/pkg/scheduler/apis/extender/v1",
   ]
   solver-name = "gps-cdcl"

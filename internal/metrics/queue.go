@@ -16,9 +16,9 @@ package metrics
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal"
 	"time"
 
+	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
@@ -129,7 +129,7 @@ func (p PodHistograms) Inc(key PodTags) {
 
 // MarkTimes inspects pod conditions and marks lifecycle transition times
 func (p PodHistograms) MarkTimes(ctx context.Context, pod *v1.Pod, instanceGroupTagLabel string, now time.Time) {
-	ig, _ := internal.FindInstanceGroupFromNodeAffinity(pod.Spec, instanceGroupTagLabel)
+	ig, _ := internal.FindInstanceGroupFromPodSpec(pod.Spec, instanceGroupTagLabel)
 	instanceGroupTag := InstanceGroupTag(ctx, ig)
 	sparkRoleTag := SparkRoleTag(ctx, pod.Labels[sparkRoleLabel])
 	podConditions := NewSparkPodConditions(pod.Status.Conditions)

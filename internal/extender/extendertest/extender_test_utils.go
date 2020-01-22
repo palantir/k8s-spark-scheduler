@@ -282,7 +282,7 @@ func sparkApplicationPods(sparkApplicationID string, driverAnnotations map[strin
 									{
 										Key:      "com.palantir.rubix/instance-group",
 										Operator: v1.NodeSelectorOpIn,
-										Values:   []string{"batch-medium-priority" },
+										Values:   []string{"batch-medium-priority"},
 									},
 								},
 							},
