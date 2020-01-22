@@ -21,12 +21,16 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
   version = "0.2.1"
 
 [[constraint]]
-  version = "kubernetes-1.14.9"
+  version = "kubernetes-1.17.2"
   name = "k8s.io/client-go"
 
 [[constraint]]
-  version = "kubernetes-1.14.9"
+  version = "kubernetes-1.17.2"
   name = "k8s.io/apimachinery"
+
+[[constraint]]
+  version = "kubernetes-1.17.2"
+  name = "k8s.io/apiextensions-apiserver"
 
 [[constraint]]
   version = "v1.1.0"

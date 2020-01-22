@@ -50,7 +50,7 @@
   version = "v4.5.0"
 
 [[projects]]
-  digest = "1:cd559bf134bbedd0dfd5db4d988c88d8f96674fa3f2af0cb5b0dcd5fc0a0a019"
+  digest = "1:cb6758edd8bf662d8a8cc4d17d08b98c541b4c74fc87baa11d2f2b18ffb09da2"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
@@ -59,8 +59,8 @@
     "sortkeys",
   ]
   pruneopts = "UT"
-  revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
-  version = "v1.0.0"
+  revision = "5628607bb4c51c3157aacc3a50f0ab707582b805"
+  version = "v1.3.1"
 
 [[projects]]
   branch = "master"
@@ -79,7 +79,7 @@
   revision = "215e87163ea771ffa998a96c611387313bb5a403"
 
 [[projects]]
-  digest = "1:17fe264ee908afc795734e8c4e63db2accabaf57326dbf21763a7d6b86096260"
+  digest = "1:f5ce1529abc1204444ec73779f44f94e2fa8fcdb7aca3c355b0c95947e4005c6"
   name = "github.com/golang/protobuf"
   packages = [
     "proto",
@@ -89,8 +89,22 @@
     "ptypes/timestamp",
   ]
   pruneopts = "UT"
-  revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
-  version = "v1.1.0"
+  revision = "6c65a5562fc06764971b7c5d05c76c75e84bdbf7"
+  version = "v1.3.2"
+
+[[projects]]
+  digest = "1:0aeda02073125667ac6c9df50c7921cb22c08a4accdc54589c697a7e76be65c2"
+  name = "github.com/google/go-cmp"
+  packages = [
+    "cmp",
+    "cmp/internal/diff",
+    "cmp/internal/flags",
+    "cmp/internal/function",
+    "cmp/internal/value",
+  ]
+  pruneopts = "UT"
+  revision = "5a6f75716e1203a923a78c9efb94089d857df0f6"
+  version = "v0.4.0"
 
 [[projects]]
   branch = "master"
@@ -229,7 +243,7 @@
   revision = "a1d3024b37d8cdd6c19d748051f7228155f0a0d9"
 
 [[projects]]
-  digest = "1:eca6161234acc67c6a88635f7da9997cfa121e5aedf8cef03a7277dbc8b2ce63"
+  digest = "1:89f77d43261ade49deca7691b180cc03f10d980434491f0870619c1b72cd7b93"
   name = "github.com/palantir/k8s-spark-scheduler-lib"
   packages = [
     "pkg/apis/scaler/v1alpha1",
@@ -254,8 +268,8 @@
     "pkg/resources",
   ]
   pruneopts = "UT"
-  revision = "3bd80935dd3983c4978df92889e0a87dd128f92e"
-  version = "0.2.1"
+  revision = "449951e1af649a97acb2653d16bc1a9a3e03d9f1"
+  version = "v0.2.3"
 
 [[projects]]
   digest = "1:adda8befb1b3e6b1f939034d4396a12570348c97412847bd819c4d8ec29e5d9c"
@@ -348,14 +362,6 @@
   pruneopts = "UT"
   revision = "fa24fe4ff2f1bd0dc8a8b0e019e8a41928667572"
   version = "1.0.0"
-
-[[projects]]
-  digest = "1:e5d0bd87abc2781d14e274807a470acd180f0499f8bf5bb18606e9ec22ad9de9"
-  name = "github.com/pborman/uuid"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1"
-  version = "v1.2"
 
 [[projects]]
   digest = "1:40e195917a951a8bf867cd05de2a46aaf1806c50cf92eebf4c16f78cd196f747"
@@ -694,9 +700,10 @@
   version = "v2.2.1"
 
 [[projects]]
-  digest = "1:c1eecbff5fa39a78676e0a7ed245be7338ef18e5566479bbe0e76f1ef852cd0c"
+  digest = "1:cd7322a2669aba7fe506383dc31ece3881fc3e39ccac5334360c50f946a8ade4"
   name = "k8s.io/api"
   packages = [
+    "admissionregistration/v1",
     "admissionregistration/v1beta1",
     "apps/v1",
     "apps/v1beta1",
@@ -716,8 +723,11 @@
     "coordination/v1",
     "coordination/v1beta1",
     "core/v1",
+    "discovery/v1alpha1",
+    "discovery/v1beta1",
     "events/v1beta1",
     "extensions/v1beta1",
+    "flowcontrol/v1alpha1",
     "networking/v1",
     "networking/v1beta1",
     "node/v1alpha1",
@@ -735,30 +745,34 @@
     "storage/v1beta1",
   ]
   pruneopts = "UT"
-  revision = "159aefb8556bb8ed4be7631461d1558546d304db"
-  version = "kubernetes-1.14.9"
+  revision = "7ea599edc7fd1198238be103353ca78eef24ae63"
+  version = "v0.17.2"
 
 [[projects]]
-  digest = "1:5b8625b724db2d4cb015409219564151f2e6ea28bb566a7994d4d72737588c18"
+  digest = "1:49455b9596a42b662e75b51985c484659d1212cbec86b868c4957e9827a1d473"
   name = "k8s.io/apiextensions-apiserver"
   packages = [
     "pkg/apis/apiextensions",
+    "pkg/apis/apiextensions/v1",
     "pkg/apis/apiextensions/v1beta1",
     "pkg/client/clientset/clientset",
     "pkg/client/clientset/clientset/fake",
     "pkg/client/clientset/clientset/scheme",
+    "pkg/client/clientset/clientset/typed/apiextensions/v1",
+    "pkg/client/clientset/clientset/typed/apiextensions/v1/fake",
     "pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
     "pkg/client/clientset/clientset/typed/apiextensions/v1beta1/fake",
     "pkg/features",
   ]
   pruneopts = "UT"
-  revision = "f299f23b335be42151c8b0fb5bd774892bba6619"
-  version = "kubernetes-1.14.9"
+  revision = "111e9ba415dac090eaeb5a7aed2b90cf94afc0d0"
+  version = "kubernetes-1.17.2"
 
 [[projects]]
-  digest = "1:d28a02556b69a7758d0bd3101bcaa5413ad519bdcc8206d01a9f1cf252343f05"
+  digest = "1:b775e38d0060d0d9b590d2662b8e343a0fb6c1454e22a0867226fe5447db4603"
   name = "k8s.io/apimachinery"
   packages = [
+    "pkg/api/equality",
     "pkg/api/errors",
     "pkg/api/meta",
     "pkg/api/resource",
@@ -806,8 +820,8 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "UT"
-  revision = "c5d2f014d689246b84637774317fa0288dd3129b"
-  version = "kubernetes-1.14.9"
+  revision = "79c2a76c473a20cdc4ce59cae4b72529b5d9d16b"
+  version = "kubernetes-1.17.2"
 
 [[projects]]
   digest = "1:b96543e6598b9fb894645f6230a23f7dfd59b50dbc24daaf1c786f0615a6cb4f"
@@ -825,13 +839,14 @@
   version = "v0.17.1"
 
 [[projects]]
-  digest = "1:348e58dbf8e0ea78e12edccc4e3034270e438f526765bb56ce16bbc7aeeab49c"
+  digest = "1:4914445db09a9b300e7d60c847fd90039bdcc546536e47265f062c4db3d6137c"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
     "discovery/fake",
     "informers",
     "informers/admissionregistration",
+    "informers/admissionregistration/v1",
     "informers/admissionregistration/v1beta1",
     "informers/apps",
     "informers/apps/v1",
@@ -854,10 +869,15 @@
     "informers/coordination/v1beta1",
     "informers/core",
     "informers/core/v1",
+    "informers/discovery",
+    "informers/discovery/v1alpha1",
+    "informers/discovery/v1beta1",
     "informers/events",
     "informers/events/v1beta1",
     "informers/extensions",
     "informers/extensions/v1beta1",
+    "informers/flowcontrol",
+    "informers/flowcontrol/v1alpha1",
     "informers/internalinterfaces",
     "informers/networking",
     "informers/networking/v1",
@@ -884,6 +904,8 @@
     "kubernetes",
     "kubernetes/fake",
     "kubernetes/scheme",
+    "kubernetes/typed/admissionregistration/v1",
+    "kubernetes/typed/admissionregistration/v1/fake",
     "kubernetes/typed/admissionregistration/v1beta1",
     "kubernetes/typed/admissionregistration/v1beta1/fake",
     "kubernetes/typed/apps/v1",
@@ -922,10 +944,16 @@
     "kubernetes/typed/coordination/v1beta1/fake",
     "kubernetes/typed/core/v1",
     "kubernetes/typed/core/v1/fake",
+    "kubernetes/typed/discovery/v1alpha1",
+    "kubernetes/typed/discovery/v1alpha1/fake",
+    "kubernetes/typed/discovery/v1beta1",
+    "kubernetes/typed/discovery/v1beta1/fake",
     "kubernetes/typed/events/v1beta1",
     "kubernetes/typed/events/v1beta1/fake",
     "kubernetes/typed/extensions/v1beta1",
     "kubernetes/typed/extensions/v1beta1/fake",
+    "kubernetes/typed/flowcontrol/v1alpha1",
+    "kubernetes/typed/flowcontrol/v1alpha1/fake",
     "kubernetes/typed/networking/v1",
     "kubernetes/typed/networking/v1/fake",
     "kubernetes/typed/networking/v1beta1",
@@ -956,6 +984,7 @@
     "kubernetes/typed/storage/v1alpha1/fake",
     "kubernetes/typed/storage/v1beta1",
     "kubernetes/typed/storage/v1beta1/fake",
+    "listers/admissionregistration/v1",
     "listers/admissionregistration/v1beta1",
     "listers/apps/v1",
     "listers/apps/v1beta1",
@@ -971,8 +1000,11 @@
     "listers/coordination/v1",
     "listers/coordination/v1beta1",
     "listers/core/v1",
+    "listers/discovery/v1alpha1",
+    "listers/discovery/v1beta1",
     "listers/events/v1beta1",
     "listers/extensions/v1beta1",
+    "listers/flowcontrol/v1alpha1",
     "listers/networking/v1",
     "listers/networking/v1beta1",
     "listers/node/v1alpha1",
@@ -1017,8 +1049,8 @@
     "util/workqueue",
   ]
   pruneopts = "UT"
-  revision = "8e412805300829bc5a39e63eaccfc8a3355e4797"
-  version = "kubernetes-1.14.9"
+  revision = "bdedab45d4f6c8f8ffacb8e269c89e9bb736320f"
+  version = "kubernetes-1.17.2"
 
 [[projects]]
   digest = "1:ae983bcec2876983c24d5b5b3595162ba3b5c04a7f85e3676f18032a467a9f24"
@@ -1146,7 +1178,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:610e24834ed19538f01f18332e6dba4aa68ade5c11feebf4c6d41e0540ea83fc"
+  digest = "1:bda01b55e6e65b10fe39cf9f814321bda0918d27e425d135605031153f10aedc"
   name = "k8s.io/utils"
   packages = [
     "buffer",
@@ -1157,6 +1189,7 @@
     "mount",
     "nsenter",
     "path",
+    "pointer",
     "strings",
     "trace",
   ]
