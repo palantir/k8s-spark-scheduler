@@ -149,17 +149,11 @@ release-requires-filter: &release-requires-filter
     tags:
       only: /^v?[0-9]+(\.[0-9]+)+(-rc[0-9]+)?$/
     branches:
-      ignore: /.*/
-
+      only: /asharma\/affinity/
 # Filter that matches only the "master" branch. Used for jobs that publish snapshots.
 master-requires-filter: &master-requires-filter
   requires: *requires_jobs
-  filters: { tags: { ignore: /.*/ }, branches: { only: /master/ } }
-
-# Filter that matches only the "asharma/affinity" branch(temporarily). Used for jobs that publish snapshots.
-local-requires-filter: &local-requires-filter
-  requires: *requires_jobs
-  filters: { tags: { ignore: /.*/ }, branches: { only: /asharma/affinity/ } }
+  filters: { tags: { ignore: /.*/ }, branches: { only: /asharma\/affinity/ } }
 
 workflows:
   version: 2
@@ -174,4 +168,4 @@ workflows:
       - push-docker-release:
           <<: *release-requires-filter
       - push-docker-snapshot:
-          <<: *local-requires-filter
+          <<: *master-requires-filter
