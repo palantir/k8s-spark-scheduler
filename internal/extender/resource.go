@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
+	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
 	schedulerapi "k8s.io/kubernetes/pkg/scheduler/apis/extender/v1"
 )
 
@@ -242,12 +243,9 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 			svc1log.SafeParam("nodeNames", nodeNames))
 		return driverReservedNode, success, nil
 	}
-	instanceGroup, ok := internal.FindInstanceGroupFromPodSpec(driver.Spec, s.instanceGroupLabel)
-	if !ok {
-		return "", failureEarlierDriver, werror.Error("Could not find instance group label on driver.")
-	}
-
-	availableNodes, err := s.nodeLister.List(labels.Set(map[string]string{s.instanceGroupLabel: instanceGroup}).AsSelector())
+	availableNodes, err := s.nodeLister.ListWithPredicate(func(node *v1.Node) bool {
+		return predicates.PodMatchesNodeSelectorAndAffinityTerms(driver, node)
+	})
 	if err != nil {
 		return "", failureInternal, err
 	}
