@@ -156,6 +156,11 @@ master-requires-filter: &master-requires-filter
   requires: *requires_jobs
   filters: { tags: { ignore: /.*/ }, branches: { only: /master/ } }
 
+# Filter that matches only the "asharma/affinity" branch(temporarily). Used for jobs that publish snapshots.
+local-requires-filter: &local-requires-filter
+  requires: *requires_jobs
+  filters: { tags: { ignore: /.*/ }, branches: { only: /asharma/affinity/ } }
+
 workflows:
   version: 2
   verify:
@@ -169,4 +174,4 @@ workflows:
       - push-docker-release:
           <<: *release-requires-filter
       - push-docker-snapshot:
-          <<: *all-tags-filter
+          <<: *local-requires-filter
