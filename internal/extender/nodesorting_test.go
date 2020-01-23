@@ -16,6 +16,7 @@ package extender
 
 import (
 	"testing"
+	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -138,21 +139,24 @@ func TestAZAwareNodeSortingWorksIfZoneLabelIsMissing(t *testing.T) {
 			CPU:    two,
 			Memory: one,
 		},
-		Ready: true,
+		CreationTimestamp: time.Now(),
+		Ready:             true,
 	}
 	node2SchedulingMetadata := &resources.NodeSchedulingMetadata{
 		AvailableResources: &resources.Resources{
 			CPU:    two,
-			Memory: one,
+			Memory: two,
 		},
-		Ready: true,
+		CreationTimestamp: time.Now(),
+		Ready:             true,
 	}
 	node3SchedulingMetadata := &resources.NodeSchedulingMetadata{
 		AvailableResources: &resources.Resources{
 			CPU:    one,
 			Memory: one,
 		},
-		Ready: true,
+		CreationTimestamp: time.Now(),
+		Ready:             true,
 	}
 
 	nodesSchedulingMetadata := resources.NodeGroupSchedulingMetadata{
