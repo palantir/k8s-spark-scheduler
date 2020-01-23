@@ -18,6 +18,13 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+// MatchPodInstanceGroup compares instance group label on given Pod specs.
+func MatchPodInstanceGroup(pod1 *v1.Pod, pod2 *v1.Pod, instanceGroupLabel string) bool {
+	instanceGroup1, success1 := FindInstanceGroupFromPodSpec(pod1.Spec, instanceGroupLabel)
+	instanceGroup2, success2 := FindInstanceGroupFromPodSpec(pod2.Spec, instanceGroupLabel)
+	return success1 && success1 == success2 && instanceGroup1 == instanceGroup2
+}
+
 // FindInstanceGroupFromPodSpec extracts the instance group from a Pod spec.
 func FindInstanceGroupFromPodSpec(podSpec v1.PodSpec, instanceGroupLabel string) (instanceGroup string, success bool) {
 	for _, nodeSelectorTerm := range podSpec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {

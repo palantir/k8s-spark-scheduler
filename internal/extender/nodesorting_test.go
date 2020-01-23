@@ -173,7 +173,7 @@ func compareActualToExpected(actualNodes []string, expectedResult []string, t *t
 	}
 	for i, expectedNode := range expectedResult {
 		if expectedNode != actualNodes[i] {
-			t.Error("Each element in the sorted result should match the expected result. Element unmatched: ", i)
+			t.Error("Each element in the sorted result should match the expected result. ", expectedResult, actualNodes)
 		}
 	}
 }
