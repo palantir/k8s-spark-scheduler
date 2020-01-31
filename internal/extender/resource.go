@@ -113,9 +113,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 	logger := svc1log.FromContext(ctx)
 	instanceGroup, success := internal.FindInstanceGroupFromPodSpec(args.Pod.Spec, s.instanceGroupLabel)
 	if !success {
-		msg := "failed to get instance group"
-		logger.Error(msg)
-		return failWithMessage(ctx, args, msg)
+		instanceGroup = ""
 	}
 	params["podSparkRole"] = role
 	params["instanceGroup"] = instanceGroup
