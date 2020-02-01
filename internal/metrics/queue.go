@@ -129,7 +129,10 @@ func (p PodHistograms) Inc(key PodTags) {
 
 // MarkTimes inspects pod conditions and marks lifecycle transition times
 func (p PodHistograms) MarkTimes(ctx context.Context, pod *v1.Pod, instanceGroupTagLabel string, now time.Time) {
-	ig, _ := internal.FindInstanceGroupFromPodSpec(pod.Spec, instanceGroupTagLabel)
+	ig, success := internal.FindInstanceGroupFromPodSpec(pod.Spec, instanceGroupTagLabel)
+	if !success {
+		ig = ""
+	}
 	instanceGroupTag := InstanceGroupTag(ctx, ig)
 	sparkRoleTag := SparkRoleTag(ctx, pod.Labels[sparkRoleLabel])
 	podConditions := NewSparkPodConditions(pod.Status.Conditions)
