@@ -32,7 +32,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	schedulerapi "k8s.io/kubernetes/plugin/pkg/scheduler/api"
+	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
+	schedulerapi "k8s.io/kubernetes/pkg/scheduler/apis/extender/v1"
 )
 
 const (
@@ -106,15 +107,18 @@ func NewExtender(
 // Predicate is responsible for returning a filtered list of nodes that qualify to schedule the pod provided in the
 // ExtenderArgs
 func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerapi.ExtenderArgs) *schedulerapi.ExtenderFilterResult {
-	params := internal.PodSafeParams(args.Pod)
+	params := internal.PodSafeParams(*args.Pod)
 	role := args.Pod.Labels[SparkRoleLabel]
-	instanceGroup := args.Pod.Spec.NodeSelector[s.instanceGroupLabel]
-	params["podSparkRole"] = role
-	params["instanceGroup"] = instanceGroup
 	ctx = svc1log.WithLoggerParams(ctx, svc1log.SafeParams(params))
 	logger := svc1log.FromContext(ctx)
+	instanceGroup, success := internal.FindInstanceGroupFromPodSpec(args.Pod.Spec, s.instanceGroupLabel)
+	if !success {
+		instanceGroup = ""
+	}
+	params["podSparkRole"] = role
+	params["instanceGroup"] = instanceGroup
 
-	timer := metrics.NewScheduleTimer(ctx, instanceGroup, &args.Pod)
+	timer := metrics.NewScheduleTimer(ctx, instanceGroup, args.Pod)
 	logger.Info("starting scheduling pod")
 
 	err := s.reconcileIfNeeded(ctx, timer)
@@ -124,7 +128,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 		return failWithMessage(ctx, args, msg)
 	}
 
-	nodeName, outcome, err := s.selectNode(ctx, args.Pod.Labels[SparkRoleLabel], &args.Pod, *args.NodeNames)
+	nodeName, outcome, err := s.selectNode(ctx, args.Pod.Labels[SparkRoleLabel], args.Pod, *args.NodeNames)
 	timer.Mark(ctx, role, outcome)
 	if err != nil {
 		if outcome == failureInternal {
@@ -136,7 +140,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 	}
 
 	if role == Driver {
-		appResources, err := sparkResources(ctx, &args.Pod)
+		appResources, err := sparkResources(ctx, args.Pod)
 		if err != nil {
 			logger.Error("internal error scheduling pod", svc1log.Stacktrace(err))
 			return failWithMessage(ctx, args, err.Error())
@@ -145,7 +149,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 			ctx,
 			instanceGroup,
 			args.Pod.Labels[SparkAppIDLabel],
-			args.Pod,
+			*args.Pod,
 			appResources.driverResources,
 			appResources.executorResources,
 			appResources.minExecutorCount,
@@ -237,7 +241,9 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 			svc1log.SafeParam("nodeNames", nodeNames))
 		return driverReservedNode, success, nil
 	}
-	availableNodes, err := s.nodeLister.List(labels.Set(driver.Spec.NodeSelector).AsSelector())
+	availableNodes, err := s.nodeLister.ListWithPredicate(func(node *v1.Node) bool {
+		return predicates.PodMatchesNodeSelectorAndAffinityTerms(driver, node)
+	})
 	if err != nil {
 		return "", failureInternal, err
 	}

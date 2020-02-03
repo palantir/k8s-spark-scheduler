@@ -41,7 +41,23 @@ func createPod(instanceGroupLabel, instanceGroup, sparkRole string, creationTime
 			CreationTimestamp: metav1.NewTime(creationTimeStamp),
 		},
 		Spec: v1.PodSpec{
-			NodeSelector: map[string]string{instanceGroupLabel: instanceGroup},
+			Affinity: &v1.Affinity{
+				NodeAffinity: &v1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+						NodeSelectorTerms: []v1.NodeSelectorTerm{
+							{
+								MatchExpressions: []v1.NodeSelectorRequirement{
+									{
+										Key:      instanceGroupLabel,
+										Operator: v1.NodeSelectorOpIn,
+										Values:   []string{instanceGroup},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 		Status: v1.PodStatus{
 			Conditions: []v1.PodCondition{},

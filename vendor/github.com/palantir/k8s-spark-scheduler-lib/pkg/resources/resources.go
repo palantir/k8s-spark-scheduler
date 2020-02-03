@@ -161,8 +161,8 @@ func (r *Resources) AddFromReservation(reservation *v1beta1.Reservation) {
 // Copy returns a clone of the Resources object
 func (r *Resources) Copy() *Resources {
 	return &Resources{
-		CPU:    *r.CPU.Copy(),
-		Memory: *r.Memory.Copy(),
+		CPU:    r.CPU.DeepCopy(),
+		Memory: r.Memory.DeepCopy(),
 	}
 }
 
