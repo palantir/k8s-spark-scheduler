@@ -37,5 +37,5 @@ required = ["k8s.io/code-generator/cmd/client-gen"]
   name = "github.com/palantir/witchcraft-go-logging"
 
 [[constraint]]
-  version = "v1.2.0"
+  version = "v1.14.0"
   name = "github.com/palantir/witchcraft-go-server"
