@@ -2,7 +2,7 @@
 
 package logging
 
-type UserId string
+type TraceId string
 type SessionId string
 type TokenId string
-type TraceId string
+type UserId string

@@ -20,8 +20,8 @@ import (
 	"strconv"
 	"sync/atomic"
 
-	"github.com/palantir/witchcraft-go-error"
-	"github.com/palantir/witchcraft-go-server/conjure/witchcraft/spec/health"
+	werror "github.com/palantir/witchcraft-go-error"
+	"github.com/palantir/witchcraft-go-server/conjure/witchcraft/api/health"
 )
 
 type ServerState int32

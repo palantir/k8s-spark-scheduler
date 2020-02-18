@@ -80,7 +80,7 @@ func (l *jsonMapLogger) logOutput(params []Param) {
 	entry := NewMapLogEntry()
 	ApplyParams(entry, params)
 	bytes, _ := json.Marshal(entry.AllValues())
-	fmt.Fprintln(l.w, string(bytes))
+	_, _ = fmt.Fprintln(l.w, string(bytes))
 }
 
 type jsonMarshalLoggerProvider struct{}

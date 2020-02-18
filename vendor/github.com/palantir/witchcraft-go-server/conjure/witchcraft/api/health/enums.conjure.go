@@ -3,7 +3,6 @@
 package health
 
 import (
-	"encoding/json"
 	"strings"
 )
 
@@ -27,12 +26,8 @@ const (
 	HealthStateUnknown  HealthState = "UNKNOWN"
 )
 
-func (e *HealthState) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-	switch strings.ToUpper(s) {
+func (e *HealthState) UnmarshalText(data []byte) error {
+	switch strings.ToUpper(string(data)) {
 	default:
 		*e = HealthStateUnknown
 	case "HEALTHY":

@@ -50,6 +50,14 @@
   version = "v4.5.0"
 
 [[projects]]
+  digest = "1:abeb38ade3f32a92943e5be54f55ed6d6e3b6602761d74b4aab4c9dd45c18abd"
+  name = "github.com/fsnotify/fsnotify"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9"
+  version = "v1.4.7"
+
+[[projects]]
   digest = "1:cb6758edd8bf662d8a8cc4d17d08b98c541b4c74fc87baa11d2f2b18ffb09da2"
   name = "github.com/gogo/protobuf"
   packages = [
@@ -224,14 +232,6 @@
   version = "v0.1.5"
 
 [[projects]]
-  digest = "1:3ca794cab21462befc91c1767333e3cb16240680b4067beee52a18c1e18e1c89"
-  name = "github.com/palantir/conjure-go"
-  packages = ["conjure/types/conjuretype"]
-  pruneopts = "UT"
-  revision = "fd40b72c7444aacb4cfe357b3cb285526d151ed1"
-  version = "2.0.0"
-
-[[projects]]
   branch = "master"
   digest = "1:5f63b17db593ff0c77eae269491688e3784c475cdef3d7f78e81b5496c482010"
   name = "github.com/palantir/go-encrypted-config-value"
@@ -272,15 +272,19 @@
   version = "v0.2.4"
 
 [[projects]]
-  digest = "1:adda8befb1b3e6b1f939034d4396a12570348c97412847bd819c4d8ec29e5d9c"
+  digest = "1:6341b25f58be47edb8e2e6d622e827be3b5d45cf12ebe7cf813e78a3f751ce77"
   name = "github.com/palantir/pkg"
   packages = [
     "cobracli",
+    "datetime",
     "metrics",
     "retry",
     "safejson",
+    "safelong",
+    "safeyaml",
     "signals",
     "tlsconfig",
+    "transform",
   ]
   pruneopts = "UT"
   revision = "d12f4064ff8e52f0860934d543810751f618769b"
@@ -298,10 +302,10 @@
   version = "1.0.0"
 
 [[projects]]
-  digest = "1:81fdcce2eeaff93576089e007fa7c979cda7f37bb4c5da276437d4c4671d5743"
+  digest = "1:3e6bc7644dbeebe3fadb59e765fd48ff3fdd2b69085cc7989808300841170dd6"
   name = "github.com/palantir/witchcraft-go-logging"
   packages = [
-    "conjure/witchcraft/spec/logging",
+    "conjure/witchcraft/api/logging",
     "internal/gopath",
     "wlog",
     "wlog-zap",
@@ -319,8 +323,8 @@
     "wlog/wapp",
   ]
   pruneopts = "UT"
-  revision = "165102cb2c1ff795c19969f03aa7a57b2a035a43"
-  version = "v1.1.0"
+  revision = "7d03ff5ce00a3612c2a9e74797d6a1079dd7df40"
+  version = "v1.5.0"
 
 [[projects]]
   digest = "1:412711cba1f6195c9c8cc32ca04da9dfed10c07f2a21b1f5229e07c3f0a9fef0"
@@ -331,13 +335,15 @@
   version = "1.0.0"
 
 [[projects]]
-  digest = "1:b56e0f5189f775d2a3bdaeeb3d5c47bd0d3c0728a637f2fcae0f8b3b6e6438d6"
+  digest = "1:f4d2fd394ee932083786cf51848d5924811f107a9cf0e1dc720ef45057e79244"
   name = "github.com/palantir/witchcraft-go-server"
   packages = [
     "config",
-    "conjure/witchcraft/spec/health",
+    "conjure/witchcraft/api/health",
     "rest",
     "status",
+    "status/health",
+    "status/health/refreshable",
     "status/routes",
     "witchcraft",
     "witchcraft/internal/middleware",
@@ -348,8 +354,8 @@
     "wrouter/whttprouter",
   ]
   pruneopts = "UT"
-  revision = "25813ad6d6c87a3baf8e42bd2f92b9b61eec2057"
-  version = "v1.2.0"
+  revision = "0d3e56717af47bd8de4b756eb000f4977d889381"
+  version = "v1.14.1"
 
 [[projects]]
   digest = "1:d8535c90bfb7910c395b18ca2bc63b37c70af276d28713134ceb53c8620df5a0"
@@ -665,15 +671,6 @@
   pruneopts = "UT"
   revision = "f5b0812e6fe574d90da76b205e9eb51f6ddb1919"
   version = "v1.26.0"
-
-[[projects]]
-  digest = "1:abeb38ade3f32a92943e5be54f55ed6d6e3b6602761d74b4aab4c9dd45c18abd"
-  name = "gopkg.in/fsnotify.v1"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9"
-  source = "https://github.com/fsnotify/fsnotify.git"
-  version = "v1.4.7"
 
 [[projects]]
   digest = "1:2d1fbdc6777e5408cabeb02bf336305e724b925ff4546ded0fa8715a7267922a"

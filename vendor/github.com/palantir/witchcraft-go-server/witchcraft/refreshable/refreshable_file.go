@@ -20,9 +20,11 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/palantir/witchcraft-go-error"
+	"github.com/fsnotify/fsnotify"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	"gopkg.in/fsnotify.v1"
+	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
+	wparams "github.com/palantir/witchcraft-go-params"
 )
 
 type fileRefreshable struct {
@@ -67,8 +69,7 @@ func (d *fileRefreshable) watchForChanges(ctx context.Context) error {
 			werror.SafeParam("fileDir", fileDir))
 	}
 
-	go func() {
-		ctx := svc1log.WithLoggerParams(ctx, svc1log.SafeParam("filePath", d.filePath))
+	go wapp.RunWithRecoveryLogging(wparams.ContextWithSafeParam(ctx, "filePath", d.filePath), func(ctx context.Context) {
 		for {
 			select {
 			case event := <-watcher.Events:
@@ -81,7 +82,7 @@ func (d *fileRefreshable) watchForChanges(ctx context.Context) error {
 				if event.Op == fsnotify.Write || event.Op == fsnotify.Create || event.Op == fsnotify.Rename {
 					fileBytes, err := ioutil.ReadFile(d.filePath)
 					if err != nil {
-						svc1log.FromContext(ctx).Warn("Failed to read file bytes to update refreshable")
+						svc1log.FromContext(ctx).Warn("Failed to read file bytes to update refreshable", svc1log.Stacktrace(err))
 						continue
 					}
 					loadedChecksum := sha256.Sum256(fileBytes)
@@ -99,7 +100,7 @@ func (d *fileRefreshable) watchForChanges(ctx context.Context) error {
 				return
 			}
 		}
-	}()
+	})
 	return nil
 }
 

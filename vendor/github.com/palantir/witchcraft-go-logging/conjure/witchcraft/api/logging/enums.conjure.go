@@ -3,7 +3,6 @@
 package logging
 
 import (
-	"encoding/json"
 	"strings"
 )
 
@@ -16,12 +15,8 @@ const (
 	AuditResultUnknown      AuditResult = "UNKNOWN"
 )
 
-func (e *AuditResult) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-	switch strings.ToUpper(s) {
+func (e *AuditResult) UnmarshalText(data []byte) error {
+	switch strings.ToUpper(string(data)) {
 	default:
 		*e = AuditResultUnknown
 	case "SUCCESS":
@@ -46,12 +41,8 @@ const (
 	LogLevelUnknown LogLevel = "UNKNOWN"
 )
 
-func (e *LogLevel) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-	switch strings.ToUpper(s) {
+func (e *LogLevel) UnmarshalText(data []byte) error {
+	switch strings.ToUpper(string(data)) {
 	default:
 		*e = LogLevelUnknown
 	case "FATAL":

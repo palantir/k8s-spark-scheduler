@@ -35,7 +35,7 @@ func marshalWTracingSpanModel(key string, val interface{}) zapcore.Field {
 			enc.AddString(trc1log.SpanParentIDKey, string(*parentID))
 		}
 		enc.AddInt64(trc1log.SpanTimestampKey, span.Timestamp.Round(time.Microsecond).UnixNano()/1e3)
-		enc.AddInt64(trc1log.SpanDurationKey, int64(span.Duration.Round(time.Microsecond)))
+		enc.AddInt64(trc1log.SpanDurationKey, int64(span.Duration/time.Microsecond))
 		if kind := span.Kind; kind != "" {
 			// if kind is non-empty, manually create v1-style annotations
 			switch kind {

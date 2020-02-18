@@ -69,6 +69,17 @@ func NewRequestContextLoggers(
 	}
 }
 
+// NewRequestContextMetricsRegistry is request middleware that sets the metrics registry on the request context.
+func NewRequestContextMetricsRegistry(metricsRegistry metrics.Registry) wrouter.RequestHandlerMiddleware {
+	return func(rw http.ResponseWriter, req *http.Request, next http.Handler) {
+		ctx := req.Context()
+		if metricsRegistry != nil {
+			ctx = metrics.WithRegistry(ctx, metricsRegistry)
+		}
+		next.ServeHTTP(rw, req.WithContext(ctx))
+	}
+}
+
 func NewRequestExtractIDs(
 	svcLogger svc1log.Logger,
 	trcLogger trc1log.Logger,
@@ -135,25 +146,23 @@ func (s staticRootSpanIDGenerator) SpanID(traceID wtracing.TraceID) wtracing.Spa
 	return wtracing.SpanID(s)
 }
 
-func NewRequestMetricRequestMeter(mr metrics.RootRegistry) wrouter.RequestHandlerMiddleware {
+func NewRequestMetricRequestMeter(mr metrics.RootRegistry) wrouter.RouteHandlerMiddleware {
 	const (
 		serverResponseMetricName      = "server.response"
 		serverResponseErrorMetricName = "server.response.error"
 		serverRequestSizeMetricName   = "server.request.size"
 		serverResponseSizeMetricName  = "server.response.size"
 	)
-
-	return func(rw http.ResponseWriter, r *http.Request, next http.Handler) {
+	return func(rw http.ResponseWriter, r *http.Request, reqVals wrouter.RequestVals, next wrouter.RouteRequestHandler) {
 		// add capability to store tags on the context
 		r = r.WithContext(metrics.AddTags(r.Context()))
 
 		start := time.Now()
 
 		lrw := toLoggingResponseWriter(rw)
-		next.ServeHTTP(lrw, r)
+		next(lrw, r, reqVals)
 
-		tags := metrics.TagsFromContext(r.Context())
-
+		tags := reqVals.MetricTags
 		// record metrics for call
 		mr.Timer(serverResponseMetricName, tags...).Update(time.Since(start) / time.Microsecond)
 		mr.Histogram(serverRequestSizeMetricName, tags...).Update(r.ContentLength)

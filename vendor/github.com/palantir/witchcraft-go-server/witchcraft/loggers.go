@@ -70,9 +70,9 @@ func newDefaultLogOutput(logOutputPath string, logToStdout bool, stdoutWriter io
 	}
 	return &lumberjack.Logger{
 		Filename:   fmt.Sprintf("var/log/%s.log", logOutputPath),
-		MaxSize:    10,
+		MaxSize:    1000,
 		MaxBackups: 10,
-		MaxAge:     14,
+		MaxAge:     30,
 		Compress:   true,
 	}
 }

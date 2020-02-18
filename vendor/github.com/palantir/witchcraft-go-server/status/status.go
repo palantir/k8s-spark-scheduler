@@ -20,7 +20,7 @@ import (
 	"sync/atomic"
 
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	"github.com/palantir/witchcraft-go-server/conjure/witchcraft/spec/health"
+	"github.com/palantir/witchcraft-go-server/conjure/witchcraft/api/health"
 	"github.com/palantir/witchcraft-go-server/rest"
 	"github.com/palantir/witchcraft-go-server/witchcraft/refreshable"
 )
@@ -90,8 +90,8 @@ func NewHealthCheckHandler(checkSource HealthCheckSource, sharedSecret refreshab
 	})
 	return &healthHandlerImpl{
 		healthCheckSharedSecret: sharedSecret,
-		check:          checkSource,
-		previousHealth: previousHealth,
+		check:                   checkSource,
+		previousHealth:          previousHealth,
 	}
 }
 

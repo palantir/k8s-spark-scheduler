@@ -17,7 +17,7 @@ package marshalers
 import (
 	"reflect"
 
-	"github.com/palantir/witchcraft-go-logging/conjure/witchcraft/spec/logging"
+	"github.com/palantir/witchcraft-go-logging/conjure/witchcraft/api/logging"
 	"github.com/palantir/witchcraft-go-tracing/wtracing"
 	"go.uber.org/zap/zapcore"
 )

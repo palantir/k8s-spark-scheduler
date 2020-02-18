@@ -73,7 +73,7 @@ func toZapLevel(lvl wlog.LogLevel) zapcore.Level {
 	switch lvl {
 	case wlog.DebugLevel:
 		return zapcore.DebugLevel
-	case wlog.InfoLevel:
+	case wlog.LogLevel(""), wlog.InfoLevel:
 		return zapcore.InfoLevel
 	case wlog.WarnLevel:
 		return zapcore.WarnLevel
