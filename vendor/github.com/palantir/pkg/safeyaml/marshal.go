@@ -9,9 +9,8 @@ import (
 	"math/big"
 	"strconv"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/palantir/pkg/transform"
+	"gopkg.in/yaml.v2"
 )
 
 func Marshal(in interface{}) (out []byte, err error) {

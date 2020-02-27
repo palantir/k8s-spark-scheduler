@@ -5,7 +5,7 @@
 package metrics
 
 import (
-	"github.com/rcrowley/go-metrics"
+	"github.com/palantir/go-metrics"
 )
 
 type MetricVal interface {
