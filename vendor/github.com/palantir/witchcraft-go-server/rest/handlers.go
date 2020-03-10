@@ -16,10 +16,11 @@ package rest
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
-	"github.com/palantir/witchcraft-go-error"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 )
 
@@ -49,7 +50,14 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := h.handleFn(w, r); err != nil {
 		status := h.status(err)
 		h.handleError(r.Context(), status, err)
-		WriteJSONResponse(w, err, status)
+		var jsonErr interface{}
+		if marshaler, ok := err.(json.Marshaler); ok {
+			jsonErr = marshaler
+		} else {
+			// Fall back to string encoding
+			jsonErr = err.Error()
+		}
+		WriteJSONResponse(w, jsonErr, status)
 	}
 }
 
@@ -68,8 +76,8 @@ func (h handler) handleError(ctx context.Context, statusCode int, err error) {
 	}
 }
 
-// StatusCodeMapper maps a provided error to a http status code. If the provided error is a Error, it will return
-// the Error's status code. Otherwise, it will return a http.StatusInternalServerError
+// StatusCodeMapper maps a provided error to an HTTP status code. If the provided error contains a non-zero status code added
+// using the StatusCode ErrorParam, returns that status code; otherwise, returns http.StatusInternalServerError.
 func StatusCodeMapper(err error) int {
 	safe, _ := werror.ParamsFromError(err)
 	statusCode, ok := safe[httpStatusCodeParamKey]
@@ -77,13 +85,14 @@ func StatusCodeMapper(err error) int {
 		return http.StatusInternalServerError
 	}
 	statusCodeInt, ok := statusCode.(int)
-	if !ok {
+	if !ok || statusCodeInt == 0 {
 		return http.StatusInternalServerError
 	}
 	return statusCodeInt
 }
 
-// ErrHandler is an ErrorHandler that creates a log in the request context's svc1log logger when an error is received.
+// ErrHandler is an ErrorHandler that creates a log in the provided context's svc1log logger when an error is received.
+// The log output is printed at the ERROR level if the status code is >= 500; otherwise, it is printed at INFO level.
 // This preserves request-scoped logging configuration added by wrouter.
 func ErrHandler(ctx context.Context, statusCode int, err error) {
 	logger := svc1log.FromContext(ctx)

@@ -18,11 +18,11 @@ import (
 	"context"
 	"time"
 
+	gometrics "github.com/palantir/go-metrics"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
-	gometrics "github.com/rcrowley/go-metrics"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	corelisters "k8s.io/client-go/listers/core/v1"

@@ -18,8 +18,8 @@ import (
 	"context"
 
 	"github.com/palantir/witchcraft-go-logging/wlog"
-	"github.com/palantir/witchcraft-go-logging/wlog/internal"
-	"github.com/palantir/witchcraft-go-params"
+	wloginternal "github.com/palantir/witchcraft-go-logging/wlog/internal"
+	wparams "github.com/palantir/witchcraft-go-params"
 	"github.com/palantir/witchcraft-go-tracing/wtracing"
 )
 

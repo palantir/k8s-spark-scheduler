@@ -16,7 +16,7 @@ package wlogzap
 
 import (
 	"github.com/palantir/witchcraft-go-logging/wlog"
-	"github.com/palantir/witchcraft-go-logging/wlog-zap/internal"
+	zapimpl "github.com/palantir/witchcraft-go-logging/wlog-zap/internal"
 )
 
 func LoggerProvider() wlog.LoggerProvider {

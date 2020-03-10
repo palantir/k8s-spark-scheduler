@@ -76,6 +76,18 @@ func MustNewTag(k, v string) Tag {
 	return t
 }
 
+// NewTagWithFallbackValue returns the result of calling NewTag, and if that fails, calls MustNewTag with a fallback
+// value. This function is useful when the value is provided as a runtime input and the desired behavior is to fall back
+// to using a known valid value (e.g., "unknown") when the value is invalid. Note: because MustNewTag will panic if it
+// fails, both the key and fallback value must be known valid.
+func NewTagWithFallbackValue(k, v, fallback string) Tag {
+	tag, err := NewTag(k, v)
+	if err != nil {
+		return MustNewTag(k, fallback)
+	}
+	return tag
+}
+
 // NewTag returns a tag that uses the provided key and value. The returned tag is normalized to conform with the DataDog
 // tag specification. The key and value must be non-empty and the key must begin with a letter. The string form of the
 // returned tag is "normalized(k):normalized(v)".

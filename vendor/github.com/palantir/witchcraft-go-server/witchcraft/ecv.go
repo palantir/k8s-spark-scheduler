@@ -19,7 +19,7 @@ import (
 	"os"
 
 	"github.com/palantir/go-encrypted-config-value/encryptedconfigvalue"
-	"github.com/palantir/witchcraft-go-error"
+	werror "github.com/palantir/witchcraft-go-error"
 )
 
 type ECVKeyProvider interface {

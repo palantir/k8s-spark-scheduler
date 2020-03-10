@@ -15,7 +15,7 @@
 package rest
 
 import (
-	"github.com/palantir/witchcraft-go-error"
+	werror "github.com/palantir/witchcraft-go-error"
 )
 
 const (
@@ -37,7 +37,9 @@ func (f errorParamFunc) apply(err *errorMetadata) {
 }
 
 func NewError(err error, params ...ErrorParam) error {
-	e := errorMetadata{}
+	e := errorMetadata{
+		statusCode: StatusCodeMapper(err),
+	}
 	for _, param := range params {
 		param.apply(&e)
 	}

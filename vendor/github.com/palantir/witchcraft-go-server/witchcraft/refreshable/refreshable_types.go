@@ -14,6 +14,10 @@
 
 package refreshable
 
+import (
+	"time"
+)
+
 type String interface {
 	Refreshable
 	CurrentString() string
@@ -61,4 +65,20 @@ func (rt refreshableTyped) CurrentInt() int {
 
 func (rt refreshableTyped) CurrentBool() bool {
 	return rt.Current().(bool)
+}
+
+// Duration is a Refreshable that can return the current time.Duration.
+type Duration interface {
+	Refreshable
+	CurrentDuration() time.Duration
+}
+
+func NewDuration(in Refreshable) Duration {
+	return refreshableTyped{
+		Refreshable: in,
+	}
+}
+
+func (rt refreshableTyped) CurrentDuration() time.Duration {
+	return rt.Current().(time.Duration)
 }

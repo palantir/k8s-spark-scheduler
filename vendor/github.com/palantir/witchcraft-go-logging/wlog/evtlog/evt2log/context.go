@@ -17,7 +17,7 @@ package evt2log
 import (
 	"context"
 
-	"github.com/palantir/witchcraft-go-logging/wlog/internal"
+	wloginternal "github.com/palantir/witchcraft-go-logging/wlog/internal"
 	"github.com/palantir/witchcraft-go-tracing/wtracing"
 )
 

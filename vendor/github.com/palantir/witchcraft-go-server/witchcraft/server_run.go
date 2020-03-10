@@ -27,12 +27,12 @@ import (
 	"time"
 
 	"github.com/palantir/pkg/tlsconfig"
-	"github.com/palantir/witchcraft-go-error"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-server/config"
 )
 
-func (s *Server) newServer(productName string, serverConfig config.Server, handler http.Handler) (rHTTPServer *http.Server, rStart func(), rShutdown func(context.Context) error, rErr error) {
+func (s *Server) newServer(productName string, serverConfig config.Server, handler http.Handler) (rHTTPServer *http.Server, rStart func() error, rShutdown func(context.Context) error, rErr error) {
 	return newServerStartShutdownFns(
 		serverConfig,
 		s.useSelfSignedServerCertificate,
@@ -43,7 +43,7 @@ func (s *Server) newServer(productName string, serverConfig config.Server, handl
 	)
 }
 
-func (s *Server) newMgmtServer(productName string, serverConfig config.Server, handler http.Handler) (rStart func(), rShutdown func(context.Context) error, rErr error) {
+func (s *Server) newMgmtServer(productName string, serverConfig config.Server, handler http.Handler) (rStart func() error, rShutdown func(context.Context) error, rErr error) {
 	serverConfig.Port = serverConfig.ManagementPort
 	_, start, shutdown, err := newServerStartShutdownFns(
 		serverConfig,
@@ -63,7 +63,7 @@ func newServerStartShutdownFns(
 	serverName string,
 	svcLogger svc1log.Logger,
 	handler http.Handler,
-) (rHTTPServer *http.Server, start func(), shutdown func(context.Context) error, rErr error) {
+) (rHTTPServer *http.Server, start func() error, shutdown func(context.Context) error, rErr error) {
 	tlsConfig, err := newTLSConfig(serverConfig, useSelfSignedServerCertificate, clientAuthType)
 	if err != nil {
 		return nil, nil, nil, err
@@ -75,17 +75,18 @@ func newServerStartShutdownFns(
 		TLSConfig: tlsConfig,
 		Handler:   handler,
 	}
-	return httpServer, func() {
+	return httpServer, func() error {
 		svcLogger.Info("Listening to https", svc1log.SafeParam("address", addr), svc1log.SafeParam("server", serverName))
 
 		// cert and key specified in TLS config so no need to pass in here
 		if err := httpServer.ListenAndServeTLS("", ""); err != nil {
 			if err == http.ErrServerClosed {
 				svcLogger.Info(fmt.Sprintf("%s was closed", serverName))
-				return
+				return nil
 			}
-			svcLogger.Error(fmt.Sprintf("%s failed", serverName), svc1log.Stacktrace(err))
+			return werror.Wrap(err, "server failed", werror.SafeParam("serverName", serverName))
 		}
+		return nil
 	}, httpServer.Shutdown, nil
 }
 
@@ -106,6 +107,7 @@ func newTLSConfig(serverConfig config.Server, useSelfSignedServerCertificate boo
 		newTLSCertProvider(useSelfSignedServerCertificate, serverConfig.CertFile, serverConfig.KeyFile),
 		tlsconfig.ServerClientCAFiles(serverConfig.ClientCAFiles...),
 		tlsconfig.ServerClientAuthType(clientAuthType),
+		tlsconfig.ServerNextProtos("h2"),
 	)
 	if err != nil {
 		return nil, werror.Wrap(err, "failed to initialize TLS configuration for server")

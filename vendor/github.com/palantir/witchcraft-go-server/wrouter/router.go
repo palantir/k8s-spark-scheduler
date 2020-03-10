@@ -17,6 +17,8 @@ package wrouter
 import (
 	"net/http"
 	"time"
+
+	"github.com/palantir/pkg/metrics"
 )
 
 type Router interface {
@@ -49,7 +51,7 @@ type Router interface {
 	// Subrouter returns a new Router that is a child of this Router. A child router is effectively an alias to the root
 	// router -- any routes registered on the child router are registered on the root router with all of the prefixes up
 	// to the child router.
-	Subrouter(path string) Router
+	Subrouter(path string, params ...RouteParam) Router
 
 	// Path returns the path stored by this router. The path is empty for the root router, while subrouters will return
 	// only the portion of the path managed by the subrouter.
@@ -78,6 +80,7 @@ type RequestVals struct {
 	Spec          RouteSpec
 	PathParamVals map[string]string
 	ParamPerms    RouteParamPerms
+	MetricTags    metrics.Tags
 }
 
 type ResponseVals struct {

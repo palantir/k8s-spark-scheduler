@@ -16,11 +16,45 @@ package witchcraft
 
 import (
 	"context"
+	"runtime"
+	"time"
 
 	"github.com/palantir/pkg/metrics"
-	"github.com/palantir/witchcraft-go-error"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/metriclog/metric1log"
+	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	"github.com/palantir/witchcraft-go-server/config"
+)
+
+func defaultMetricTypeValuesBlacklist() map[string]map[string]struct{} {
+	return map[string]map[string]struct{}{
+		"histogram": {
+			"min":    {},
+			"mean":   {},
+			"stddev": {},
+			"p50":    {},
+		},
+		"meter": {
+			"1m":   {},
+			"5m":   {},
+			"15m":  {},
+			"mean": {},
+		},
+		"timer": {
+			"1m":       {},
+			"5m":       {},
+			"15m":      {},
+			"meanRate": {},
+			"min":      {},
+			"mean":     {},
+			"stddev":   {},
+			"p50":      {},
+		},
+	}
+}
+
+var (
+	initTime = time.Now()
 )
 
 func (s *Server) initMetrics(ctx context.Context, installCfg config.Install) (rRegistry metrics.RootRegistry, rDeferFn func(), rErr error) {
@@ -30,6 +64,8 @@ func (s *Server) initMetrics(ctx context.Context, installCfg config.Install) (rR
 		metricsEmitFreq = freq
 	}
 
+	initServerUptimeMetric(ctx, metricsRegistry)
+
 	// start routine that capture Go runtime metrics
 	if !s.disableGoRuntimeMetrics {
 		if ok := metrics.CaptureRuntimeMemStatsWithContext(ctx, metricsRegistry, metricsEmitFreq); !ok {
@@ -37,15 +73,62 @@ func (s *Server) initMetrics(ctx context.Context, installCfg config.Install) (rR
 		}
 	}
 
+	metricTypeValuesBlacklist := s.metricTypeValuesBlacklist
+	if metricTypeValuesBlacklist == nil {
+		metricTypeValuesBlacklist = defaultMetricTypeValuesBlacklist()
+	}
+
 	emitFn := func(metricID string, tags metrics.Tags, metricVal metrics.MetricVal) {
-		s.metricLogger.Metric(metricID, metricVal.Type(), metric1log.Values(metricVal.Values()), metric1log.Tags(tags.ToMap()))
+		if _, blackListed := s.metricsBlacklist[metricID]; blackListed {
+			// skip emitting metric if it is blacklisted
+			return
+		}
+
+		valuesToUse := metricVal.Values()
+		metricType := metricVal.Type()
+		if metricTypeValueBlacklist, ok := metricTypeValuesBlacklist[metricType]; ok {
+			// remove blacklisted keys
+			for blacklistedKey := range metricTypeValueBlacklist {
+				delete(valuesToUse, blacklistedKey)
+			}
+		}
+		if len(valuesToUse) == 0 {
+			// do not record metric if it does not have any values
+			return
+		}
+		s.metricLogger.Metric(metricID, metricType, metric1log.Values(valuesToUse), metric1log.Tags(tags.ToMap()))
 	}
 
 	// start goroutine that logs metrics at the given frequency
-	go metrics.RunEmittingRegistry(ctx, metricsRegistry, metricsEmitFreq, emitFn)
+	go wapp.RunWithRecoveryLogging(ctx, func(ctx context.Context) {
+		metrics.RunEmittingRegistry(ctx, metricsRegistry, metricsEmitFreq, emitFn)
+	})
 
 	return metricsRegistry, func() {
 		// emit all metrics a final time on termination
 		metricsRegistry.Each(emitFn)
 	}, nil
+}
+
+func initServerUptimeMetric(ctx context.Context, metricsRegistry metrics.Registry) {
+	ctx = metrics.WithRegistry(ctx, metricsRegistry)
+	ctx = metrics.AddTags(ctx, metrics.MustNewTag("go_version", runtime.Version()))
+	ctx = metrics.AddTags(ctx, metrics.MustNewTag("go_os", runtime.GOOS))
+	ctx = metrics.AddTags(ctx, metrics.MustNewTag("go_arch", runtime.GOARCH))
+
+	metrics.FromContext(ctx).Gauge("server.uptime").Update(int64(time.Since(initTime) / time.Microsecond))
+
+	// start goroutine that updates the uptime metric
+	go wapp.RunWithRecoveryLogging(ctx, func(ctx context.Context) {
+		t := time.NewTicker(5.0 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				metrics.FromContext(ctx).Gauge("server.uptime").Update(int64(time.Since(initTime) / time.Microsecond))
+			}
+		}
+	})
 }

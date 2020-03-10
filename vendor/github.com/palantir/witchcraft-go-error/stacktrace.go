@@ -27,7 +27,7 @@ func (s *stack) Format(state fmt.State, verb rune) {
 		case state.Flag('+'):
 			for _, pc := range *s {
 				f := errors.Frame(pc)
-				fmt.Fprintf(state, "\n%+v", f)
+				_, _ = fmt.Fprintf(state, "\n%+v", f)
 			}
 		}
 	}

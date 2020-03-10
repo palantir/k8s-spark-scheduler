@@ -20,8 +20,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/palantir/conjure-go/conjure/types/conjuretype"
-	"github.com/palantir/witchcraft-go-logging/conjure/witchcraft/spec/logging"
+	"github.com/palantir/pkg/safelong"
+	"github.com/palantir/witchcraft-go-logging/conjure/witchcraft/api/logging"
 	"github.com/palantir/witchcraft-go-logging/internal/gopath"
 )
 
@@ -92,18 +92,25 @@ func unmarshalFuncLine(funcLine []byte, frame *logging.StackFrameV1) {
 
 func unmarshalFileLine(fileLine []byte, frame *logging.StackFrameV1) {
 	segments := strings.Split(string(bytes.TrimSpace(fileLine)), " +")
-	frame.Address = &segments[1]
+
+	if len(segments) > 1 {
+		frame.Address = &segments[1]
+	}
 
 	sepIdx := strings.LastIndex(segments[0], ":")
-	absPath := segments[0][:sepIdx]
 
-	file := gopath.TrimPrefix(absPath)
-	frame.File = &file
+	if sepIdx > -1 {
+		absPath := segments[0][:sepIdx]
+		file := gopath.TrimPrefix(absPath)
+		frame.File = &file
+	}
 
-	lineNumStr := segments[0][sepIdx+1:]
-	lineNum, err := strconv.Atoi(lineNumStr)
-	if err == nil {
-		frame.Line = &lineNum
+	if sepIdx+1 < len(segments[0]) {
+		lineNumStr := segments[0][sepIdx+1:]
+		lineNum, err := strconv.Atoi(lineNumStr)
+		if err == nil {
+			frame.Line = &lineNum
+		}
 	}
 }
 
@@ -112,12 +119,12 @@ func stringPtr(s string) *string {
 }
 
 // stringToOptionalSafeLong returns nil on errors
-func stringToOptionalSafeLong(s string) *conjuretype.SafeLong {
+func stringToOptionalSafeLong(s string) *safelong.SafeLong {
 	i, err := strconv.ParseInt(s, 0, 64)
 	if err != nil {
 		return nil
 	}
-	long, err := conjuretype.NewSafeLong(i)
+	long, err := safelong.NewSafeLong(i)
 	if err != nil {
 		return nil
 	}

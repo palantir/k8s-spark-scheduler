@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rcrowley/go-metrics"
+	"github.com/palantir/go-metrics"
 )
 
 var (
@@ -283,11 +283,13 @@ func (r *rootRegistry) Each(f MetricVisitor) {
 			name = metricWithTags.name
 			tags = make(Tags, len(metricWithTags.tags))
 			copy(tags, metricWithTags.tags)
-			sort.Sort(tags)
-		} else {
+		} else if r.registry.Get(id) != nil {
 			// Metric was added to rcrowley registry outside of our registry.
 			// This is likely a go runtime metric (nothing else is exposed).
 			name = id
+		} else {
+			// Metric was unregistered between us looking at the registry and idToMetricWithTags, move on
+			continue
 		}
 
 		val := ToMetricVal(allMetrics[id])
@@ -300,8 +302,13 @@ func (r *rootRegistry) Each(f MetricVisitor) {
 }
 
 func (r *rootRegistry) Unregister(name string, tags ...Tag) {
-	metricID := toMetricTagsID(name, tags)
+	metricID := toMetricTagsID(name, newSortedTags(tags))
 	r.registry.Unregister(string(metricID))
+
+	// This must happen after the registry Unregister() above to preserve the correctness guarantees in Each()
+	r.idToMetricMutex.Lock()
+	delete(r.idToMetricWithTags, metricID)
+	r.idToMetricMutex.Unlock()
 }
 
 func (r *rootRegistry) Counter(name string, tags ...Tag) metrics.Counter {
@@ -321,7 +328,7 @@ func (r *rootRegistry) Meter(name string, tags ...Tag) metrics.Meter {
 }
 
 func (r *rootRegistry) Timer(name string, tags ...Tag) metrics.Timer {
-	return metrics.GetOrRegisterTimer(r.registerMetric(name, tags), r.registry)
+	return getOrRegisterMicroSecondsTimer(r.registerMetric(name, tags), r.registry)
 }
 
 func (r *rootRegistry) Histogram(name string, tags ...Tag) metrics.Histogram {
@@ -341,11 +348,12 @@ func DefaultSample() metrics.Sample {
 }
 
 func (r *rootRegistry) registerMetric(name string, tags Tags) string {
-	metricID := toMetricTagsID(name, tags)
+	sortedTags := newSortedTags(tags)
+	metricID := toMetricTagsID(name, sortedTags)
 	r.idToMetricMutex.Lock()
 	r.idToMetricWithTags[metricID] = metricWithTags{
 		name: name,
-		tags: tags,
+		tags: sortedTags,
 	}
 	r.idToMetricMutex.Unlock()
 	return string(metricID)
@@ -364,10 +372,9 @@ type metricTagsID string
 
 // toMetricTagsID generates the metricTagsID identifier for the metricWithTags. A unique {metricName, set<Tag>} input will
 // generate a unique output. This implementation tries to minimize memory allocation and runtime.
+// The ID is created by adding the tags in the order they are provided (this means that, if the caller wants a specific set of tags to always
+// result in the same ID, they must sort the Tags before providing them to this function).
 func toMetricTagsID(name string, tags Tags) metricTagsID {
-	// TODO(maybe): Ensure tags is already sorted when it comes in so we can remove this.
-	sort.Sort(tags)
-
 	// calculate how large to make our byte buffer below
 	bufSize := len(name)
 	for _, t := range tags {
@@ -381,4 +388,11 @@ func toMetricTagsID(name string, tags Tags) metricTagsID {
 		_, _ = buf.WriteString(tag.keyValue)
 	}
 	return metricTagsID(buf.Bytes())
+}
+
+// newSortedTags copies the tag slice before sorting so that in-place mutation does not affect the input slice.
+func newSortedTags(tags Tags) Tags {
+	tagsCopy := append(tags[:0:0], tags...)
+	sort.Sort(tagsCopy)
+	return tagsCopy
 }

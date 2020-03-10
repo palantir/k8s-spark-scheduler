@@ -14,14 +14,23 @@
 
 package wrouter
 
+import (
+	"github.com/palantir/pkg/metrics"
+)
+
 type RouteParam interface {
 	perms() RouteParamPerms
+	metricTags() metrics.Tags
 }
 
 type requestParamPermsFunc func() RouteParamPerms
 
 func (f requestParamPermsFunc) perms() RouteParamPerms {
 	return f()
+}
+
+func (f requestParamPermsFunc) metricTags() metrics.Tags {
+	return nil
 }
 
 func RouteParamPermsParam(perms RouteParamPerms) RouteParam {
@@ -89,9 +98,11 @@ func toRequestParamPerms(params []RouteParam) RouteParamPerms {
 		}
 
 		perms := p.perms()
-		pathParamPerms = append(pathParamPerms, perms.PathParamPerms())
-		queryParamPerms = append(queryParamPerms, perms.QueryParamPerms())
-		headerParamPerms = append(headerParamPerms, perms.HeaderParamPerms())
+		if perms != nil {
+			pathParamPerms = append(pathParamPerms, perms.PathParamPerms())
+			queryParamPerms = append(queryParamPerms, perms.QueryParamPerms())
+			headerParamPerms = append(headerParamPerms, perms.HeaderParamPerms())
+		}
 	}
 
 	return &requestParamPermsImpl{
@@ -99,4 +110,28 @@ func toRequestParamPerms(params []RouteParam) RouteParamPerms {
 		queryParamPerms:  NewCombinedParamPerms(queryParamPerms...),
 		headerParamPerms: NewCombinedParamPerms(headerParamPerms...),
 	}
+}
+
+type requestMetricTagsFunc func() metrics.Tags
+
+func (f requestMetricTagsFunc) perms() RouteParamPerms {
+	return nil
+}
+
+func (f requestMetricTagsFunc) metricTags() metrics.Tags {
+	return f()
+}
+
+func MetricTags(tags metrics.Tags) RouteParam {
+	return requestMetricTagsFunc(func() metrics.Tags {
+		return tags
+	})
+}
+
+func toMetricTags(params []RouteParam) metrics.Tags {
+	var tags metrics.Tags
+	for _, param := range params {
+		tags = append(tags, param.metricTags()...)
+	}
+	return tags
 }

@@ -1,7 +1,7 @@
 package werror
 
 import (
-	"github.com/palantir/witchcraft-go-params"
+	wparams "github.com/palantir/witchcraft-go-params"
 )
 
 type Param interface {

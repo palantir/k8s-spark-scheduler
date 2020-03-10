@@ -18,7 +18,7 @@ import (
 	"net/http"
 
 	"github.com/palantir/pkg/metrics"
-	"github.com/palantir/witchcraft-go-error"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-server/wrouter"
 )
 
@@ -38,19 +38,19 @@ type Resource interface {
 	// Get is a shorthand for Register(endpointName, http.MethodGet, handler, params...)
 	Get(endpointName, path string, handler http.Handler, params ...wrouter.RouteParam) error
 
-	// Head is a shorthand for Register(endpointName, http.MethodGet, handler, params...)
+	// Head is a shorthand for Register(endpointName, http.MethodHead, handler, params...)
 	Head(endpointName, path string, handler http.Handler, params ...wrouter.RouteParam) error
 
-	// Post is a shorthand for Register(endpointName, http.MethodGet, handler, params...)
+	// Post is a shorthand for Register(endpointName, http.MethodPost, handler, params...)
 	Post(endpointName, path string, handler http.Handler, params ...wrouter.RouteParam) error
 
-	// Put is a shorthand for Register(endpointName, http.MethodGet, handler, params...)
+	// Put is a shorthand for Register(endpointName, http.MethodPut, handler, params...)
 	Put(endpointName, path string, handler http.Handler, params ...wrouter.RouteParam) error
 
-	// Patch is a shorthand for Register(endpointName, http.MethodGet, handler, params...)
+	// Patch is a shorthand for Register(endpointName, http.MethodPatch, handler, params...)
 	Patch(endpointName, path string, handler http.Handler, params ...wrouter.RouteParam) error
 
-	// Delete is a shorthand for Register(endpointName, http.MethodGet, handler, params...)
+	// Delete is a shorthand for Register(endpointName, http.MethodDelete, handler, params...)
 	Delete(endpointName, path string, handler http.Handler, params ...wrouter.RouteParam) error
 }
 
@@ -87,11 +87,7 @@ func (r *resourceImpl) Register(endpointName, method, path string, handler http.
 	}
 	tags = append(tags, endpointTag)
 
-	// wrap the provided handler in a handler that adds the resource and endpoint tags to the context
-	wrappedHandler := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		handler.ServeHTTP(rw, req.WithContext(metrics.AddTags(req.Context(), tags...)))
-	})
-	return r.router.Register(method, path, wrappedHandler, params...)
+	return r.router.Register(method, path, handler, append(params, wrouter.MetricTags(tags))...)
 }
 
 func (r *resourceImpl) Get(endpointName, path string, handler http.Handler, params ...wrouter.RouteParam) error {

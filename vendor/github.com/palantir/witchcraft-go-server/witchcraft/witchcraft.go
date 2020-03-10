@@ -19,17 +19,22 @@ import (
 	"crypto/tls"
 	"io"
 	"io/ioutil"
+	"math"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"reflect"
 	"runtime/debug"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/palantir/go-encrypted-config-value/encryptedconfigvalue"
+	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/pkg/signals"
-	"github.com/palantir/witchcraft-go-error"
-	"github.com/palantir/witchcraft-go-logging/conjure/witchcraft/spec/logging"
+	werror "github.com/palantir/witchcraft-go-error"
+	"github.com/palantir/witchcraft-go-logging/conjure/witchcraft/api/logging"
 	"github.com/palantir/witchcraft-go-logging/wlog"
 	"github.com/palantir/witchcraft-go-logging/wlog/auditlog/audit2log"
 	"github.com/palantir/witchcraft-go-logging/wlog/diaglog/diag1log"
@@ -39,13 +44,17 @@ import (
 	"github.com/palantir/witchcraft-go-logging/wlog/reqlog/req2log"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/trclog/trc1log"
+	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	"github.com/palantir/witchcraft-go-server/config"
 	"github.com/palantir/witchcraft-go-server/status"
+	refreshablehealth "github.com/palantir/witchcraft-go-server/status/health/refreshable"
 	"github.com/palantir/witchcraft-go-server/witchcraft/refreshable"
 	"github.com/palantir/witchcraft-go-server/wrouter"
+	"github.com/palantir/witchcraft-go-server/wrouter/whttprouter"
 	"github.com/palantir/witchcraft-go-tracing/wtracing"
 	"github.com/palantir/witchcraft-go-tracing/wzipkin"
 	"gopkg.in/yaml.v2"
+
 	// Use zap as logger implementation: witchcraft-based applications are opinionated about the logging implementation used
 	_ "github.com/palantir/witchcraft-go-logging/wlog-zap"
 )
@@ -77,6 +86,9 @@ type Server struct {
 	// if true, disables the default behavior of emitting a goroutine dump on SIGQUIT signals.
 	disableSigQuitHandler bool
 
+	// if true, disables the default behavior of shutting down the server on SIGTERM and SIGINT signals.
+	disableShutdownSignalHandler bool
+
 	// provides the bytes for the install configuration for the server. If nil, a default configuration provider that
 	// reads the file at "var/conf/install.yml" is used.
 	installConfigProvider ConfigBytesProvider
@@ -97,6 +109,10 @@ type Server struct {
 
 	// specifies the sources that are used to determine the health of this service
 	healthCheckSources []status.HealthCheckSource
+
+	// provides the RouterImpl used by the server (and management server if it is separate). If nil, a default function
+	// that returns a new whttprouter is used.
+	routerImplProvider func() wrouter.RouterImpl
 
 	// called on server initialization before the server starts. Is provided with a context that is active for the
 	// duration of the server lifetime, the server router (which can be used to register endpoints), the unmarshaled
@@ -122,6 +138,14 @@ type Server struct {
 	// seconds if an interval is not specified in configuration).
 	disableGoRuntimeMetrics bool
 
+	// metricsBlacklist specifies the set of metrics that should not be emitted by the metric logger.
+	metricsBlacklist map[string]struct{}
+
+	// metricTypeValuesBlacklist specifies the values for a metric type that should be omitted from metric output. For
+	// example, if the map is set to {"timer":{"5m":{}}}, then the value for "5m" will be omitted from all timer metric
+	// output. If nil, the default value is the map returned by defaultMetricTypeValuesBlacklist().
+	metricTypeValuesBlacklist map[string]map[string]struct{}
+
 	// specifies the TLS client authentication mode used by the server. If not specified, the default value is
 	// tls.NoClientCert.
 	clientAuth tls.ClientAuthType
@@ -130,9 +154,22 @@ type Server struct {
 	// be the package from which "Start" was called.
 	svcLogOrigin *string
 
-	// traceSampler is the function that is used to determine whether or not a trace should be sampled. If nil, the
-	// default behavior is to sample every trace.
-	traceSampler func(id uint64) bool
+	// applicationTraceSampler is the function that is used to determine whether or not a trace should be sampled.
+	// This applies to routes registered under the application port and the context passed to the initialize function
+	// If nil, the default behavior is to sample every trace.
+	applicationTraceSampler wtracing.Sampler
+
+	// managementTraceSampler is the function that is used to determine whether or not a trace should be sampled.
+	// This applies to routes registered under the management port
+	// If nil, the default behavior is to sample no traces.
+	managementTraceSampler wtracing.Sampler
+
+	// disableKeepAlives disables keep-alives.
+	disableKeepAlives bool
+
+	// configYAMLUnmarshalFn is the function used to unmarshal YAML configuration. By default, this is yaml.Unmarshal.
+	// If WithStrictUnmarshalConfig is called, this is set to yaml.UnmarshalStrict.
+	configYAMLUnmarshalFn func(in []byte, out interface{}) (err error)
 
 	// request logger configuration
 
@@ -158,6 +195,9 @@ type Server struct {
 
 	// the http.Server for the main server
 	httpServer *http.Server
+
+	// allows the server to wait until Close() or Shutdown() return prior to returning from Start()
+	shutdownFinished sync.WaitGroup
 }
 
 // InitFunc is a function type used to initialize a server. ctx is a context configured with loggers and is valid for
@@ -181,6 +221,11 @@ type InitInfo struct {
 	// refreshable is determined by the struct provided to the "WithRuntimeConfigType" function (the default is
 	// config.Runtime).
 	RuntimeConfig refreshable.Refreshable
+
+	// ShutdownServer gracefully closes the server, waiting for any in-flight requests to finish (or the context to be cancelled).
+	// When the InitFunc is executed, the server is not yet started. This will most often be useful if launching a goroutine which
+	// requires access to shutdown the server in some error condition.
+	ShutdownServer func(context.Context) error
 }
 
 // ConfigurableRouter is a wrouter.Router that provides additional support for configuring things such as health,
@@ -341,11 +386,35 @@ func (s *Server) WithMiddleware(middleware wrouter.RequestHandlerMiddleware) *Se
 	return s
 }
 
-// WithTraceSampler configures the server's trace log tracer to use the specified traceSampler function to make a
-// determination on whether or not a trace should be sampled (if such a decision needs to be made).
-func (s *Server) WithTraceSampler(traceSampler func(id uint64) bool) *Server {
-	s.traceSampler = traceSampler
+// WithRouterImplProvider configures the server to use the specified routerImplProvider to provide router
+// implementations.
+func (s *Server) WithRouterImplProvider(routerImplProvider func() wrouter.RouterImpl) *Server {
+	s.routerImplProvider = routerImplProvider
 	return s
+}
+
+// WithTraceSampler configures the server's application trace log tracer to use the specified traceSampler function to make a
+// determination on whether or not a trace should be sampled (if such a decision needs to be made).
+func (s *Server) WithTraceSampler(traceSampler wtracing.Sampler) *Server {
+	s.applicationTraceSampler = traceSampler
+	return s
+}
+
+// WithTraceSamplerRate is a convenience function for creating an application traceSampler based off a sample rate
+func (s *Server) WithTraceSamplerRate(sampleRate float64) *Server {
+	return s.WithTraceSampler(traceSamplerFromSampleRate(sampleRate))
+}
+
+// WithManagementTraceSampler configures the server's management trace log tracer to use the specified traceSampler function to make a
+// determination on whether or not a trace should be sampled (if such a decision needs to be made).
+func (s *Server) WithManagementTraceSampler(traceSampler wtracing.Sampler) *Server {
+	s.managementTraceSampler = traceSampler
+	return s
+}
+
+// WithManagementTraceSamplerRate is a convenience function for creating a management traceSampler based off a sample rate
+func (s *Server) WithManagementTraceSamplerRate(sampleRate float64) *Server {
+	return s.WithManagementTraceSampler(traceSamplerFromSampleRate(sampleRate))
 }
 
 // WithSigQuitHandlerWriter sets the output for the goroutine dump on SIGQUIT.
@@ -360,9 +429,58 @@ func (s *Server) WithDisableSigQuitHandler() *Server {
 	return s
 }
 
+// WithDisableShutdownSignalHandler disables the server's enabled-by-default shutdown on SIGTERM and SIGINT.
+func (s *Server) WithDisableShutdownSignalHandler() *Server {
+	s.disableShutdownSignalHandler = true
+	return s
+}
+
+// WithDisableKeepAlives disables keep-alives on the server by calling SetKeepAlivesEnabled(false) on the http.Server
+// used by the server. Note that this setting is only applied to the main server -- if the management server is separate
+// from the main server, this setting is not applied to the management server. Refer to the documentation for
+// SetKeepAlivesEnabled in http.Server for more information on when a server may want to use this setting.
+func (s *Server) WithDisableKeepAlives() *Server {
+	s.disableKeepAlives = true
+	return s
+}
+
+// WithStrictUnmarshalConfig configures the server to use the provided strict unmarshal configuration.
+func (s *Server) WithStrictUnmarshalConfig() *Server {
+	s.configYAMLUnmarshalFn = yaml.UnmarshalStrict
+	return s
+}
+
 // WithDisableGoRuntimeMetrics disables the server's enabled-by-default collection of runtime memory statistics.
 func (s *Server) WithDisableGoRuntimeMetrics() *Server {
 	s.disableGoRuntimeMetrics = true
+	return s
+}
+
+// WithMetricsBlacklist sets the metric blacklist to the provided set of metrics. The provided metrics should be the
+// name of the metric (for example, "server.response.size"). The blacklist only supports blacklisting at the metric
+// level: blacklisting an individual metric value (such as "server.response.size.count") will not have any effect. The
+// provided input is copied.
+func (s *Server) WithMetricsBlacklist(blacklist map[string]struct{}) *Server {
+	metricsBlacklist := make(map[string]struct{})
+	for k, v := range blacklist {
+		metricsBlacklist[k] = v
+	}
+	s.metricsBlacklist = metricsBlacklist
+	return s
+}
+
+// WithMetricTypeValuesBlacklist sets the value of the metric type value blacklist to be the same as the provided value
+// (the content is copied).
+func (s *Server) WithMetricTypeValuesBlacklist(blacklist map[string]map[string]struct{}) *Server {
+	newBlacklist := make(map[string]map[string]struct{}, len(blacklist))
+	for k, v := range blacklist {
+		newVal := make(map[string]struct{}, len(v))
+		for kk := range v {
+			newVal[kk] = struct{}{}
+		}
+		newBlacklist[k] = newVal
+	}
+	s.metricTypeValuesBlacklist = newBlacklist
 	return s
 }
 
@@ -380,9 +498,11 @@ const (
 	ecvKeyPath        = "var/conf/encrypted-config-value.key"
 	installConfigPath = "var/conf/install.yml"
 	runtimeConfigPath = "var/conf/runtime.yml"
+
+	runtimeConfigReloadCheckType = "CONFIG_RELOAD"
 )
 
-// Start begins serving HTTPS traffic and blocks until s.Close() or s.Shutdown() are called.
+// Start begins serving HTTPS traffic and blocks until s.Close() or s.Shutdown() return.
 // Errors are logged via s.svcLogger before being returned.
 // Panics are recovered; in the case of a recovered panic, Start will log and return
 // a non-nil error containing the recovered object (overwriting any existing error).
@@ -418,21 +538,25 @@ func (s *Server) Start() (rErr error) {
 	if err := s.stateManager.Start(); err != nil {
 		return err
 	}
-	// Run() function only terminates after server stops, so reset state at that point
-	defer s.stateManager.setState(ServerIdle)
+	// Reset state if server terminated without calling s.Close() or s.Shutdown()
+	defer func() {
+		if s.State() != ServerIdle {
+			s.stateManager.setState(ServerIdle)
+		}
+	}()
 
 	// set provider for ECV key
 	if s.ecvKeyProvider == nil {
 		s.ecvKeyProvider = ECVKeyFromFile(ecvKeyPath)
 	}
-	// load ECV key
-	ecvKey, err := s.ecvKeyProvider.Load()
-	if err != nil {
-		return werror.Wrap(err, "failed to load encrypted-config-value key")
+
+	// if config unmarshal function is not set, default to yaml.Unmarshal
+	if s.configYAMLUnmarshalFn == nil {
+		s.configYAMLUnmarshalFn = yaml.Unmarshal
 	}
 
 	// load install configuration
-	baseInstallCfg, fullInstallCfg, err := s.initInstallConfig(ecvKey)
+	baseInstallCfg, fullInstallCfg, err := s.initInstallConfig()
 	if err != nil {
 		return err
 	}
@@ -454,12 +578,19 @@ func (s *Server) Start() (rErr error) {
 	ctx = audit2log.WithLogger(ctx, s.auditLogger)
 
 	// load runtime configuration
-	baseRefreshableRuntimeCfg, refreshableRuntimeCfg, err := s.initRuntimeConfig(ctx, ecvKey)
+	baseRefreshableRuntimeCfg, refreshableRuntimeCfg, configReloadHealthCheckSource, err := s.initRuntimeConfig(ctx)
 	if err != nil {
 		return err
 	}
+
 	if loggerCfg := baseRefreshableRuntimeCfg.CurrentBaseRuntimeConfig().LoggerConfig; loggerCfg != nil {
 		s.svcLogger.SetLevel(loggerCfg.Level)
+	}
+
+	if s.routerImplProvider == nil {
+		s.routerImplProvider = func() wrouter.RouterImpl {
+			return whttprouter.New()
+		}
 	}
 
 	// initialize routers
@@ -471,34 +602,43 @@ func (s *Server) Start() (rErr error) {
 		return err
 	}
 	defer metricsDeferFn()
+	ctx = metrics.WithRegistry(ctx, metricsRegistry)
 
 	// add middleware
-	s.addMiddleware(router.RootRouter(), metricsRegistry, defaultTracerOptions(baseInstallCfg.ProductName, baseInstallCfg.Server.Address, baseInstallCfg.Server.Port, s.traceSampler))
+	s.addMiddleware(router.RootRouter(), metricsRegistry, s.getApplicationTracingOptions(baseInstallCfg))
 	if mgmtRouter != router {
 		// add middleware to management router as well if it is distinct
-		s.addMiddleware(mgmtRouter.RootRouter(), metricsRegistry, defaultTracerOptions(baseInstallCfg.ProductName, baseInstallCfg.Server.Address, baseInstallCfg.Server.ManagementPort, s.traceSampler))
+		s.addMiddleware(mgmtRouter.RootRouter(), metricsRegistry, s.getManagementTracingOptions(baseInstallCfg))
 	}
 
 	// handle built-in runtime config changes
-	unsubscribe := baseRefreshableRuntimeCfg.Subscribe(func(in interface{}) {
-		baseRuntimeCfg := in.(config.Runtime)
-		s.svcLogger.SetLevel(baseRuntimeCfg.LoggerConfig.Level)
+	unsubscribe := baseRefreshableRuntimeCfg.Map(func(in interface{}) interface{} {
+		return in.(config.Runtime).LoggerConfig
+	}).Subscribe(func(in interface{}) {
+		if loggerCfg := in.(*config.LoggerConfig); loggerCfg != nil {
+			s.svcLogger.SetLevel(loggerCfg.Level)
+		}
 	})
 	defer unsubscribe()
 
 	s.initStackTraceHandler(ctx)
+	s.initShutdownSignalHandler(ctx)
+
+	// wait for s.Close() or s.Shutdown() to return if called
+	defer s.shutdownFinished.Wait()
 
 	if s.initFn != nil {
 		traceReporter := wtracing.NewNoopReporter()
 		if s.trcLogger != nil {
 			traceReporter = s.trcLogger
 		}
-		tracer, err := wzipkin.NewTracer(traceReporter, defaultTracerOptions(baseInstallCfg.ProductName, baseInstallCfg.Server.Address, baseInstallCfg.Server.Port, s.traceSampler)...)
+		tracer, err := wzipkin.NewTracer(traceReporter, s.getApplicationTracingOptions(baseInstallCfg)...)
 		if err != nil {
 			return err
 		}
 		ctx = wtracing.ContextWithTracer(ctx, tracer)
 
+		svc1log.FromContext(ctx).Debug("Running server initialization function.")
 		cleanupFn, err := s.initFn(
 			ctx,
 			InitInfo{
@@ -506,8 +646,9 @@ func (s *Server) Start() (rErr error) {
 					Router: newMultiRouterImpl(router, mgmtRouter),
 					Server: s,
 				},
-				InstallConfig: fullInstallCfg,
-				RuntimeConfig: refreshableRuntimeCfg,
+				InstallConfig:  fullInstallCfg,
+				RuntimeConfig:  refreshableRuntimeCfg,
+				ShutdownServer: s.Shutdown,
 			},
 		)
 		if err != nil {
@@ -519,8 +660,9 @@ func (s *Server) Start() (rErr error) {
 	}
 
 	// add routes for health, liveness and readiness. Must be done after initFn to ensure that any
-	// health/liveness/readiness configuration updated by initFn is applied.
-	if err := s.addRoutes(mgmtRouter, baseRefreshableRuntimeCfg); err != nil {
+	// health/liveness/readiness configuration updated by initFn is applied. Includes the
+	// configReloadHealthCheckSource, which is always appended to s.healthCheckSources.
+	if err := s.addRoutes(mgmtRouter, baseRefreshableRuntimeCfg, configReloadHealthCheckSource); err != nil {
 		return err
 	}
 
@@ -533,10 +675,15 @@ func (s *Server) Start() (rErr error) {
 		}
 
 		// start management server in its own goroutine
-		go mgmtStart()
+		go wapp.RunWithRecoveryLogging(ctx, func(ctx context.Context) {
+			if err := mgmtStart(); err != nil {
+				svc1log.FromContext(ctx).Error("management server failed", svc1log.Stacktrace(err))
+			}
+		})
 		defer func() {
-			// nothing to be done if shutdown fails
-			_ = mgmtShutdown(ctx)
+			if err := mgmtShutdown(ctx); err != nil {
+				svc1log.FromContext(ctx).Error("management server failed to shutdown", svc1log.Stacktrace(err))
+			}
 		}()
 	}
 
@@ -546,9 +693,12 @@ func (s *Server) Start() (rErr error) {
 	}
 
 	s.httpServer = httpServer
+	if s.disableKeepAlives {
+		s.httpServer.SetKeepAlivesEnabled(false)
+	}
+
 	s.stateManager.setState(ServerRunning)
-	svrStart()
-	return nil
+	return svrStart()
 }
 
 type configurableRouterImpl struct {
@@ -556,7 +706,7 @@ type configurableRouterImpl struct {
 	*Server
 }
 
-func (s *Server) initInstallConfig(ecvKey *encryptedconfigvalue.KeyWithType) (config.Install, interface{}, error) {
+func (s *Server) initInstallConfig() (config.Install, interface{}, error) {
 	if s.installConfigProvider == nil {
 		// if install config provider is not specified, use a file-based one
 		s.installConfigProvider = cfgBytesProviderFn(func() ([]byte, error) {
@@ -568,8 +718,9 @@ func (s *Server) initInstallConfig(ecvKey *encryptedconfigvalue.KeyWithType) (co
 	if err != nil {
 		return config.Install{}, nil, werror.Wrap(err, "Failed to load install configuration bytes")
 	}
-	if ecvKey != nil {
-		cfgBytes = encryptedconfigvalue.DecryptAllEncryptedValueStringVars(cfgBytes, *ecvKey)
+	cfgBytes, err = s.decryptConfigBytes(cfgBytes)
+	if err != nil {
+		return config.Install{}, nil, werror.Wrap(err, "Failed to decrypt install configuration bytes")
 	}
 
 	var baseInstallCfg config.Install
@@ -582,13 +733,14 @@ func (s *Server) initInstallConfig(ecvKey *encryptedconfigvalue.KeyWithType) (co
 		installConfigStruct = config.Install{}
 	}
 	specificInstallCfg := reflect.New(reflect.TypeOf(installConfigStruct)).Interface()
-	if err := yaml.Unmarshal(cfgBytes, *&specificInstallCfg); err != nil {
+
+	if err := s.configYAMLUnmarshalFn(cfgBytes, *&specificInstallCfg); err != nil {
 		return config.Install{}, nil, werror.Wrap(err, "Failed to unmarshal install specific configuration YAML")
 	}
 	return baseInstallCfg, reflect.Indirect(reflect.ValueOf(specificInstallCfg)).Interface(), nil
 }
 
-func (s *Server) initRuntimeConfig(ctx context.Context, ecvKey *encryptedconfigvalue.KeyWithType) (rBaseCfg refreshableBaseRuntimeConfig, rCfg refreshable.Refreshable, rErr error) {
+func (s *Server) initRuntimeConfig(ctx context.Context) (rBaseCfg refreshableBaseRuntimeConfig, rCfg refreshable.Refreshable, hcSrc status.HealthCheckSource, rErr error) {
 	if s.runtimeConfigProvider == nil {
 		// if runtime provider is not specified, use a file-based one
 		s.runtimeConfigProvider = func(ctx context.Context) (refreshable.Refreshable, error) {
@@ -598,40 +750,58 @@ func (s *Server) initRuntimeConfig(ctx context.Context, ecvKey *encryptedconfigv
 
 	runtimeConfigProvider, err := s.runtimeConfigProvider(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	cfgBytesFn := func(cfgBytesVal interface{}) []byte {
-		cfgBytes := cfgBytesVal.([]byte)
-		// if no key is provided, return raw bytes
-		if ecvKey == nil {
-			return cfgBytes
+	runtimeConfigProvider = runtimeConfigProvider.Map(func(cfgBytesVal interface{}) interface{} {
+		cfgBytes, err := s.decryptConfigBytes(cfgBytesVal.([]byte))
+		if err != nil {
+			s.svcLogger.Warn("Failed to decrypt encrypted runtime configuration", svc1log.Stacktrace(err))
 		}
-		// decrypt all
-		return encryptedconfigvalue.DecryptAllEncryptedValueStringVars(cfgBytes, *ecvKey)
-	}
+		return cfgBytes
+	})
 
-	return newRefreshableBaseRuntimeConfig(runtimeConfigProvider.Map(func(cfgBytesVal interface{}) interface{} {
-			cfgBytes := cfgBytesFn(cfgBytesVal)
-			var runtimeCfg config.Runtime
-			if err := yaml.Unmarshal(cfgBytes, &runtimeCfg); err != nil {
-				s.svcLogger.Error("Failed to unmarshal runtime configuration", svc1log.Stacktrace(err))
-			}
-			return runtimeCfg
-		})),
-		runtimeConfigProvider.Map(func(cfgBytesVal interface{}) interface{} {
-			cfgBytes := cfgBytesFn(cfgBytesVal)
+	validatedRuntimeConfig, err := refreshable.NewValidatingRefreshable(
+		runtimeConfigProvider,
+		func(cfgBytesVal interface{}) error {
 			runtimeConfigStruct := s.runtimeConfigStruct
 			if runtimeConfigStruct == nil {
 				runtimeConfigStruct = config.Runtime{}
 			}
 			runtimeCfg := reflect.New(reflect.TypeOf(runtimeConfigStruct)).Interface()
-			if err := yaml.Unmarshal(cfgBytes, *&runtimeCfg); err != nil {
-				s.svcLogger.Error("Failed to unmarshal runtime configuration", svc1log.Stacktrace(err))
-			}
-			return reflect.Indirect(reflect.ValueOf(runtimeCfg)).Interface()
-		}),
-		nil
+			return s.configYAMLUnmarshalFn(cfgBytesVal.([]byte), *&runtimeCfg)
+		})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	validatingRefreshableHealthCheckSource := refreshablehealth.NewValidatingRefreshableHealthCheckSource(
+		runtimeConfigReloadCheckType,
+		*validatedRuntimeConfig)
+
+	baseRuntimeConfig := newRefreshableBaseRuntimeConfig(validatedRuntimeConfig.Map(func(cfgBytesVal interface{}) interface{} {
+		var runtimeCfg config.Runtime
+		if err := s.configYAMLUnmarshalFn(cfgBytesVal.([]byte), &runtimeCfg); err != nil {
+			s.svcLogger.Error("Failed to unmarshal runtime configuration", svc1log.Stacktrace(err))
+		}
+		return runtimeCfg
+	}))
+
+	runtimeConfig := validatedRuntimeConfig.Map(func(cfgBytesVal interface{}) interface{} {
+		runtimeConfigStruct := s.runtimeConfigStruct
+		if runtimeConfigStruct == nil {
+			runtimeConfigStruct = config.Runtime{}
+		}
+		runtimeCfg := reflect.New(reflect.TypeOf(runtimeConfigStruct)).Interface()
+		if err := s.configYAMLUnmarshalFn(cfgBytesVal.([]byte), *&runtimeCfg); err != nil {
+			// this should not happen unless there is a bug in Witchcraft because configuration has already been
+			// processed by unmarshalYAMLFn without issue at this stage
+			panic("Failed to unmarshal runtime configuration")
+		}
+		return reflect.Indirect(reflect.ValueOf(runtimeCfg)).Interface()
+	})
+
+	return baseRuntimeConfig, runtimeConfig, validatingRefreshableHealthCheckSource, nil
 }
 
 func (s *Server) initStackTraceHandler(ctx context.Context) {
@@ -659,6 +829,22 @@ func (s *Server) initStackTraceHandler(ctx context.Context) {
 	signals.RegisterStackTraceHandlerOnSignals(ctx, stackTraceHandler, errHandler, syscall.SIGQUIT)
 }
 
+func (s *Server) initShutdownSignalHandler(ctx context.Context) {
+	if s.disableShutdownSignalHandler {
+		return
+	}
+
+	shutdownSignal := make(chan os.Signal, 1)
+	signal.Notify(shutdownSignal, syscall.SIGTERM, syscall.SIGINT)
+
+	go wapp.RunWithRecoveryLogging(ctx, func(ctx context.Context) {
+		<-shutdownSignal
+		if err := s.Shutdown(ctx); err != nil {
+			s.svcLogger.Warn("Failed to gracefully shutdown server.", svc1log.Stacktrace(err))
+		}
+	})
+}
+
 // Running returns true if the server is in the "running" state (as opposed to "idle" or "initializing"), false
 // otherwise.
 func (s *Server) Running() bool {
@@ -671,40 +857,99 @@ func (s *Server) State() ServerState {
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
+	s.shutdownFinished.Add(1)
+	defer s.shutdownFinished.Done()
+
+	s.svcLogger.Info("Shutting down server")
 	return stopServer(s, func(svr *http.Server) error {
 		return svr.Shutdown(ctx)
 	})
 }
 
 func (s *Server) Close() error {
+	s.shutdownFinished.Add(1)
+	defer s.shutdownFinished.Done()
+
+	s.svcLogger.Info("Closing server")
 	return stopServer(s, func(svr *http.Server) error {
 		return svr.Close()
 	})
+}
+
+func (s *Server) decryptConfigBytes(cfgBytes []byte) ([]byte, error) {
+	if !encryptedconfigvalue.ContainsEncryptedConfigValueStringVars(cfgBytes) {
+		// Nothing to do
+		return cfgBytes, nil
+	}
+	if s.ecvKeyProvider == nil {
+		return cfgBytes, werror.Error("No encryption key provider configured but config contains encrypted values")
+	}
+	ecvKey, err := s.ecvKeyProvider.Load()
+	if err != nil {
+		return cfgBytes, err
+	}
+	if ecvKey == nil {
+		return cfgBytes, werror.Error("No encryption key configured but config contains encrypted values")
+	}
+	return encryptedconfigvalue.DecryptAllEncryptedValueStringVars(cfgBytes, *ecvKey), nil
 }
 
 func stopServer(s *Server, stopper func(s *http.Server) error) error {
 	if s.State() != ServerRunning {
 		return werror.Error("server is not running")
 	}
+	s.stateManager.setState(ServerIdle)
 	return stopper(s.httpServer)
 }
 
-func defaultTracerOptions(serviceName, address string, port int, traceSampler func(id uint64) bool) []wtracing.TracerOption {
-	var options []wtracing.TracerOption
+func (s *Server) getApplicationTracingOptions(install config.Install) []wtracing.TracerOption {
+	return getTracingOptions(s.applicationTraceSampler, install, alwaysSample, install.Server.Port, install.TraceSampleRate)
+}
+
+func (s *Server) getManagementTracingOptions(install config.Install) []wtracing.TracerOption {
+	return getTracingOptions(s.managementTraceSampler, install, neverSample, install.Server.ManagementPort, install.ManagementTraceSampleRate)
+}
+
+func getTracingOptions(configuredSampler wtracing.Sampler, install config.Install, fallbackSampler wtracing.Sampler, port int, sampleRate *float64) []wtracing.TracerOption {
 	endpoint := &wtracing.Endpoint{
-		ServiceName: serviceName,
+		ServiceName: install.ProductName,
 		Port:        uint16(port),
 	}
-	if parsedIP := net.ParseIP(address); len(parsedIP) > 0 {
+	if parsedIP := net.ParseIP(install.Server.Address); len(parsedIP) > 0 {
 		if parsedIP.To4() != nil {
 			endpoint.IPv4 = parsedIP
 		} else {
 			endpoint.IPv6 = parsedIP
 		}
 	}
-	options = append(options, wtracing.WithLocalEndpoint(endpoint))
-	if traceSampler != nil {
-		options = append(options, wtracing.WithSampler(traceSampler))
+	return []wtracing.TracerOption{
+		wtracing.WithLocalEndpoint(endpoint),
+		getSamplingTraceOption(configuredSampler, fallbackSampler, sampleRate),
 	}
-	return options
 }
+
+func getSamplingTraceOption(configuredSampler wtracing.Sampler, fallbackSampler wtracing.Sampler, sampleRate *float64) wtracing.TracerOption {
+	if configuredSampler != nil {
+		return wtracing.WithSampler(configuredSampler)
+	} else if sampleRate != nil {
+		return wtracing.WithSampler(traceSamplerFromSampleRate(*sampleRate))
+	}
+	return wtracing.WithSampler(fallbackSampler)
+}
+
+func traceSamplerFromSampleRate(sampleRate float64) wtracing.Sampler {
+	if sampleRate <= 0 {
+		return neverSample
+	}
+	if sampleRate >= 1 {
+		return alwaysSample
+	}
+	boundary := uint64(sampleRate * float64(math.MaxUint64)) // does not overflow because we already checked bounds
+	return func(id uint64) bool {
+		return id < boundary
+	}
+}
+
+func neverSample(id uint64) bool { return false }
+
+func alwaysSample(id uint64) bool { return true }

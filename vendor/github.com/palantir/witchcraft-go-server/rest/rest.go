@@ -19,7 +19,7 @@ import (
 	"strings"
 
 	"github.com/palantir/pkg/safejson"
-	"github.com/palantir/witchcraft-go-error"
+	werror "github.com/palantir/witchcraft-go-error"
 )
 
 // WriteJSONResponse marshals the provided object to JSON using a JSON encoder with SetEscapeHTML(false) and writes the

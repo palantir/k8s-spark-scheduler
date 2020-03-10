@@ -40,19 +40,20 @@ func FromContext(ctx context.Context) Registry {
 	}
 }
 
-// AddTags adds the provided tags to the provided context. If the provided context already has tag storage, the new tags
-// are appended to the storage in the existing context (which mutates the content of the context) and returns the same
-// context. If the provided context does not store any tags, this call creates and returns a new context that has tag
-// storage and stores the provided tags. If the provided context has any tags already set on it, the provided tags are
-// appended to them. This function does not perform any de-duplication (that is, if a tag in the provided tags has the
-// same key as an existing one, it will still be appended). Note that tags are shared
+// AddTags adds the provided tags to the provided context. If no tags are provided, the context is returned unchanged.
+// Otherwise, a new context is returned with the new tags appended to any tags stored on the parent context.
+// This function does not perform any de-duplication (that is, if a tag in the provided tags has the
+// same key as an existing one, it will still be appended).
 func AddTags(ctx context.Context, tags ...Tag) context.Context {
-	if tagsContainer, ok := ctx.Value(tagsKey).(*tagsContainer); ok && tagsContainer != nil {
-		tagsContainer.Tags = append(tagsContainer.Tags, tags...)
+	if len(tags) == 0 {
 		return ctx
 	}
+	container, ok := ctx.Value(tagsKey).(*tagsContainer)
+	if !ok || container == nil {
+		container = &tagsContainer{}
+	}
 	return context.WithValue(ctx, tagsKey, &tagsContainer{
-		Tags: tags,
+		Tags: append(container.Tags, tags...),
 	})
 }
 

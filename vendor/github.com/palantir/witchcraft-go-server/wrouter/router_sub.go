@@ -24,11 +24,12 @@ import (
 type subrouter struct {
 	rPath   string
 	rParent Router
+	params  []RouteParam
 }
 
 func (s *subrouter) Register(method, path string, handler http.Handler, params ...RouteParam) error {
 	rootRouter, basePath := s.getRootRouterAndPath()
-	return rootRouter.Register(method, fmt.Sprint(basePath, path), handler, params...)
+	return rootRouter.Register(method, fmt.Sprint(basePath, path), handler, append(s.params, params...)...)
 }
 
 func (s *subrouter) RegisteredRoutes() []RouteSpec {
@@ -67,10 +68,11 @@ func (s *subrouter) Delete(path string, handler http.Handler, params ...RoutePar
 	return s.Register(http.MethodDelete, path, handler, params...)
 }
 
-func (s *subrouter) Subrouter(path string) Router {
+func (s *subrouter) Subrouter(path string, params ...RouteParam) Router {
 	return &subrouter{
 		rPath:   path,
 		rParent: s,
+		params:  params,
 	}
 }
 

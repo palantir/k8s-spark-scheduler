@@ -14,6 +14,11 @@
 
 package wlog
 
+import (
+	"fmt"
+	"strings"
+)
+
 type LogLevel string
 
 const (
@@ -24,19 +29,24 @@ const (
 	FatalLevel LogLevel = "fatal"
 )
 
-func (l LogLevel) value() int {
-	switch l {
-	case DebugLevel:
-		return 0
-	case InfoLevel:
-		return 1
-	case WarnLevel:
-		return 2
-	case ErrorLevel:
-		return 3
-	case FatalLevel:
-		return 4
+func (l *LogLevel) UnmarshalText(b []byte) error {
+	switch strings.ToLower(string(b)) {
+	case string(DebugLevel):
+		*l = DebugLevel
+		return nil
+	case "", string(InfoLevel):
+		*l = InfoLevel
+		return nil
+	case string(WarnLevel):
+		*l = WarnLevel
+		return nil
+	case string(ErrorLevel):
+		*l = ErrorLevel
+		return nil
+	case string(FatalLevel):
+		*l = FatalLevel
+		return nil
 	default:
-		return -1
+		return fmt.Errorf("invalid log level: %q", string(b))
 	}
 }

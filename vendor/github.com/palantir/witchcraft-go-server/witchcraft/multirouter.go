@@ -74,10 +74,10 @@ func (m *multiRouterImpl) Delete(path string, handler http.Handler, params ...wr
 	return m.mainRouter.Delete(path, handler, params...)
 }
 
-func (m *multiRouterImpl) Subrouter(path string) wrouter.Router {
+func (m *multiRouterImpl) Subrouter(path string, params ...wrouter.RouteParam) wrouter.Router {
 	return &multiRouterImpl{
-		mainRouter: m.mainRouter.Subrouter(path),
-		mgmtRouter: m.mgmtRouter.Subrouter(path),
+		mainRouter: m.mainRouter.Subrouter(path, params...),
+		mgmtRouter: m.mgmtRouter.Subrouter(path, params...),
 	}
 }
 

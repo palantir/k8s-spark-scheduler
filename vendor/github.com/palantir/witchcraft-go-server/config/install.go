@@ -21,10 +21,12 @@ import (
 // Install specifies the base install configuration fields that should be included in all witchcraft-go-server server
 // install configurations.
 type Install struct {
-	ProductName          string        `yaml:"product-name,omitempty"`
-	Server               Server        `yaml:"server,omitempty"`
-	MetricsEmitFrequency time.Duration `yaml:"metrics-emit-frequency,omitempty"`
-	UseConsoleLog        bool          `yaml:"use-console-log,omitempty"`
+	ProductName               string        `yaml:"product-name,omitempty"`
+	Server                    Server        `yaml:"server,omitempty"`
+	MetricsEmitFrequency      time.Duration `yaml:"metrics-emit-frequency,omitempty"`
+	TraceSampleRate           *float64      `yaml:"trace-sample-rate,omitempty"`
+	ManagementTraceSampleRate *float64      `yaml:"management-trace-sample-rate,omitempty"`
+	UseConsoleLog             bool          `yaml:"use-console-log,omitempty"`
 }
 
 type Server struct {
