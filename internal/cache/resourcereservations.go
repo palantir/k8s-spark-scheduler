@@ -16,11 +16,11 @@ package cache
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/config"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	sparkschedulerclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1"
 	rrinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/sparkscheduler/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -64,7 +64,7 @@ func NewResourceReservationCache(
 		client:      &resourceReservationClient{resourceReservationKubeClient},
 		queue:       queue,
 		objectStore: objectStore,
-		config: asyncClientConfig,
+		config:      asyncClientConfig,
 	}
 	return &ResourceReservationCache{
 		cache:       cache,

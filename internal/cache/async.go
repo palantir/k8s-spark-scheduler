@@ -16,9 +16,9 @@ package cache
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/config"
 	"regexp"
 
+	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -44,7 +44,7 @@ type asyncClient struct {
 	client      Client
 	queue       store.ShardedUniqueQueue
 	objectStore store.ObjectStore
-	config 		config.AsyncClientConfig
+	config      config.AsyncClientConfig
 }
 
 func (ac *asyncClient) Run(ctx context.Context) {

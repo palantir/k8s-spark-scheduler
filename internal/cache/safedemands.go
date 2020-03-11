@@ -16,13 +16,13 @@ package cache
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/config"
 	"sync"
 	"time"
 
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
 	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
+	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/pkg/retry"
 	werror "github.com/palantir/witchcraft-go-error"
@@ -48,7 +48,7 @@ type SafeDemandCache struct {
 	apiExtensionsClient  apiextensionsclientset.Interface
 	cacheInitialization  sync.Mutex
 	demandKubeClient     demandclient.ScalerV1alpha1Interface
-	asyncClientConfig	config.AsyncClientConfig
+	asyncClientConfig    config.AsyncClientConfig
 }
 
 // NewSafeDemandCache returns a demand cache which fallbacks
@@ -63,7 +63,7 @@ func NewSafeDemandCache(
 		informerFactory:     informerFactory,
 		apiExtensionsClient: apiExtensionsClient,
 		demandKubeClient:    demandKubeClient,
-		asyncClientConfig: asyncClientConfig,
+		asyncClientConfig:   asyncClientConfig,
 	}
 }
 

@@ -16,11 +16,11 @@ package cache
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/config"
 
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
 	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
 	demandinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/scaler/v1alpha1"
+	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -63,7 +63,7 @@ func NewDemandCache(
 		client:      &demandClient{demandKubeClient},
 		queue:       queue,
 		objectStore: objectStore,
-		config: asyncClientConfig,
+		config:      asyncClientConfig,
 	}
 	return &DemandCache{
 		cache:       cache,
