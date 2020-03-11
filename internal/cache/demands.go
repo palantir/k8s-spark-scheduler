@@ -16,6 +16,7 @@ package cache
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/config"
 
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
 	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
@@ -46,6 +47,7 @@ func NewDemandCache(
 	ctx context.Context,
 	demandInformer demandinformers.DemandInformer,
 	demandKubeClient demandclient.ScalerV1alpha1Interface,
+	asyncClientConfig config.AsyncClientConfig,
 ) (*DemandCache, error) {
 	ds, err := demandInformer.Lister().List(labels.Everything())
 	if err != nil {
@@ -61,6 +63,7 @@ func NewDemandCache(
 		client:      &demandClient{demandKubeClient},
 		queue:       queue,
 		objectStore: objectStore,
+		config: asyncClientConfig,
 	}
 	return &DemandCache{
 		cache:       cache,

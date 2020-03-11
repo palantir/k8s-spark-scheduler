@@ -16,6 +16,7 @@ package cache
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/config"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	sparkschedulerclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1"
@@ -47,6 +48,7 @@ func NewResourceReservationCache(
 	ctx context.Context,
 	resourceReservationInformer rrinformers.ResourceReservationInformer,
 	resourceReservationKubeClient sparkschedulerclient.SparkschedulerV1beta1Interface,
+	asyncClientConfig config.AsyncClientConfig,
 ) (*ResourceReservationCache, error) {
 	rrs, err := resourceReservationInformer.Lister().List(labels.Everything())
 	if err != nil {
@@ -62,6 +64,7 @@ func NewResourceReservationCache(
 		client:      &resourceReservationClient{resourceReservationKubeClient},
 		queue:       queue,
 		objectStore: objectStore,
+		config: asyncClientConfig,
 	}
 	return &ResourceReservationCache{
 		cache:       cache,

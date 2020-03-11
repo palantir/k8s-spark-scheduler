@@ -81,7 +81,7 @@ func (c *cache) Update(obj metav1.Object) error {
 func (c *cache) Delete(namespace, name string) {
 	key := store.Key{Namespace: namespace, Name: name}
 	c.store.Delete(key)
-	c.queue.AddIfAbsent(store.Request{Key: key, Type: store.DeleteRequestType})
+	c.queue.AddIfAbsent(store.DeleteRequest(key))
 }
 
 func (c *cache) List() []metav1.Object {

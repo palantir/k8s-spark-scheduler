@@ -28,7 +28,19 @@ type Install struct {
 	Burst                         int     `yaml:"burst,omitempty"`
 	BinpackAlgo                   string  `yaml:"binpack,omitempty"`
 	InstanceGroupLabel            string  `yaml:"instance-group-label,omitempty"`
+	AsyncClientConfig			  AsyncClientConfig `yaml:"async-client-config,omitempty"`
 	UseExperimentalHostPriorities bool    `yaml:"use-experimental-host-priorities,omitempty"`
 
 	ResourceReservationCRDAnnotations map[string]string `yaml:"resource-reservation-crd-annotations,omitempty"`
+}
+
+type AsyncClientConfig struct {
+	maxRetryCount	int	`yaml:"max-retry-count,omitempty"`
+}
+
+func (acc AsyncClientConfig) MaxRetryCount() int {
+	if acc.maxRetryCount <= 0 {
+		return 5
+	}
+	return acc.maxRetryCount
 }

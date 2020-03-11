@@ -43,16 +43,26 @@ const (
 
 // Request is a write request for an object
 type Request struct {
-	Key  Key
-	Type RequestType
+	Key        Key
+	Type       RequestType
+	RetryCount int
 }
 
 // CreateRequest creates a create request for an object
 func CreateRequest(obj metav1.Object) Request {
-	return Request{KeyOf(obj), CreateRequestType}
+	return Request{KeyOf(obj), CreateRequestType, 0}
 }
 
 // UpdateRequest creates an update request for an object
 func UpdateRequest(obj metav1.Object) Request {
-	return Request{KeyOf(obj), UpdateRequestType}
+	return Request{KeyOf(obj), UpdateRequestType, 0}
+}
+
+// DeleteRequest creates a delete request for an object
+func DeleteRequest(objKey Key) Request {
+	return Request{objKey, DeleteRequestType, 0}
+}
+
+func (rq Request) WithIncrementedRetriesCount() Request {
+	return Request{rq.Key, rq.Type, rq.RetryCount + 1}
 }

@@ -139,6 +139,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		ctx,
 		resourceReservationInformerInterface,
 		sparkSchedulerClient.SparkschedulerV1beta1(),
+		install.AsyncClientConfig,
 	)
 
 	if err != nil {
@@ -150,6 +151,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		sparkSchedulerInformerFactory,
 		apiExtensionsClient,
 		sparkSchedulerClient.ScalerV1alpha1(),
+		install.AsyncClientConfig,
 	)
 
 	if err != nil {
