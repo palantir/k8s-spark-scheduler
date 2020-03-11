@@ -136,7 +136,7 @@ func (ac *asyncClient) maybeRetryRequest(ctx context.Context, r store.Request, e
 		return false
 	}
 	svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.Stacktrace(err))
-	ac.queue.AddIfAbsent(r.WithIncrementedRetriesCount())
+	ac.queue.AddIfAbsent(r.WithIncrementedRetryCount())
 	return true
 }
 

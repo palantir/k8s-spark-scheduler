@@ -63,6 +63,7 @@ func DeleteRequest(objKey Key) Request {
 	return Request{objKey, DeleteRequestType, 0}
 }
 
-func (rq Request) WithIncrementedRetriesCount() Request {
+// WithIncrementedRetryCount returns the same request with an incremented RetryCount
+func (rq Request) WithIncrementedRetryCount() Request {
 	return Request{rq.Key, rq.Type, rq.RetryCount + 1}
 }
