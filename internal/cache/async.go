@@ -86,7 +86,8 @@ func (ac *asyncClient) doCreate(ctx context.Context, r store.Request) {
 		svc1log.FromContext(ctx).Info("can not create object because its namespace is being terminated")
 		ac.objectStore.Delete(r.Key)
 	default:
-		if !ac.maybeRetryRequest(ctx, r, err) {
+		didRetry := ac.maybeRetryRequest(ctx, r, err)
+		if !didRetry {
 			ac.objectStore.Delete(r.Key)
 		}
 	}

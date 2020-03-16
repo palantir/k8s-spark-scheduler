@@ -35,12 +35,13 @@ type Install struct {
 }
 
 type AsyncClientConfig struct {
-	maxRetryCount int `yaml:"max-retry-count,omitempty"`
+	maxRetryCount *int `yaml:"max-retry-count,omitempty"`
 }
 
+// MaxRetryCount returns the maximum number of times the internal async client retries calls to the api server
 func (acc AsyncClientConfig) MaxRetryCount() int {
-	if acc.maxRetryCount <= 0 {
+	if acc.maxRetryCount == nil || *acc.maxRetryCount < 0 {
 		return 5
 	}
-	return acc.maxRetryCount
+	return *acc.maxRetryCount
 }
