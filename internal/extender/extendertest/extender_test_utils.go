@@ -22,6 +22,7 @@ import (
 
 	ssclientset "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/fake"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
+	"github.com/palantir/k8s-spark-scheduler/config"
 	sscache "github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/witchcraft-go-logging/wlog"
@@ -58,6 +59,8 @@ type Harness struct {
 func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	wlog.SetDefaultLoggerProvider(wlog.NewNoopLoggerProvider()) // suppressing Witchcraft warning log about logger provider
 	ctx := newLoggingContext()
+
+	installConfig := config.Install{}
 	fakeKubeClient := fake.NewSimpleClientset(objects...)
 	fakeSchedulerClient := ssclientset.NewSimpleClientset()
 	fakeAPIExtensionsClient := apiextensionsfake.NewSimpleClientset()
@@ -93,6 +96,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		ctx,
 		resourceReservationInformerInterface,
 		fakeSchedulerClient.SparkschedulerV1beta1(),
+		installConfig.AsyncClientConfig,
 	)
 	if err != nil {
 		return nil, err
@@ -102,6 +106,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		sparkSchedulerInformerFactory,
 		fakeAPIExtensionsClient,
 		fakeSchedulerClient.ScalerV1alpha1(),
+		installConfig.AsyncClientConfig,
 	)
 	softReservationStore := sscache.NewSoftReservationStore(ctx, podInformerInterface)
 

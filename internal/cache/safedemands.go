@@ -22,6 +22,7 @@ import (
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
 	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
+	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/pkg/retry"
 	werror "github.com/palantir/witchcraft-go-error"
@@ -47,6 +48,7 @@ type SafeDemandCache struct {
 	apiExtensionsClient  apiextensionsclientset.Interface
 	cacheInitialization  sync.Mutex
 	demandKubeClient     demandclient.ScalerV1alpha1Interface
+	asyncClientConfig    config.AsyncClientConfig
 }
 
 // NewSafeDemandCache returns a demand cache which fallbacks
@@ -55,11 +57,13 @@ func NewSafeDemandCache(
 	informerFactory ssinformers.SharedInformerFactory,
 	apiExtensionsClient apiextensionsclientset.Interface,
 	demandKubeClient demandclient.ScalerV1alpha1Interface,
+	asyncClientConfig config.AsyncClientConfig,
 ) *SafeDemandCache {
 	return &SafeDemandCache{
 		informerFactory:     informerFactory,
 		apiExtensionsClient: apiExtensionsClient,
 		demandKubeClient:    demandKubeClient,
+		asyncClientConfig:   asyncClientConfig,
 	}
 }
 
@@ -128,7 +132,7 @@ func (sdc *SafeDemandCache) initializeCache(ctx context.Context) error {
 		return err
 	}
 
-	demandCache, err := NewDemandCache(ctx, informerInterface, sdc.demandKubeClient)
+	demandCache, err := NewDemandCache(ctx, informerInterface, sdc.demandKubeClient, sdc.asyncClientConfig)
 	if err != nil {
 		return err
 	}

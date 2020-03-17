@@ -22,13 +22,27 @@ import (
 type Install struct {
 	config.Install                `yaml:",inline"`
 	config.Runtime                `yaml:",inline"`
-	Kubeconfig                    string  `yaml:"kube-config,omitempty"`
-	FIFO                          bool    `yaml:"fifo,omitempty"`
-	QPS                           float32 `yaml:"qps,omitempty"`
-	Burst                         int     `yaml:"burst,omitempty"`
-	BinpackAlgo                   string  `yaml:"binpack,omitempty"`
-	InstanceGroupLabel            string  `yaml:"instance-group-label,omitempty"`
-	UseExperimentalHostPriorities bool    `yaml:"use-experimental-host-priorities,omitempty"`
+	Kubeconfig                    string            `yaml:"kube-config,omitempty"`
+	FIFO                          bool              `yaml:"fifo,omitempty"`
+	QPS                           float32           `yaml:"qps,omitempty"`
+	Burst                         int               `yaml:"burst,omitempty"`
+	BinpackAlgo                   string            `yaml:"binpack,omitempty"`
+	InstanceGroupLabel            string            `yaml:"instance-group-label,omitempty"`
+	AsyncClientConfig             AsyncClientConfig `yaml:"async-client-config,omitempty"`
+	UseExperimentalHostPriorities bool              `yaml:"use-experimental-host-priorities,omitempty"`
 
 	ResourceReservationCRDAnnotations map[string]string `yaml:"resource-reservation-crd-annotations,omitempty"`
+}
+
+// AsyncClientConfig is the configuration for the internal async client
+type AsyncClientConfig struct {
+	maxRetryCount *int `yaml:"max-retry-count,omitempty"`
+}
+
+// MaxRetryCount returns the maximum number of times the internal async client retries calls to the api server
+func (acc AsyncClientConfig) MaxRetryCount() int {
+	if acc.maxRetryCount == nil || *acc.maxRetryCount < 0 {
+		return 5
+	}
+	return *acc.maxRetryCount
 }
