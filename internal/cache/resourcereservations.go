@@ -16,7 +16,6 @@ package cache
 
 import (
 	"context"
-
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	sparkschedulerclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1"
 	rrinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/sparkscheduler/v1beta1"
@@ -65,6 +64,7 @@ func NewResourceReservationCache(
 		queue:       queue,
 		objectStore: objectStore,
 		config:      asyncClientConfig,
+		metrics:     &AsyncClientMetrics{ObjectTypeTag: "resourcereservations"},
 	}
 	return &ResourceReservationCache{
 		cache:       cache,

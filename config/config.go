@@ -34,6 +34,7 @@ type Install struct {
 	ResourceReservationCRDAnnotations map[string]string `yaml:"resource-reservation-crd-annotations,omitempty"`
 }
 
+// AsyncClientConfig is the configuration for the internal async client
 type AsyncClientConfig struct {
 	maxRetryCount *int `yaml:"max-retry-count,omitempty"`
 }

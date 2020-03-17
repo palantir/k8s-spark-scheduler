@@ -16,7 +16,6 @@ package cache
 
 import (
 	"context"
-
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
 	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
 	demandinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/scaler/v1alpha1"
@@ -64,6 +63,7 @@ func NewDemandCache(
 		queue:       queue,
 		objectStore: objectStore,
 		config:      asyncClientConfig,
+		metrics:     &AsyncClientMetrics{ObjectTypeTag: "demands"},
 	}
 	return &DemandCache{
 		cache:       cache,
