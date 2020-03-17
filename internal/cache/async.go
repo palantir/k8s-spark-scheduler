@@ -80,7 +80,7 @@ func (ac *asyncClient) doCreate(ctx context.Context, r store.Request) {
 		svc1log.FromContext(ctx).Info("Ignoring request for deleted object")
 		return
 	}
-	ac.metrics.MarkRequest(ctx)
+	ac.metrics.MarkRequest(ctx, r.Type)
 	result, err := ac.client.Create(obj)
 	switch {
 	case err == nil:
@@ -103,7 +103,7 @@ func (ac *asyncClient) doUpdate(ctx context.Context, r store.Request) {
 		return
 	}
 
-	ac.metrics.MarkRequest(ctx)
+	ac.metrics.MarkRequest(ctx, r.Type)
 	result, err := ac.client.Update(obj)
 	switch {
 	case err == nil:
@@ -124,7 +124,7 @@ func (ac *asyncClient) doUpdate(ctx context.Context, r store.Request) {
 }
 
 func (ac *asyncClient) doDelete(ctx context.Context, r store.Request) {
-	ac.metrics.MarkRequest(ctx)
+	ac.metrics.MarkRequest(ctx, r.Type)
 	err := ac.client.Delete(r.Key.Namespace, r.Key.Name)
 	switch {
 	case err == nil:
@@ -139,11 +139,11 @@ func (ac *asyncClient) doDelete(ctx context.Context, r store.Request) {
 func (ac *asyncClient) maybeRetryRequest(ctx context.Context, r store.Request, err error) bool {
 	if r.RetryCount >= ac.config.MaxRetryCount() {
 		svc1log.FromContext(ctx).Error("max retry count reached, dropping request", svc1log.Stacktrace(err))
-		ac.metrics.MarkRequestDropped(ctx)
+		ac.metrics.MarkRequestDropped(ctx, r.Type)
 		return false
 	}
 	svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.SafeParam("retryCount", r.RetryCount), svc1log.Stacktrace(err))
-	ac.metrics.MarkRequestRetry(ctx)
+	ac.metrics.MarkRequestRetry(ctx, r.Type)
 	ac.queue.AddIfAbsent(r.WithIncrementedRetryCount())
 	return true
 }
@@ -162,6 +162,7 @@ const (
 	asyncClientRetries         = "foundry.spark.scheduler.async.request.retries.count"
 	asyncClientDroppedRequests = "foundry.spark.scheduler.async.request.dropped.count"
 	objectTypeTagKey           = "objectType"
+	requestTypeTagKey          = "requestType"
 )
 
 // AsyncClientMetrics emits metrics on retries and failures of the internal async client calls to the api server
@@ -171,16 +172,29 @@ type AsyncClientMetrics struct {
 }
 
 // MarkRequest marks that a request to the api server is being made
-func (acm *AsyncClientMetrics) MarkRequest(ctx context.Context) {
-	metrics.FromContext(ctx).Counter(asyncClientRequest, metrics.MustNewTag(objectTypeTagKey, acm.ObjectTypeTag)).Inc(1)
+func (acm *AsyncClientMetrics) MarkRequest(ctx context.Context, requestType store.RequestType) {
+	metrics.FromContext(ctx).Counter(asyncClientRequest, metrics.MustNewTag(objectTypeTagKey, acm.ObjectTypeTag), acm.requestTypeTag(requestType)).Inc(1)
 }
 
 // MarkRequestRetry marks that a request to the api server failed and is being retried
-func (acm *AsyncClientMetrics) MarkRequestRetry(ctx context.Context) {
-	metrics.FromContext(ctx).Counter(asyncClientRetries, metrics.MustNewTag(objectTypeTagKey, acm.ObjectTypeTag)).Inc(1)
+func (acm *AsyncClientMetrics) MarkRequestRetry(ctx context.Context, requestType store.RequestType) {
+	metrics.FromContext(ctx).Counter(asyncClientRetries, metrics.MustNewTag(objectTypeTagKey, acm.ObjectTypeTag), acm.requestTypeTag(requestType)).Inc(1)
 }
 
 // MarkRequestDropped marks that a request to the api server failed and is not going to be retried because it reached the maximum number of retries
-func (acm *AsyncClientMetrics) MarkRequestDropped(ctx context.Context) {
-	metrics.FromContext(ctx).Counter(asyncClientDroppedRequests, metrics.MustNewTag(objectTypeTagKey, acm.ObjectTypeTag)).Inc(1)
+func (acm *AsyncClientMetrics) MarkRequestDropped(ctx context.Context, requestType store.RequestType) {
+	metrics.FromContext(ctx).Counter(asyncClientDroppedRequests, metrics.MustNewTag(objectTypeTagKey, acm.ObjectTypeTag), acm.requestTypeTag(requestType)).Inc(1)
+}
+
+func (acm *AsyncClientMetrics) requestTypeTag(requestType store.RequestType) metrics.Tag {
+	requestTypeName := "unknown"
+	switch requestType {
+	case store.CreateRequestType:
+		requestTypeName = "create"
+	case store.UpdateRequestType:
+		requestTypeName = "update"
+	case store.DeleteRequestType:
+		requestTypeName = "delete"
+	}
+	return metrics.MustNewTag(requestTypeTagKey, requestTypeName)
 }
