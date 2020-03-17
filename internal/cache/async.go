@@ -16,11 +16,11 @@ package cache
 
 import (
 	"context"
-	"github.com/palantir/pkg/metrics"
 	"regexp"
 
 	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
+	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,7 +46,7 @@ type asyncClient struct {
 	queue       store.ShardedUniqueQueue
 	objectStore store.ObjectStore
 	config      config.AsyncClientConfig
-	metrics 	*AsyncClientMetrics
+	metrics     *AsyncClientMetrics
 }
 
 func (ac *asyncClient) Run(ctx context.Context) {
@@ -158,10 +158,10 @@ func isNamespaceTerminating(err error) bool {
 }
 
 const (
-	asyncClientRequest				= "foundry.spark.scheduler.async.request.count"
-	asyncClientRetries				= "foundry.spark.scheduler.async.request.retries.count"
-	asyncClientDroppedRequests		= "foundry.spark.scheduler.async.request.dropped.count"
-	objectTypeTagKey                = "objectType"
+	asyncClientRequest         = "foundry.spark.scheduler.async.request.count"
+	asyncClientRetries         = "foundry.spark.scheduler.async.request.retries.count"
+	asyncClientDroppedRequests = "foundry.spark.scheduler.async.request.dropped.count"
+	objectTypeTagKey           = "objectType"
 )
 
 // AsyncClientMetrics emits metrics on retries and failures of the internal async client calls to the api server
