@@ -27,19 +27,20 @@ func MatchPodInstanceGroup(pod1 *v1.Pod, pod2 *v1.Pod, instanceGroupLabel string
 
 // FindInstanceGroupFromPodSpec extracts the instance group from a Pod spec.
 func FindInstanceGroupFromPodSpec(podSpec v1.PodSpec, instanceGroupLabel string) (string, bool) {
-	affinity := podSpec.Affinity
-	if affinity == nil {
+	instanceGroup, ok := instanceGroupFromNodeAffinities(podSpec, instanceGroupLabel)
+	if !ok {
+		instanceGroup, ok = podSpec.NodeSelector[instanceGroupLabel]
+	}
+	return instanceGroup, ok
+}
+
+func instanceGroupFromNodeAffinities(podSpec v1.PodSpec, instanceGroupLabel string) (string, bool) {
+	if podSpec.Affinity == nil ||
+		podSpec.Affinity.NodeAffinity == nil ||
+		podSpec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
 		return "", false
 	}
-	nodeAffinity := affinity.NodeAffinity
-	if nodeAffinity == nil {
-		return "", false
-	}
-	requiredDuringSchedulingIgnoredDuringExecution := nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
-	if requiredDuringSchedulingIgnoredDuringExecution == nil {
-		return "", false
-	}
-	for _, nodeSelectorTerm := range requiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
+	for _, nodeSelectorTerm := range podSpec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
 		for _, matchExpression := range nodeSelectorTerm.MatchExpressions {
 			if matchExpression.Key == instanceGroupLabel {
 				if len(matchExpression.Values) == 1 {
@@ -48,6 +49,5 @@ func FindInstanceGroupFromPodSpec(podSpec v1.PodSpec, instanceGroupLabel string)
 			}
 		}
 	}
-	instanceGroup, ok := podSpec.NodeSelector[instanceGroupLabel]
-	return instanceGroup, ok
+	return "", false
 }
