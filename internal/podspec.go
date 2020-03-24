@@ -27,6 +27,19 @@ func MatchPodInstanceGroup(pod1 *v1.Pod, pod2 *v1.Pod, instanceGroupLabel string
 
 // FindInstanceGroupFromPodSpec extracts the instance group from a Pod spec.
 func FindInstanceGroupFromPodSpec(podSpec v1.PodSpec, instanceGroupLabel string) (string, bool) {
+	instanceGroup, ok := instanceGroupFromNodeAffinities(podSpec, instanceGroupLabel)
+	if !ok {
+		instanceGroup, ok = podSpec.NodeSelector[instanceGroupLabel]
+	}
+	return instanceGroup, ok
+}
+
+func instanceGroupFromNodeAffinities(podSpec v1.PodSpec, instanceGroupLabel string) (string, bool) {
+	if podSpec.Affinity == nil ||
+		podSpec.Affinity.NodeAffinity == nil ||
+		podSpec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution == nil {
+		return "", false
+	}
 	for _, nodeSelectorTerm := range podSpec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
 		for _, matchExpression := range nodeSelectorTerm.MatchExpressions {
 			if matchExpression.Key == instanceGroupLabel {
@@ -36,6 +49,5 @@ func FindInstanceGroupFromPodSpec(podSpec v1.PodSpec, instanceGroupLabel string)
 			}
 		}
 	}
-	instanceGroup, ok := podSpec.NodeSelector[instanceGroupLabel]
-	return instanceGroup, ok
+	return "", false
 }
