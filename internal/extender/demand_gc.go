@@ -44,14 +44,14 @@ import (
 // We also delete demands elsewhere in the extender when we schedule the pod, but those can miss some demands due to race conditions.
 type DemandGC struct {
 	demandCache *cache.SafeDemandCache
-	ctx 		context.Context
+	ctx         context.Context
 }
 
 // NewDemandGC initializes the DemandGC which handles events in the background
 func NewDemandGC(ctx context.Context, podInformer coreinformers.PodInformer, demandCache *cache.SafeDemandCache) {
 	dgc := &DemandGC{
 		demandCache: demandCache,
-		ctx:      	 ctx,
+		ctx:         ctx,
 	}
 
 	podInformer.Informer().AddEventHandler(
