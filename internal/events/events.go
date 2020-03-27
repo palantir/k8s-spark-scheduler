@@ -67,7 +67,7 @@ func EmitDemandCreated(ctx context.Context, demand *v1alpha1.Demand) {
 // EmitDemandDeleted logs an event when we delete a Demand object for an application. This means that we have
 // relinquished our request for more resources than are currently provisioned, either because we don't need them
 // anymore  or because we have received the resources we requested.
-func EmitDemandDeleted(ctx context.Context, demand *v1alpha1.Demand) {
+func EmitDemandDeleted(ctx context.Context, demand *v1alpha1.Demand, source string) {
 	demandAge := time.Now().UTC().Sub(demand.CreationTimestamp.UTC())
 	evt2log.FromContext(ctx).Event(demandDeleted, evt2log.Values(map[string]interface{}{
 		"instanceGroup":      demand.Spec.InstanceGroup,
@@ -75,5 +75,6 @@ func EmitDemandDeleted(ctx context.Context, demand *v1alpha1.Demand) {
 		"demandName":         demand.Name,
 		"demandAgeSeconds":   int(demandAge.Seconds()),
 		"demandCreationTime": demand.CreationTimestamp.UTC(),
+		"source":             source,
 	}))
 }

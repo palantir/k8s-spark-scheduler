@@ -121,7 +121,7 @@ func (s *SparkSchedulerExtender) removeDemandIfExists(ctx context.Context, pod *
 	if demand, ok := s.demands.Get(pod.Namespace, demandName); ok {
 		s.demands.Delete(pod.Namespace, demandName)
 		svc1log.FromContext(ctx).Info("Removed demand object because capacity exists for pod", svc1log.SafeParams(internal.DemandSafeParams(demandName, pod.Namespace)))
-		events.EmitDemandDeleted(ctx, demand)
+		events.EmitDemandDeleted(ctx, demand, "SparkSchedulerExtender")
 	}
 }
 
