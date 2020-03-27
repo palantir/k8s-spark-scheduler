@@ -44,14 +44,14 @@ import (
 // We also delete demands elsewhere in the extender when we schedule the pod, but those can miss some demands due to race conditions.
 type DemandGC struct {
 	demandCache *cache.SafeDemandCache
-	logger      svc1log.Logger
+	ctx 		context.Context
 }
 
 // NewDemandGC initializes the DemandGC which handles events in the background
 func NewDemandGC(ctx context.Context, podInformer coreinformers.PodInformer, demandCache *cache.SafeDemandCache) {
 	dgc := &DemandGC{
 		demandCache: demandCache,
-		logger:      svc1log.FromContext(ctx),
+		ctx:      	 ctx,
 	}
 
 	podInformer.Informer().AddEventHandler(
@@ -75,12 +75,12 @@ func NewDemandGC(ctx context.Context, podInformer coreinformers.PodInformer, dem
 func (dgc *DemandGC) onPodUpdate(oldObj interface{}, newObj interface{}) {
 	oldPod, ok := oldObj.(*v1.Pod)
 	if !ok {
-		dgc.logger.Error("failed to parse oldObj as pod")
+		svc1log.FromContext(dgc.ctx).Error("failed to parse oldObj as pod")
 		return
 	}
 	newPod, ok := newObj.(*v1.Pod)
 	if !ok {
-		dgc.logger.Error("failed to parse newObj as pod")
+		svc1log.FromContext(dgc.ctx).Error("failed to parse newObj as pod")
 		return
 	}
 
@@ -103,7 +103,7 @@ func (dgc *DemandGC) deleteDemandIfExists(pod *v1.Pod) {
 	if demand, ok := dgc.demandCache.Get(pod.Namespace, demandName); ok {
 		// there is no harm in the demand being deleted elsewhere in between the two calls.
 		dgc.demandCache.Delete(pod.Namespace, demandName)
-		dgc.logger.Info("Removed demand object because pod is now scheduled", svc1log.SafeParams(internal.DemandSafeParams(demandName, pod.Namespace)))
-		events.EmitDemandDeleted(context.Background(), demand, "DemandGC")
+		svc1log.FromContext(dgc.ctx).Info("Removed demand object because pod is now scheduled", svc1log.SafeParams(internal.DemandSafeParams(demandName, pod.Namespace)))
+		events.EmitDemandDeleted(dgc.ctx, demand, "DemandGC")
 	}
 }
