@@ -48,6 +48,7 @@ const (
 	softReservationCount            = "foundry.spark.scheduler.softreservation.count"
 	softReservationExecutorCount    = "foundry.spark.scheduler.softreservation.executorcount"
 	executorsWithNoReservationCount = "foundry.spark.scheduler.softreservation.executorswithnoreservations"
+	podInformerDelay                = "foundry.spark.scheduler.informer.delay"
 )
 
 const (
