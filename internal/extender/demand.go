@@ -17,14 +17,15 @@ package extender
 import (
 	"context"
 	"encoding/json"
+	"github.com/palantir/k8s-spark-scheduler/internal/common"
 
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/events"
-	werror "github.com/palantir/witchcraft-go-error"
+	"github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 )
@@ -126,9 +127,9 @@ func (s *SparkSchedulerExtender) removeDemandIfExists(ctx context.Context, pod *
 }
 
 func newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit) (*demandapi.Demand, error) {
-	appID, ok := pod.Labels[SparkAppIDLabel]
+	appID, ok := pod.Labels[common.SparkAppIDLabel]
 	if !ok {
-		return nil, werror.Error("pod did not contain expected label for AppID", werror.SafeParam("expectedLabel", SparkAppIDLabel))
+		return nil, werror.Error("pod did not contain expected label for AppID", werror.SafeParam("expectedLabel", common.SparkAppIDLabel))
 	}
 	demandName := demandResourceName(pod)
 	return &demandapi.Demand{
@@ -136,7 +137,7 @@ func newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit) 
 			Name:      demandName,
 			Namespace: pod.Namespace,
 			Labels: map[string]string{
-				SparkAppIDLabel: appID,
+				common.SparkAppIDLabel: appID,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(pod, podGroupVersionKind),

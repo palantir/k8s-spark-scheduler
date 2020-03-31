@@ -159,7 +159,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		return nil, err
 	}
 
-	extender.NewDemandGC(ctx, podInformerInterface, demandCache)
+	extender.StartDemandGC(ctx, podInformerInterface, demandCache)
 
 	softReservationStore := cache.NewSoftReservationStore(ctx, podInformerInterface)
 

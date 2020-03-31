@@ -16,6 +16,7 @@ package extender
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"math"
 	"sort"
 
@@ -23,9 +24,9 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
-	werror "github.com/palantir/witchcraft-go-error"
+	"github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -209,14 +210,14 @@ func (r *reconciler) syncSoftReservations(ctx context.Context, extraExecutorsByA
 // syncApplicationSoftReservations creates empty SoftReservations for all applications that can have extra executors in dynamic allocation
 // in order to prefill the SoftReservationStore with the drivers currently running
 func (r *reconciler) syncApplicationSoftReservations(ctx context.Context) error {
-	selector := labels.Set(map[string]string{SparkRoleLabel: Driver}).AsSelector()
+	selector := labels.Set(map[string]string{common.SparkRoleLabel: common.Driver}).AsSelector()
 	drivers, err := r.podLister.List(selector)
 	if err != nil {
 		return werror.Wrap(err, "failed to list drivers")
 	}
 
 	for _, d := range drivers {
-		if d.Spec.SchedulerName != SparkSchedulerName || d.Spec.NodeName == "" || d.Status.Phase == v1.PodSucceeded || d.Status.Phase == v1.PodFailed {
+		if d.Spec.SchedulerName != common.SparkSchedulerName || d.Spec.NodeName == "" || d.Status.Phase == v1.PodSucceeded || d.Status.Phase == v1.PodFailed {
 			continue
 		}
 		appResources, err := sparkResources(ctx, d)
@@ -229,7 +230,7 @@ func (r *reconciler) syncApplicationSoftReservations(ctx context.Context) error 
 		}
 
 		if appResources.maxExecutorCount > appResources.minExecutorCount {
-			r.softReservations.CreateSoftReservationIfNotExists(d.Labels[SparkAppIDLabel])
+			r.softReservations.CreateSoftReservationIfNotExists(d.Labels[common.SparkAppIDLabel])
 		}
 	}
 	return nil
@@ -251,20 +252,20 @@ func unreservedSparkPodsBySparkID(
 	appIDToPods := make(map[string]*sparkPods)
 	for _, pod := range pods {
 		if isNotScheduledSparkPod(pod) || podsWithRRs[pod.Name] ||
-			(pod.Labels[SparkRoleLabel] == Executor && softReservationStore.ExecutorHasSoftReservation(ctx, pod)) {
+			(pod.Labels[common.SparkRoleLabel] == common.Executor && softReservationStore.ExecutorHasSoftReservation(ctx, pod)) {
 			continue
 		}
-		appID := pod.Labels[SparkAppIDLabel]
+		appID := pod.Labels[common.SparkAppIDLabel]
 		sp, ok := appIDToPods[appID]
 		if !ok {
 			sp = &sparkPods{
 				appID: appID,
 			}
 		}
-		switch pod.Labels[SparkRoleLabel] {
-		case Driver:
+		switch pod.Labels[common.SparkRoleLabel] {
+		case common.Driver:
 			sp.inconsistentDriver = pod
-		case Executor:
+		case common.Executor:
 			sp.inconsistentExecutors = append(sp.inconsistentExecutors, pod)
 		default:
 			svc1log.FromContext(ctx).Error("received non spark pod, ignoring", svc1log.SafeParams(internal.PodSafeParams(*pod)))
@@ -275,7 +276,7 @@ func unreservedSparkPodsBySparkID(
 }
 
 func isNotScheduledSparkPod(pod *v1.Pod) bool {
-	return pod.Spec.SchedulerName != SparkSchedulerName || pod.DeletionTimestamp != nil || pod.Spec.NodeName == ""
+	return pod.Spec.SchedulerName != common.SparkSchedulerName || pod.DeletionTimestamp != nil || pod.Spec.NodeName == ""
 }
 
 func availableResourcesPerInstanceGroup(

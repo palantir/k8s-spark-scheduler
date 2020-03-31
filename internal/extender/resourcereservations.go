@@ -16,10 +16,11 @@ package extender
 
 import (
 	"fmt"
+	"github.com/palantir/k8s-spark-scheduler/internal/common"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -41,11 +42,11 @@ func newResourceReservation(driverNode string, executorNodes []string, driver *v
 	}
 	return &v1beta1.ResourceReservation{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            driver.Labels[SparkAppIDLabel],
+			Name:            driver.Labels[common.SparkAppIDLabel],
 			Namespace:       driver.Namespace,
 			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(driver, podGroupVersionKind)},
 			Labels: map[string]string{
-				v1beta1.AppIDLabel: driver.Labels[SparkAppIDLabel],
+				v1beta1.AppIDLabel: driver.Labels[common.SparkAppIDLabel],
 			},
 		},
 		Spec: v1beta1.ResourceReservationSpec{

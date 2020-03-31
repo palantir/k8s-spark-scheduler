@@ -16,12 +16,13 @@ package extender
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -44,11 +45,11 @@ func TestSparkResources(t *testing.T) {
 		pod: v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
-					DriverCPU:      "1",
-					DriverMemory:   "2432Mi",
-					ExecutorCPU:    "2",
-					ExecutorMemory: "6758Mi",
-					ExecutorCount:  "2",
+					common.DriverCPU:      "1",
+					common.DriverMemory:   "2432Mi",
+					common.ExecutorCPU:    "2",
+					common.ExecutorMemory: "6758Mi",
+					common.ExecutorCount:  "2",
 				},
 			},
 		},
@@ -63,13 +64,13 @@ func TestSparkResources(t *testing.T) {
 		pod: v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
-					DriverCPU:                "1",
-					DriverMemory:             "2432Mi",
-					ExecutorCPU:              "2",
-					ExecutorMemory:           "6758Mi",
-					DynamicAllocationEnabled: "true",
-					DAMinExecutorCount:       "2",
-					DAMaxExecutorCount:       "5",
+					common.DriverCPU:                "1",
+					common.DriverMemory:             "2432Mi",
+					common.ExecutorCPU:              "2",
+					common.ExecutorMemory:           "6758Mi",
+					common.DynamicAllocationEnabled: "true",
+					common.DAMinExecutorCount:       "2",
+					common.DAMaxExecutorCount:       "5",
 				},
 			},
 		},
