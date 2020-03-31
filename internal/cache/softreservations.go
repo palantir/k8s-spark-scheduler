@@ -17,6 +17,7 @@ package cache
 import (
 	"context"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"sync"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
@@ -57,15 +58,7 @@ func NewSoftReservationStore(ctx context.Context, informer coreinformers.PodInfo
 
 	informer.Informer().AddEventHandler(
 		clientcache.FilteringResourceEventHandler{
-			FilterFunc: func(obj interface{}) bool {
-				if pod, ok := obj.(*v1.Pod); ok {
-					_, labelFound := pod.Labels[common.SparkRoleLabel]
-					if labelFound && pod.Spec.SchedulerName == common.SparkSchedulerName {
-						return true
-					}
-				}
-				return false
-			},
+			FilterFunc: utils.IsSparkSchedulerPod,
 			Handler: clientcache.ResourceEventHandlerFuncs{
 				DeleteFunc: s.onPodDeletion,
 			},

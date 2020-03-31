@@ -16,6 +16,7 @@ package extender
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
@@ -42,9 +43,7 @@ func StartDemandGC(ctx context.Context, podInformer coreinformers.PodInformer, d
 
 	podInformer.Informer().AddEventHandler(
 		clientcache.FilteringResourceEventHandler{
-			FilterFunc: func(obj interface{}) bool {
-
-			},
+			FilterFunc: utils.IsSparkSchedulerPod,
 			Handler: clientcache.ResourceEventHandlerFuncs{
 				UpdateFunc: dgc.onPodUpdate,
 			},
@@ -71,7 +70,7 @@ func (dgc *DemandGC) onPodUpdate(oldObj interface{}, newObj interface{}) {
 
 func (dgc *DemandGC) isPodScheduled(pod *v1.Pod) bool {
 	for _, cond := range pod.Status.Conditions {
-		if cond.Type == v1.PodScheduled {
+		if cond.Type == v1.PodScheduled && cond.Status == v1.ConditionTrue {
 			return true
 		}
 	}
