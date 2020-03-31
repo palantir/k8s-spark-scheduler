@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Palantir Technologies. All rights reserved.
+// Copyright (c) 2019 Palantir Technologies. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+// IsSparkSchedulerPod returns whether the passed object is a spark application pod which has this scheduler in the scheduler spec
 func IsSparkSchedulerPod(obj interface{}) bool {
 	if pod, ok := obj.(*v1.Pod); ok {
 		_, labelFound := pod.Labels[common.SparkRoleLabel]
