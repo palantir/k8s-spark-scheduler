@@ -16,17 +16,17 @@ package extender
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
-	"github.com/palantir/witchcraft-go-error"
+	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	corelisters "k8s.io/client-go/listers/core/v1"

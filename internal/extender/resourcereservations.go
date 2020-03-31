@@ -16,11 +16,11 @@ package extender
 
 import (
 	"fmt"
-	"github.com/palantir/k8s-spark-scheduler/internal/common"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	"k8s.io/api/core/v1"
+	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

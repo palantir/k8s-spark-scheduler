@@ -16,13 +16,13 @@ package extender
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	"k8s.io/api/core/v1"
+	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"

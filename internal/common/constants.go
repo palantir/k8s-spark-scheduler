@@ -45,4 +45,3 @@ const (
 	// DAMaxExecutorCount represents the upper bound on the number of executors a spark application can have if dynamic allocation is enabled (required if DynamicAllocationEnabled is true)
 	DAMaxExecutorCount = "spark-dynamic-allocation-max-executor-count"
 )
-

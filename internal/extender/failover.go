@@ -16,7 +16,6 @@ package extender
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"math"
 	"sort"
 
@@ -24,9 +23,10 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
-	"github.com/palantir/witchcraft-go-error"
+	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -156,17 +156,10 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 
 func (r *reconciler) syncDemands(ctx context.Context, sp *sparkPods) {
 	if sp.inconsistentDriver != nil {
-		r.deleteDemandIfExists(sp.inconsistentDriver.Namespace, demandResourceName(sp.inconsistentDriver))
+		DeleteDemandIfExists(ctx, r.demands, sp.inconsistentDriver, "Reconciler")
 	}
 	for _, e := range sp.inconsistentExecutors {
-		r.deleteDemandIfExists(e.Namespace, demandResourceName(e))
-	}
-}
-
-func (r *reconciler) deleteDemandIfExists(namespace, name string) {
-	_, ok := r.demands.Get(namespace, name)
-	if ok {
-		r.demands.Delete(namespace, name)
+		DeleteDemandIfExists(ctx, r.demands, e, "Reconciler")
 	}
 }
 

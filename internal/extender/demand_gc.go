@@ -16,11 +16,9 @@ package extender
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 
-	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
-	"github.com/palantir/k8s-spark-scheduler/internal/events"
+	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
@@ -64,7 +62,7 @@ func (dgc *DemandGC) onPodUpdate(oldObj interface{}, newObj interface{}) {
 	}
 
 	if !dgc.isPodScheduled(oldPod) && dgc.isPodScheduled(newPod) {
-		dgc.deleteDemandIfExists(newPod)
+		DeleteDemandIfExists(dgc.ctx, dgc.demandCache, newPod, "DemandGC")
 	}
 }
 
@@ -75,14 +73,4 @@ func (dgc *DemandGC) isPodScheduled(pod *v1.Pod) bool {
 		}
 	}
 	return false
-}
-
-func (dgc *DemandGC) deleteDemandIfExists(pod *v1.Pod) {
-	demandName := demandResourceName(pod)
-	if demand, ok := dgc.demandCache.Get(pod.Namespace, demandName); ok {
-		// there is no harm in the demand being deleted elsewhere in between the two calls.
-		dgc.demandCache.Delete(pod.Namespace, demandName)
-		svc1log.FromContext(dgc.ctx).Info("Removed demand object because pod is now scheduled", svc1log.SafeParams(internal.DemandSafeParams(demandName, pod.Namespace)))
-		events.EmitDemandDeleted(dgc.ctx, demand, "DemandGC")
-	}
 }
