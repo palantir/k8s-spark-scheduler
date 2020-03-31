@@ -22,6 +22,7 @@ import (
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
+	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
@@ -130,8 +131,8 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 		if podsWithRRs[p.Name] {
 			continue
 		}
-		if role, ok := p.Labels[SparkRoleLabel]; ok {
-			if role == Executor && o.softReservationStore.ExecutorHasSoftReservation(ctx, p) {
+		if role, ok := p.Labels[common.SparkRoleLabel]; ok {
+			if role == common.Executor && o.softReservationStore.ExecutorHasSoftReservation(ctx, p) {
 				continue
 			}
 		}
@@ -149,7 +150,7 @@ func (o *OverheadComputer) compute(ctx context.Context) {
 		// found pod with no associated resource reservation, add to overhead
 		o.addPodResourcesToGroupResources(ctx, rawOverhead, p, instanceGroup)
 
-		if p.Spec.SchedulerName != SparkSchedulerName {
+		if p.Spec.SchedulerName != common.SparkSchedulerName {
 			// add all pods that this scheduler does not deal with to the non-schedulable overhead
 			o.addPodResourcesToGroupResources(ctx, rawNonSchedulableOverhead, p, instanceGroup)
 		}

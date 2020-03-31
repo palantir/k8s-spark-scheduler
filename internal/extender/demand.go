@@ -21,6 +21,8 @@ import (
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
+	"github.com/palantir/k8s-spark-scheduler/internal/cache"
+	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/events"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -112,23 +114,28 @@ func (s *SparkSchedulerExtender) doCreateDemand(ctx context.Context, newDemand *
 	return err
 }
 
-// removeDemandIfExists removes a demand object if it exists. Returns whether or not the demand was removed.
 func (s *SparkSchedulerExtender) removeDemandIfExists(ctx context.Context, pod *v1.Pod) {
-	if !s.demands.CRDExists() {
+	DeleteDemandIfExists(ctx, s.demands, pod, "SparkSchedulerExtender")
+}
+
+// DeleteDemandIfExists removes a demand object if it exists, and emits an event tagged by the source of the deletion
+func DeleteDemandIfExists(ctx context.Context, cache *cache.SafeDemandCache, pod *v1.Pod, source string) {
+	if !cache.CRDExists() {
 		return
 	}
 	demandName := demandResourceName(pod)
-	if demand, ok := s.demands.Get(pod.Namespace, demandName); ok {
-		s.demands.Delete(pod.Namespace, demandName)
-		svc1log.FromContext(ctx).Info("Removed demand object because capacity exists for pod", svc1log.SafeParams(internal.DemandSafeParams(demandName, pod.Namespace)))
-		events.EmitDemandDeleted(ctx, demand)
+	if demand, ok := cache.Get(pod.Namespace, demandName); ok {
+		// there is no harm in the demand being deleted elsewhere in between the two calls.
+		cache.Delete(pod.Namespace, demandName)
+		svc1log.FromContext(ctx).Info("Removed demand object for pod", svc1log.SafeParams(internal.DemandSafeParams(demandName, pod.Namespace)))
+		events.EmitDemandDeleted(ctx, demand, source)
 	}
 }
 
 func newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit) (*demandapi.Demand, error) {
-	appID, ok := pod.Labels[SparkAppIDLabel]
+	appID, ok := pod.Labels[common.SparkAppIDLabel]
 	if !ok {
-		return nil, werror.Error("pod did not contain expected label for AppID", werror.SafeParam("expectedLabel", SparkAppIDLabel))
+		return nil, werror.Error("pod did not contain expected label for AppID", werror.SafeParam("expectedLabel", common.SparkAppIDLabel))
 	}
 	demandName := demandResourceName(pod)
 	return &demandapi.Demand{
@@ -136,7 +143,7 @@ func newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit) 
 			Name:      demandName,
 			Namespace: pod.Namespace,
 			Labels: map[string]string{
-				SparkAppIDLabel: appID,
+				common.SparkAppIDLabel: appID,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(pod, podGroupVersionKind),

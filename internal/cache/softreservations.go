@@ -20,25 +20,13 @@ import (
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientcache "k8s.io/client-go/tools/cache"
-)
-
-// TODO(rkaram): Move to common place to avoid duplication without causing circular dependency
-const (
-	// SparkSchedulerName is the name of the kube-scheduler instance that talks with the extender
-	SparkSchedulerName = "spark-scheduler"
-	// SparkRoleLabel represents the label key for the spark-role of a pod
-	SparkRoleLabel = "spark-role"
-	// SparkAppIDLabel represents the label key for the spark application ID on a pod
-	SparkAppIDLabel = "spark-app-id" // TODO(onursatici): change this to a spark specific label when spark has one
-	// Driver represents the label key for a pod that identifies the pod as a spark driver
-	Driver = "driver"
-	// Executor represents the label key for a pod that identifies the pod as a spark executor
-	Executor = "executor"
 )
 
 // SoftReservationStore is an in-memory store that keeps track of soft reservations granted to extra executors for applications that support dynamic allocation
@@ -70,15 +58,7 @@ func NewSoftReservationStore(ctx context.Context, informer coreinformers.PodInfo
 
 	informer.Informer().AddEventHandler(
 		clientcache.FilteringResourceEventHandler{
-			FilterFunc: func(obj interface{}) bool {
-				if pod, ok := obj.(*v1.Pod); ok {
-					_, labelFound := pod.Labels[SparkRoleLabel]
-					if labelFound && pod.Spec.SchedulerName == SparkSchedulerName {
-						return true
-					}
-				}
-				return false
-			},
+			FilterFunc: utils.IsSparkSchedulerPod,
 			Handler: clientcache.ResourceEventHandlerFuncs{
 				DeleteFunc: s.onPodDeletion,
 			},
@@ -150,11 +130,11 @@ func (s *SoftReservationStore) AddReservationForPod(ctx context.Context, appID s
 func (s *SoftReservationStore) ExecutorHasSoftReservation(ctx context.Context, executor *v1.Pod) bool {
 	s.storeLock.RLock()
 	defer s.storeLock.RUnlock()
-	appID, ok := executor.Labels[SparkAppIDLabel]
+	appID, ok := executor.Labels[common.SparkAppIDLabel]
 	if !ok {
 		svc1log.FromContext(ctx).Error("Cannot get SoftReservation for pod which does not have application ID label set",
 			svc1log.SafeParam("podName", executor.Name),
-			svc1log.SafeParam("expectedLabel", SparkAppIDLabel))
+			svc1log.SafeParam("expectedLabel", common.SparkAppIDLabel))
 		return false
 	}
 	if sr, ok := s.store[appID]; ok {
@@ -197,11 +177,11 @@ func (s *SoftReservationStore) onPodDeletion(obj interface{}) {
 			return
 		}
 	}
-	appID := pod.Labels[SparkAppIDLabel]
-	switch pod.Labels[SparkRoleLabel] {
-	case Driver:
+	appID := pod.Labels[common.SparkAppIDLabel]
+	switch pod.Labels[common.SparkRoleLabel] {
+	case common.Driver:
 		s.removeDriverReservation(appID)
-	case Executor:
+	case common.Executor:
 		s.removeExecutorReservation(appID, pod.Name)
 	}
 }

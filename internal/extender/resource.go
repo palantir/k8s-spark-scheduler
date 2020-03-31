@@ -23,6 +23,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
+	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/events"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	werror "github.com/palantir/witchcraft-go-error"
@@ -108,7 +109,7 @@ func NewExtender(
 // ExtenderArgs
 func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerapi.ExtenderArgs) *schedulerapi.ExtenderFilterResult {
 	params := internal.PodSafeParams(*args.Pod)
-	role := args.Pod.Labels[SparkRoleLabel]
+	role := args.Pod.Labels[common.SparkRoleLabel]
 	ctx = svc1log.WithLoggerParams(ctx, svc1log.SafeParams(params))
 	logger := svc1log.FromContext(ctx)
 	instanceGroup, success := internal.FindInstanceGroupFromPodSpec(args.Pod.Spec, s.instanceGroupLabel)
@@ -128,7 +129,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 		return failWithMessage(ctx, args, msg)
 	}
 
-	nodeName, outcome, err := s.selectNode(ctx, args.Pod.Labels[SparkRoleLabel], args.Pod, *args.NodeNames)
+	nodeName, outcome, err := s.selectNode(ctx, args.Pod.Labels[common.SparkRoleLabel], args.Pod, *args.NodeNames)
 	timer.Mark(ctx, role, outcome)
 	if err != nil {
 		if outcome == failureInternal {
@@ -139,7 +140,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 		return failWithMessage(ctx, args, err.Error())
 	}
 
-	if role == Driver {
+	if role == common.Driver {
 		appResources, err := sparkResources(ctx, args.Pod)
 		if err != nil {
 			logger.Error("internal error scheduling pod", svc1log.Stacktrace(err))
@@ -148,7 +149,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 		events.EmitApplicationScheduled(
 			ctx,
 			instanceGroup,
-			args.Pod.Labels[SparkAppIDLabel],
+			args.Pod.Labels[common.SparkAppIDLabel],
 			*args.Pod,
 			appResources.driverResources,
 			appResources.executorResources,
@@ -183,9 +184,9 @@ func (s *SparkSchedulerExtender) reconcileIfNeeded(ctx context.Context, timer *m
 
 func (s *SparkSchedulerExtender) selectNode(ctx context.Context, role string, pod *v1.Pod, nodeNames []string) (string, string, error) {
 	switch role {
-	case Driver:
+	case common.Driver:
 		return s.selectDriverNode(ctx, pod, nodeNames)
-	case Executor:
+	case common.Executor:
 		return s.selectExecutorNode(ctx, pod, nodeNames)
 	default:
 		return "", failureNonSparkPod, werror.Error("can not schedule non spark pod")
@@ -227,7 +228,7 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 }
 
 func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v1.Pod, nodeNames []string) (string, string, error) {
-	if rr, ok := s.resourceReservations.Get(driver.Namespace, driver.Labels[SparkAppIDLabel]); ok {
+	if rr, ok := s.resourceReservations.Get(driver.Namespace, driver.Labels[common.SparkAppIDLabel]); ok {
 		driverReservedNode := rr.Spec.Reservations["driver"].Node
 		for _, node := range nodeNames {
 			if driverReservedNode == node {
@@ -296,7 +297,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	reservedDriverNode, outcome, err := s.createResourceReservations(ctx, driver, applicationResources, driverNode, executorNodes)
 	if outcome == success && applicationResources.maxExecutorCount > applicationResources.minExecutorCount {
 		// only create soft reservations for applications which can request extra executors
-		s.softReservationStore.CreateSoftReservationIfNotExists(driver.Labels[SparkAppIDLabel])
+		s.softReservationStore.CreateSoftReservationIfNotExists(driver.Labels[common.SparkAppIDLabel])
 	}
 	return reservedDriverNode, outcome, err
 }
@@ -323,14 +324,14 @@ func (s *SparkSchedulerExtender) potentialNodes(availableNodesSchedulingMetadata
 }
 
 func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executor *v1.Pod, nodeNames []string) (string, string, error) {
-	resourceReservation, ok := s.resourceReservations.Get(executor.Namespace, executor.Labels[SparkAppIDLabel])
+	resourceReservation, ok := s.resourceReservations.Get(executor.Namespace, executor.Labels[common.SparkAppIDLabel])
 	if !ok {
 		return "", failureInternal, werror.Error("failed to get resource reservations")
 	}
 	unboundReservations, outcome, unboundResErr := s.findUnboundReservations(ctx, executor, resourceReservation)
 	if unboundResErr != nil {
 		extraExecutorCount := 0
-		if sr, ok := s.softReservationStore.GetSoftReservation(executor.Labels[SparkAppIDLabel]); ok {
+		if sr, ok := s.softReservationStore.GetSoftReservation(executor.Labels[common.SparkAppIDLabel]); ok {
 			extraExecutorCount = len(sr.Reservations)
 		}
 		driver, err := s.podLister.getDriverPod(ctx, executor)
@@ -355,7 +356,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 				CPU:    sparkResources.executorResources.CPU,
 				Memory: sparkResources.executorResources.Memory,
 			}
-			err = s.softReservationStore.AddReservationForPod(ctx, driver.Labels[SparkAppIDLabel], executor.Name, softReservation)
+			err = s.softReservationStore.AddReservationForPod(ctx, driver.Labels[common.SparkAppIDLabel], executor.Name, softReservation)
 			if err != nil {
 				return "", failureInternal, err
 			}
@@ -486,7 +487,7 @@ func (s *SparkSchedulerExtender) findUnboundReservations(ctx context.Context, ex
 	}
 	// No unbound reservations exist, so iterate over existing reservations to see if any of the reserved pods are dead.
 	// Spark will recreate lost executors, so the replacement executors should be placed on the reserved spaces of dead executors.
-	selector := labels.Set(map[string]string{SparkAppIDLabel: executor.Labels[SparkAppIDLabel]}).AsSelector()
+	selector := labels.Set(map[string]string{common.SparkAppIDLabel: executor.Labels[common.SparkAppIDLabel]}).AsSelector()
 	pods, err := s.podLister.Pods(executor.Namespace).List(selector)
 	if err != nil {
 		return nil, failureInternal, werror.Wrap(err, "failed to list pods")

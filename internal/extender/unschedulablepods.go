@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	v1 "k8s.io/api/core/v1"
@@ -87,10 +88,10 @@ func (u *UnschedulablePodMarker) scanForUnschedulablePods(ctx context.Context) {
 	}
 	now := time.Now()
 	for _, pod := range pods {
-		if pod.Spec.SchedulerName == SparkSchedulerName &&
+		if pod.Spec.SchedulerName == common.SparkSchedulerName &&
 			len(pod.Spec.NodeName) == 0 &&
 			pod.DeletionTimestamp == nil &&
-			pod.Labels[SparkRoleLabel] == Driver &&
+			pod.Labels[common.SparkRoleLabel] == common.Driver &&
 			pod.CreationTimestamp.Time.Add(unschedulableInClusterThreshold).Before(now) {
 
 			ctx = svc1log.WithLoggerParams(
