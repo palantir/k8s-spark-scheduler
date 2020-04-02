@@ -16,13 +16,13 @@ package extender_test
 
 import (
 	"fmt"
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	"github.com/palantir/k8s-spark-scheduler/config"
-	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"reflect"
 	"sort"
 	"testing"
 
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	"github.com/palantir/k8s-spark-scheduler/config"
+	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender/extendertest"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -198,15 +198,15 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 
 func TestLabelPrioritySorting(t *testing.T) {
 	tests := []struct {
-		name string
-		labelPriorityOrder *config.LabelPriorityOrder
-		schedulingMetadata resources.NodeGroupSchedulingMetadata
-		nodeNames []string
+		name                  string
+		labelPriorityOrder    *config.LabelPriorityOrder
+		schedulingMetadata    resources.NodeGroupSchedulingMetadata
+		nodeNames             []string
 		expectedNodeNameOrder []string
 	}{{
 		name: "sorts when extra label values",
 		labelPriorityOrder: &config.LabelPriorityOrder{
-			Name: "test-label",
+			Name:                     "test-label",
 			DescendingPriorityValues: []string{"best", "good"},
 		},
 		schedulingMetadata: resources.NodeGroupSchedulingMetadata{
@@ -214,12 +214,12 @@ func TestLabelPrioritySorting(t *testing.T) {
 			"node2": {AllLabels: map[string]string{"test-label": "good"}},
 			"node3": {AllLabels: map[string]string{"test-label": "best"}},
 		},
-		nodeNames: []string{"node1", "node3", "node2"},
+		nodeNames:             []string{"node1", "node3", "node2"},
 		expectedNodeNameOrder: []string{"node3", "node2", "node1"},
 	}, {
 		name: "sorts when there are extra nodes with no labels set",
 		labelPriorityOrder: &config.LabelPriorityOrder{
-			Name: "test-label",
+			Name:                     "test-label",
 			DescendingPriorityValues: []string{"best", "good"},
 		},
 		schedulingMetadata: resources.NodeGroupSchedulingMetadata{
@@ -227,12 +227,12 @@ func TestLabelPrioritySorting(t *testing.T) {
 			"node2": {AllLabels: map[string]string{"test-label": "good"}},
 			"node3": {AllLabels: map[string]string{"test-label": "best"}},
 		},
-		nodeNames: []string{"node2", "node3", "node1"},
+		nodeNames:             []string{"node2", "node3", "node1"},
 		expectedNodeNameOrder: []string{"node3", "node2", "node1"},
 	}, {
 		name: "sorts when all nodes have values with priorities set",
 		labelPriorityOrder: &config.LabelPriorityOrder{
-			Name: "test-label",
+			Name:                     "test-label",
 			DescendingPriorityValues: []string{"best", "better", "good"},
 		},
 		schedulingMetadata: resources.NodeGroupSchedulingMetadata{
@@ -240,7 +240,7 @@ func TestLabelPrioritySorting(t *testing.T) {
 			"node2": {AllLabels: map[string]string{"test-label": "good"}},
 			"node3": {AllLabels: map[string]string{"test-label": "best"}},
 		},
-		nodeNames: []string{"node1", "node2", "node3"},
+		nodeNames:             []string{"node1", "node2", "node3"},
 		expectedNodeNameOrder: []string{"node3", "node1", "node2"},
 	}}
 	for _, test := range tests {
