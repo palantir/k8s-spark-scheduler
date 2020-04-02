@@ -16,6 +16,11 @@ package extender_test
 
 import (
 	"fmt"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	"github.com/palantir/k8s-spark-scheduler/config"
+	"github.com/palantir/k8s-spark-scheduler/internal/extender"
+	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/palantir/k8s-spark-scheduler/internal/extender/extendertest"
@@ -189,6 +194,69 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLabelPrioritySorting(t *testing.T) {
+	tests := []struct {
+		name string
+		labelPriorityOrder *config.LabelPriorityOrder
+		schedulingMetadata resources.NodeGroupSchedulingMetadata
+		nodeNames []string
+		expectedNodeNameOrder []string
+	}{{
+		name: "sorts when extra label values",
+		labelPriorityOrder: &config.LabelPriorityOrder{
+			Name: "test-label",
+			DescendingPriorityValues: []string{"best", "good"},
+		},
+		schedulingMetadata: resources.NodeGroupSchedulingMetadata{
+			"node1": {AllLabels: map[string]string{"test-label": "worst"}},
+			"node2": {AllLabels: map[string]string{"test-label": "good"}},
+			"node3": {AllLabels: map[string]string{"test-label": "best"}},
+		},
+		nodeNames: []string{"node1", "node3", "node2"},
+		expectedNodeNameOrder: []string{"node3", "node2", "node1"},
+	}, {
+		name: "sorts when there are extra nodes with no labels set",
+		labelPriorityOrder: &config.LabelPriorityOrder{
+			Name: "test-label",
+			DescendingPriorityValues: []string{"best", "good"},
+		},
+		schedulingMetadata: resources.NodeGroupSchedulingMetadata{
+			"node1": {AllLabels: map[string]string{}},
+			"node2": {AllLabels: map[string]string{"test-label": "good"}},
+			"node3": {AllLabels: map[string]string{"test-label": "best"}},
+		},
+		nodeNames: []string{"node2", "node3", "node1"},
+		expectedNodeNameOrder: []string{"node3", "node2", "node1"},
+	}, {
+		name: "sorts when all nodes have values with priorities set",
+		labelPriorityOrder: &config.LabelPriorityOrder{
+			Name: "test-label",
+			DescendingPriorityValues: []string{"best", "better", "good"},
+		},
+		schedulingMetadata: resources.NodeGroupSchedulingMetadata{
+			"node1": {AllLabels: map[string]string{"test-label": "better"}},
+			"node2": {AllLabels: map[string]string{"test-label": "good"}},
+			"node3": {AllLabels: map[string]string{"test-label": "best"}},
+		},
+		nodeNames: []string{"node1", "node2", "node3"},
+		expectedNodeNameOrder: []string{"node3", "node1", "node2"},
+	}}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fn := extender.CreateLabelLessThanFunction(test.labelPriorityOrder)
+			sort.Slice(test.nodeNames, func(i, j int) bool {
+				return fn(
+					test.schedulingMetadata[test.nodeNames[i]],
+					test.schedulingMetadata[test.nodeNames[j]])
+			})
+			if !reflect.DeepEqual(test.nodeNames, test.expectedNodeNameOrder) {
+				t.Errorf("Node order mismatch. Actual: %v Expected: %v", test.nodeNames, test.expectedNodeNameOrder)
+			}
+		})
+	}
+
 }
 
 func executor(i int) string {

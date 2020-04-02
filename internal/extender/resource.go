@@ -16,11 +16,13 @@ package extender
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/logging"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
@@ -73,6 +75,9 @@ type SparkSchedulerExtender struct {
 	lastRequest                   time.Time
 	instanceGroupLabel            string
 	useExperimentalHostPriorities bool
+
+	driverNodePriorityLessThanFunction   func(*resources.NodeSchedulingMetadata, *resources.NodeSchedulingMetadata) bool
+	executorNodePriorityLessThanFunction func(*resources.NodeSchedulingMetadata, *resources.NodeSchedulingMetadata) bool
 }
 
 // NewExtender is responsible for creating and initializing a SparkSchedulerExtender
@@ -88,7 +93,9 @@ func NewExtender(
 	binpacker *Binpacker,
 	overheadComputer *OverheadComputer,
 	instanceGroupLabel string,
-	useExperimentalHostPriorities bool) *SparkSchedulerExtender {
+	useExperimentalHostPriorities bool,
+	driverPrioritizedNodeLabel *config.LabelPriorityOrder,
+	executorPrioritizedNodeLabel *config.LabelPriorityOrder) *SparkSchedulerExtender {
 	return &SparkSchedulerExtender{
 		nodeLister:                    nodeLister,
 		podLister:                     podLister,
@@ -102,6 +109,8 @@ func NewExtender(
 		overheadComputer:              overheadComputer,
 		instanceGroupLabel:            instanceGroupLabel,
 		useExperimentalHostPriorities: useExperimentalHostPriorities,
+		driverNodePriorityLessThanFunction: CreateLabelLessThanFunction(driverPrioritizedNodeLabel),
+		executorNodePriorityLessThanFunction: CreateLabelLessThanFunction(executorPrioritizedNodeLabel),
 	}
 }
 
@@ -252,7 +261,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	usages := s.usedResources()
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
 	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usages)
-	driverNodeNames, executorNodeNames := s.potentialNodes(availableNodesSchedulingMetadata, driver, nodeNames)
+	driverNodeNames, executorNodeNames := s.potentialNodes(availableNodesSchedulingMetadata, nodeNames)
 	applicationResources, err := sparkResources(ctx, driver)
 	if err != nil {
 		return "", failureInternal, werror.Wrap(err, "failed to get spark resources")
@@ -302,7 +311,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	return reservedDriverNode, outcome, err
 }
 
-func (s *SparkSchedulerExtender) potentialNodes(availableNodesSchedulingMetadata resources.NodeGroupSchedulingMetadata, driver *v1.Pod, nodeNames []string) (driverNodes, executorNodes []string) {
+func (s *SparkSchedulerExtender) potentialNodes(availableNodesSchedulingMetadata resources.NodeGroupSchedulingMetadata, nodeNames []string) (driverNodes, executorNodes []string) {
 	nodesInPriorityOrder := getNodeNamesInPriorityOrder(s.useExperimentalHostPriorities, availableNodesSchedulingMetadata)
 	driverNodeNames := make([]string, 0, len(nodesInPriorityOrder))
 	executorNodeNames := make([]string, 0, len(nodesInPriorityOrder))
@@ -319,6 +328,22 @@ func (s *SparkSchedulerExtender) potentialNodes(availableNodesSchedulingMetadata
 		if !availableNodesSchedulingMetadata[nodeName].Unschedulable && availableNodesSchedulingMetadata[nodeName].Ready {
 			executorNodeNames = append(executorNodeNames, nodeName)
 		}
+	}
+
+	// further sort driver and executor nodes based on config if present
+	if s.driverNodePriorityLessThanFunction != nil {
+		sort.Slice(driverNodeNames, func(i, j int) bool {
+			return s.driverNodePriorityLessThanFunction(
+				availableNodesSchedulingMetadata[driverNodeNames[i]],
+				availableNodesSchedulingMetadata[driverNodeNames[j]])
+		})
+	}
+	if s.executorNodePriorityLessThanFunction != nil {
+		sort.Slice(driverNodeNames, func(i, j int) bool {
+			return s.driverNodePriorityLessThanFunction(
+				availableNodesSchedulingMetadata[executorNodeNames[i]],
+				availableNodesSchedulingMetadata[executorNodeNames[j]])
+		})
 	}
 	return driverNodeNames, executorNodeNames
 }
@@ -518,4 +543,36 @@ func isPodTerminated(pod *v1.Pod) bool {
 		allTerminated = allTerminated && status.State.Terminated != nil
 	}
 	return allTerminated
+}
+
+// CreateLabelLessThanFunction returns a lessThan function that can be used to order
+// nodes based on the values of a label
+func CreateLabelLessThanFunction(labelPriorityOrder *config.LabelPriorityOrder) func(*resources.NodeSchedulingMetadata, *resources.NodeSchedulingMetadata) bool {
+	if labelPriorityOrder == nil {
+		return nil
+	}
+	valueRanks := make(map[string]int, len(labelPriorityOrder.DescendingPriorityValues))
+	for i, value := range labelPriorityOrder.DescendingPriorityValues {
+		valueRanks[value] = i
+	}
+	return func(metadata1 *resources.NodeSchedulingMetadata, metadata2 *resources.NodeSchedulingMetadata) bool {
+		rank2, ok := extractRank(metadata2.AllLabels, labelPriorityOrder.Name, valueRanks)
+		if !ok {
+			return true
+		}
+		rank1, ok := extractRank(metadata1.AllLabels, labelPriorityOrder.Name, valueRanks)
+		if !ok {
+			return false
+		}
+		return rank1 < rank2
+	}
+}
+
+func extractRank(labels map[string]string, labelName string, knownRanks map[string]int) (int, bool) {
+	if value, ok := labels[labelName]; ok {
+		if rank, ok := knownRanks[value]; ok {
+			return rank, true
+		}
+	}
+	return 0, false
 }

@@ -31,6 +31,9 @@ type Install struct {
 	AsyncClientConfig             AsyncClientConfig `yaml:"async-client-config,omitempty"`
 	UseExperimentalHostPriorities bool              `yaml:"use-experimental-host-priorities,omitempty"`
 
+	DriverPrioritizedNodeLabel *LabelPriorityOrder `yaml:"driver-prioritized-node-label, omitempty"`
+	ExecutorPrioritizedNodeLabel *LabelPriorityOrder `yaml:"executor-prioritized-node-label, omitempty"`
+
 	ResourceReservationCRDAnnotations map[string]string `yaml:"resource-reservation-crd-annotations,omitempty"`
 }
 
@@ -45,4 +48,11 @@ func (acc AsyncClientConfig) MaxRetryCount() int {
 		return 5
 	}
 	return *acc.maxRetryCount
+}
+
+// LabelPriorityOrder is the configuration for denoting an ordered list of values of a node label that will
+// be used to sort candidate nodes for drivers or executors
+type LabelPriorityOrder struct {
+	Name  string `yaml:"label-name"`
+	DescendingPriorityValues  []string `yaml:"label-values-descending-priority"`
 }
