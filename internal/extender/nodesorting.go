@@ -124,13 +124,13 @@ func createLabelLessThanFunction(labelPriorityOrder *config.LabelPriorityOrder) 
 		valueRanks[value] = i
 	}
 	return func(metadata1 *resources.NodeSchedulingMetadata, metadata2 *resources.NodeSchedulingMetadata) bool {
-		rank2, ok := extractRank(metadata2.AllLabels, labelPriorityOrder.Name, valueRanks)
-		if !ok {
-			return true
-		}
 		rank1, ok := extractRank(metadata1.AllLabels, labelPriorityOrder.Name, valueRanks)
 		if !ok {
 			return false
+		}
+		rank2, ok := extractRank(metadata2.AllLabels, labelPriorityOrder.Name, valueRanks)
+		if !ok {
+			return true
 		}
 		return rank1 < rank2
 	}
