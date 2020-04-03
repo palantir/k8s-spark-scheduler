@@ -31,8 +31,8 @@ type Install struct {
 	AsyncClientConfig             AsyncClientConfig `yaml:"async-client-config,omitempty"`
 	UseExperimentalHostPriorities bool              `yaml:"use-experimental-host-priorities,omitempty"`
 
-	DriverPrioritizedNodeLabel   *LabelPriorityOrder `yaml:"driver-prioritized-node-label, omitempty"`
-	ExecutorPrioritizedNodeLabel *LabelPriorityOrder `yaml:"executor-prioritized-node-label, omitempty"`
+	DriverPrioritizedNodeLabel   *LabelPriorityOrder `yaml:"driver-prioritized-node-label,omitempty"`
+	ExecutorPrioritizedNodeLabel *LabelPriorityOrder `yaml:"executor-prioritized-node-label,omitempty"`
 
 	ResourceReservationCRDAnnotations map[string]string `yaml:"resource-reservation-crd-annotations,omitempty"`
 }
