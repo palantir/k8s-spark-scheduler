@@ -18,6 +18,7 @@ import (
 	"sort"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	"github.com/palantir/k8s-spark-scheduler/config"
 )
 
 type scheduleContext struct {
@@ -112,4 +113,45 @@ func getNodeNames(nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata)
 		nodeNames = append(nodeNames, key)
 	}
 	return nodeNames
+}
+
+func createLabelLessThanFunction(labelPriorityOrder *config.LabelPriorityOrder) func(*resources.NodeSchedulingMetadata, *resources.NodeSchedulingMetadata) bool {
+	if labelPriorityOrder == nil {
+		return nil
+	}
+	valueRanks := make(map[string]int, len(labelPriorityOrder.DescendingPriorityValues))
+	for i, value := range labelPriorityOrder.DescendingPriorityValues {
+		valueRanks[value] = i
+	}
+	return func(metadata1 *resources.NodeSchedulingMetadata, metadata2 *resources.NodeSchedulingMetadata) bool {
+		rank2, ok := extractRank(metadata2.AllLabels, labelPriorityOrder.Name, valueRanks)
+		if !ok {
+			return true
+		}
+		rank1, ok := extractRank(metadata1.AllLabels, labelPriorityOrder.Name, valueRanks)
+		if !ok {
+			return false
+		}
+		return rank1 < rank2
+	}
+}
+
+func extractRank(labels map[string]string, labelName string, knownRanks map[string]int) (int, bool) {
+	if value, ok := labels[labelName]; ok {
+		if rank, ok := knownRanks[value]; ok {
+			return rank, true
+		}
+	}
+	return 0, false
+}
+
+func sortNodesByMetadataLessThanFunction(
+	nodeNames []string,
+	metadata resources.NodeGroupSchedulingMetadata,
+	lessThan func(*resources.NodeSchedulingMetadata, *resources.NodeSchedulingMetadata) bool) {
+	if lessThan != nil {
+		sort.Slice(nodeNames, func(i, j int) bool {
+			return lessThan(metadata[nodeNames[i]], metadata[nodeNames[j]])
+		})
+	}
 }

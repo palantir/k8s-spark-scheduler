@@ -16,7 +16,6 @@ package extender
 
 import (
 	"context"
-	"sort"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
@@ -109,8 +108,8 @@ func NewExtender(
 		overheadComputer:                     overheadComputer,
 		instanceGroupLabel:                   instanceGroupLabel,
 		useExperimentalHostPriorities:        useExperimentalHostPriorities,
-		driverNodePriorityLessThanFunction:   CreateLabelLessThanFunction(driverPrioritizedNodeLabel),
-		executorNodePriorityLessThanFunction: CreateLabelLessThanFunction(executorPrioritizedNodeLabel),
+		driverNodePriorityLessThanFunction:   createLabelLessThanFunction(driverPrioritizedNodeLabel),
+		executorNodePriorityLessThanFunction: createLabelLessThanFunction(executorPrioritizedNodeLabel),
 	}
 }
 
@@ -331,20 +330,8 @@ func (s *SparkSchedulerExtender) potentialNodes(availableNodesSchedulingMetadata
 	}
 
 	// further sort driver and executor nodes based on config if present
-	if s.driverNodePriorityLessThanFunction != nil {
-		sort.Slice(driverNodeNames, func(i, j int) bool {
-			return s.driverNodePriorityLessThanFunction(
-				availableNodesSchedulingMetadata[driverNodeNames[i]],
-				availableNodesSchedulingMetadata[driverNodeNames[j]])
-		})
-	}
-	if s.executorNodePriorityLessThanFunction != nil {
-		sort.Slice(driverNodeNames, func(i, j int) bool {
-			return s.driverNodePriorityLessThanFunction(
-				availableNodesSchedulingMetadata[executorNodeNames[i]],
-				availableNodesSchedulingMetadata[executorNodeNames[j]])
-		})
-	}
+	sortNodesByMetadataLessThanFunction(driverNodeNames, availableNodesSchedulingMetadata, s.driverNodePriorityLessThanFunction)
+	sortNodesByMetadataLessThanFunction(executorNodeNames, availableNodesSchedulingMetadata, s.executorNodePriorityLessThanFunction)
 	return driverNodeNames, executorNodeNames
 }
 
@@ -543,36 +530,4 @@ func isPodTerminated(pod *v1.Pod) bool {
 		allTerminated = allTerminated && status.State.Terminated != nil
 	}
 	return allTerminated
-}
-
-// CreateLabelLessThanFunction returns a lessThan function that can be used to order
-// nodes based on the values of a label
-func CreateLabelLessThanFunction(labelPriorityOrder *config.LabelPriorityOrder) func(*resources.NodeSchedulingMetadata, *resources.NodeSchedulingMetadata) bool {
-	if labelPriorityOrder == nil {
-		return nil
-	}
-	valueRanks := make(map[string]int, len(labelPriorityOrder.DescendingPriorityValues))
-	for i, value := range labelPriorityOrder.DescendingPriorityValues {
-		valueRanks[value] = i
-	}
-	return func(metadata1 *resources.NodeSchedulingMetadata, metadata2 *resources.NodeSchedulingMetadata) bool {
-		rank2, ok := extractRank(metadata2.AllLabels, labelPriorityOrder.Name, valueRanks)
-		if !ok {
-			return true
-		}
-		rank1, ok := extractRank(metadata1.AllLabels, labelPriorityOrder.Name, valueRanks)
-		if !ok {
-			return false
-		}
-		return rank1 < rank2
-	}
-}
-
-func extractRank(labels map[string]string, labelName string, knownRanks map[string]int) (int, bool) {
-	if value, ok := labels[labelName]; ok {
-		if rank, ok := knownRanks[value]; ok {
-			return rank, true
-		}
-	}
-	return 0, false
 }
