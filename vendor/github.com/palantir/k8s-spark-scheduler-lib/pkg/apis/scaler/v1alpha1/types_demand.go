@@ -36,6 +36,13 @@ type Demand struct {
 type DemandSpec struct {
 	Units         []DemandUnit `json:"units"`
 	InstanceGroup string       `json:"instance-group"`
+
+	// IsLongLived changes the lifecycle for a demand from
+	// ephemeral and immutable to long-lived and mutable.
+	// This is useful to set a buffer in an instance-group:
+	// an amount of compute resources that is left unused
+	// but ready for quick reservation should there be need.
+	IsLongLived bool `json:"is-long-lived"`
 }
 
 // DemandStatus represents the status a demand object is in

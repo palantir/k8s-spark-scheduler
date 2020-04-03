@@ -77,6 +77,7 @@ func NodeSchedulingMetadataForNodes(nodes []*v1.Node, currentUsage NodeGroupReso
 			AvailableResources: subtractFromResourceList(node.Status.Allocatable, currentUsageForNode),
 			CreationTimestamp:  node.CreationTimestamp.Time,
 			ZoneLabel:          zoneLabel,
+			AllLabels:          node.Labels,
 			Unschedulable:      node.Spec.Unschedulable,
 			Ready:              nodeReady,
 		}
@@ -140,6 +141,7 @@ type NodeSchedulingMetadata struct {
 	AvailableResources *Resources
 	CreationTimestamp  time.Time
 	ZoneLabel          string
+	AllLabels          map[string]string
 	Unschedulable      bool
 	Ready              bool
 }

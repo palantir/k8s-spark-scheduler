@@ -187,6 +187,8 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		overheadComputer,
 		instanceGroupLabel,
 		useExperimentalHostPriorities,
+		install.DriverPrioritizedNodeLabel,
+		install.ExecutorPrioritizedNodeLabel,
 	)
 
 	resourceReporter := metrics.NewResourceReporter(
