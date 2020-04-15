@@ -67,7 +67,8 @@ const (
 )
 
 const (
-	tickInterval = 30 * time.Second
+	tickInterval     = 30 * time.Second
+	slowLogThreshold = 45 * time.Second
 )
 
 var (
@@ -180,6 +181,11 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 		schedulingRetryTime, sparkRoleTag, outcomeTag, s.instanceGroupTag, s.retryTag).Update(now.Sub(s.lastSeenTime).Nanoseconds())
 	if !s.reconciliationFinishedTime.IsZero() {
 		metrics.FromContext(ctx).Histogram(reconciliationTime).Update(s.reconciliationFinishedTime.Sub(s.startTime).Nanoseconds())
+	}
+	if now.After(s.podCreationTime.Add(slowLogThreshold)) && s.retryTag == firstTryTag {
+		svc1log.FromContext(ctx).Info(
+			"pod is first seen by the extender, but it is older than the slow log threshold",
+			svc1log.SafeParam("slowLogThreshold", slowLogThreshold))
 	}
 }
 
