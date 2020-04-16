@@ -145,26 +145,29 @@ func (p PodHistograms) MarkTimes(ctx context.Context, pod *v1.Pod, instanceGroup
 			duration := now.Sub(previousStateTime)
 			p.Mark(key, duration)
 			p.Inc(key)
-			reportIfStuck(ctx, pod, duration, state)
+			reportIfStuck(ctx, pod, duration, state, podConditions)
 			return
 		}
 		if stateChangedTime.Add(decayThreshold).After(now) {
 			duration := stateChangedTime.Sub(previousStateTime)
 			p.Mark(key, duration)
-			reportIfStuck(ctx, pod, duration, state)
+			reportIfStuck(ctx, pod, duration, state, podConditions)
 		}
 		previousStateTime = stateChangedTime
 	}
 }
 
-func reportIfStuck(ctx context.Context, pod *v1.Pod, duration time.Duration, state v1.PodConditionType) {
+func reportIfStuck(ctx context.Context, pod *v1.Pod, duration time.Duration, state v1.PodConditionType, podConditions SparkPodConditions) {
 	if duration.Hours() < stuckPodThreshold.Hours() {
 		return
 	}
+	stateChangedTime, didChangeState := podConditions.TimeWhenTrue(state)
 	svc1log.FromContext(ctx).Warn("found stuck pod",
 		svc1log.SafeParam("podNamespace", pod.Namespace),
 		svc1log.SafeParam("podName", pod.Name),
 		svc1log.SafeParam("state", state),
+		svc1log.SafeParam("stateChangedTime", stateChangedTime),
+		svc1log.SafeParam("didChangeState", didChangeState),
 		svc1log.SafeParam("createdAt", pod.CreationTimestamp.Time))
 }
 
