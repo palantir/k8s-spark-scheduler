@@ -144,7 +144,12 @@ func (ac *asyncClient) maybeRetryRequest(ctx context.Context, r store.Request, e
 	}
 	svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.SafeParam("retryCount", r.RetryCount), svc1log.Stacktrace(err))
 	ac.metrics.MarkRequestRetry(ctx, r.Type)
-	ac.queue.AddIfAbsent(r.WithIncrementedRetryCount())
+	enqueued := ac.queue.TryAddIfAbsent(r.WithIncrementedRetryCount())
+	if !enqueued {
+		svc1log.FromContext(ctx).Error("queue is full, dropping request", svc1log.Stacktrace(err))
+		ac.metrics.MarkRequestDropped(ctx, r.Type)
+		return false
+	}
 	return true
 }
 
