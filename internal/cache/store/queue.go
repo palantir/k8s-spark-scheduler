@@ -63,7 +63,7 @@ type shardedUniqueQueue struct {
 func (q *shardedUniqueQueue) AddIfAbsent(r Request) {
 	added := q.addToInflightIfAbsent(r.Key)
 	if added || r.Type == DeleteRequestType {
-		q.queues[q.bucket(r.Key)] <- q.releaseFunc(r)
+		q.getQueue(r) <- q.releaseFunc(r)
 	}
 }
 
@@ -84,11 +84,15 @@ func (q *shardedUniqueQueue) TryAddIfAbsent(r Request) bool {
 
 func (q *shardedUniqueQueue) trySend(r Request) bool {
 	select {
-	case q.queues[q.bucket(r.Key)] <- q.releaseFunc(r):
+	case q.getQueue(r) <- q.releaseFunc(r):
 		return true
 	default:
 		return false
 	}
+}
+
+func (q *shardedUniqueQueue) getQueue(r Request) chan<- func() Request {
+	return q.queues[q.bucket(r.Key)]
 }
 
 func (q *shardedUniqueQueue) releaseFunc(r Request) func() Request {

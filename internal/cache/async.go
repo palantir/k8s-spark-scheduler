@@ -139,7 +139,7 @@ func (ac *asyncClient) doDelete(ctx context.Context, r store.Request) {
 func (ac *asyncClient) maybeRetryRequest(ctx context.Context, r store.Request, err error) bool {
 	if r.RetryCount >= ac.config.MaxRetryCount() {
 		svc1log.FromContext(ctx).Error("max retry count reached, dropping request", svc1log.Stacktrace(err))
-		ac.metrics.MarkRequestDropped(ctx, r.Type)
+		ac.metrics.MarkMaxRetries(ctx, r.Type)
 		return false
 	}
 	svc1log.FromContext(ctx).Warn("got retryable error, will retry", svc1log.SafeParam("retryCount", r.RetryCount), svc1log.Stacktrace(err))
@@ -147,7 +147,7 @@ func (ac *asyncClient) maybeRetryRequest(ctx context.Context, r store.Request, e
 	enqueued := ac.queue.TryAddIfAbsent(r.WithIncrementedRetryCount())
 	if !enqueued {
 		svc1log.FromContext(ctx).Error("queue is full, dropping request", svc1log.Stacktrace(err))
-		ac.metrics.MarkRequestDropped(ctx, r.Type)
+		ac.metrics.MarkFailedToEnqueue(ctx, r.Type)
 		return false
 	}
 	return true
@@ -170,6 +170,11 @@ const (
 	requestTypeTagKey          = "requestType"
 )
 
+var (
+	enqueueFailedTag = metrics.MustNewTag("dropReason", "queueIsFull")
+	maxRetriesTag    = metrics.MustNewTag("dropReason", "maxRetries")
+)
+
 // AsyncClientMetrics emits metrics on retries and failures of the internal async client calls to the api server
 // TODO: Move this to the metrics package after a refactor of that package to avoid cyclical imports
 type AsyncClientMetrics struct {
@@ -186,9 +191,23 @@ func (acm *AsyncClientMetrics) MarkRequestRetry(ctx context.Context, requestType
 	metrics.FromContext(ctx).Counter(asyncClientRetries, metrics.MustNewTag(objectTypeTagKey, acm.ObjectTypeTag), acm.requestTypeTag(requestType)).Inc(1)
 }
 
-// MarkRequestDropped marks that a request to the api server failed and is not going to be retried because it reached the maximum number of retries
-func (acm *AsyncClientMetrics) MarkRequestDropped(ctx context.Context, requestType store.RequestType) {
-	metrics.FromContext(ctx).Counter(asyncClientDroppedRequests, metrics.MustNewTag(objectTypeTagKey, acm.ObjectTypeTag), acm.requestTypeTag(requestType)).Inc(1)
+// MarkMaxRetries marks that a request to the api server failed and is not going to be retried because it reached the maximum number of retries
+func (acm *AsyncClientMetrics) MarkMaxRetries(ctx context.Context, requestType store.RequestType) {
+	acm.markRequestDropped(ctx, requestType, maxRetriesTag)
+}
+
+// MarkFailedToEnqueue marks that a request is not going to be retried because the inflight requests queue was full
+func (acm *AsyncClientMetrics) MarkFailedToEnqueue(ctx context.Context, requestType store.RequestType) {
+	acm.markRequestDropped(ctx, requestType, enqueueFailedTag)
+}
+
+func (acm *AsyncClientMetrics) markRequestDropped(
+	ctx context.Context, requestType store.RequestType, reason metrics.Tag) {
+	metrics.FromContext(ctx).Counter(
+		asyncClientDroppedRequests,
+		metrics.MustNewTag(objectTypeTagKey, acm.ObjectTypeTag),
+		reason,
+		acm.requestTypeTag(requestType)).Inc(1)
 }
 
 func (acm *AsyncClientMetrics) requestTypeTag(requestType store.RequestType) metrics.Tag {
