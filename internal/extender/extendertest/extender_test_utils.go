@@ -17,6 +17,7 @@ package extendertest
 import (
 	"context"
 	"fmt"
+	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"os"
 	"testing"
 
@@ -102,9 +103,12 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		return nil, err
 	}
 
-	demandCache := sscache.NewSafeDemandCache(
+	lazyDemandInformer := crd.NewLazyDemandInformer(
 		sparkSchedulerInformerFactory,
 		fakeAPIExtensionsClient,
+	)
+	demandCache := sscache.NewSafeDemandCache(
+		lazyDemandInformer,
 		fakeSchedulerClient.ScalerV1alpha1(),
 		installConfig.AsyncClientConfig,
 	)

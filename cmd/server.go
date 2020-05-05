@@ -147,17 +147,16 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		return nil, err
 	}
 
-	demandCache := cache.NewSafeDemandCache(
+	lazyDemandInformer := crd.NewLazyDemandInformer(
 		sparkSchedulerInformerFactory,
 		apiExtensionsClient,
+	)
+
+	demandCache := cache.NewSafeDemandCache(
+		lazyDemandInformer,
 		sparkSchedulerClient.ScalerV1alpha1(),
 		install.AsyncClientConfig,
 	)
-
-	if err != nil {
-		svc1log.FromContext(ctx).Error("Error constructing demand cache", svc1log.Stacktrace(err))
-		return nil, err
-	}
 
 	extender.StartDemandGC(ctx, podInformerInterface, demandCache)
 
@@ -218,6 +217,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	)
 
 	resourceReservationCache.Run(ctx)
+	lazyDemandInformer.Run(ctx)
 	demandCache.Run(ctx)
 	go cacheReporter.StartReporting(ctx)
 	go resourceReporter.StartReportingResourceUsage(ctx)

@@ -16,17 +16,18 @@ package crd
 
 import (
 	"context"
+	"sync"
+	"time"
+
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
-	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/scaler/v1alpha1"
 	"github.com/palantir/pkg/retry"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
+	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	clientcache "k8s.io/client-go/tools/cache"
-	"sync"
-	"time"
 )
 
 const (
@@ -40,29 +41,32 @@ const (
 type LazyDemandInformer struct {
 	informerFactory     ssinformers.SharedInformerFactory
 	apiExtensionsClient apiextensionsclientset.Interface
-	demandKubeClient    demandclient.ScalerV1alpha1Interface
 	ready               chan struct{}
 	informer            v1alpha1.DemandInformer
 	lock                sync.RWMutex
 }
 
+// NewLazyDemandInformer constructs a new LazyDemandInformer instance
 func NewLazyDemandInformer(
 	informerFactory ssinformers.SharedInformerFactory,
-	apiExtensionsClient apiextensionsclientset.Interface,
-	demandKubeClient demandclient.ScalerV1alpha1Interface) *LazyDemandInformer{
+	apiExtensionsClient apiextensionsclientset.Interface) *LazyDemandInformer {
 	return &LazyDemandInformer{
-		informerFactory: informerFactory,
+		informerFactory:     informerFactory,
 		apiExtensionsClient: apiExtensionsClient,
-		demandKubeClient: demandKubeClient,
-		ready: make(chan struct{}),
+		ready:               make(chan struct{}),
 	}
 }
 
-// Informer returns the informer instance if it is initialized, returns nil otherwise
-func(ldi *LazyDemandInformer) Informer() v1alpha1.DemandInformer {
+// Informer returns the informer instance if it is initialized, returns false otherwise
+func (ldi *LazyDemandInformer) Informer() (v1alpha1.DemandInformer, bool) {
 	ldi.lock.RLock()
 	defer ldi.lock.RUnlock()
-	return ldi.informer
+	select {
+	case <-ldi.Ready():
+		return ldi.informer, true
+	default:
+		return nil, false
+	}
 }
 
 // Ready returns a channel that will be closed when the informer is initialized
@@ -72,7 +76,16 @@ func (ldi *LazyDemandInformer) Ready() <-chan struct{} {
 
 // Run starts the goroutine to check for the existence of the demand CRD,
 // and initialize the demand informer if CRD exists
-func (ldi *LazyDemandInformer) Run(ctx context.Context) error {
+func (ldi *LazyDemandInformer) Run(ctx context.Context) {
+	if ldi.checkDemandCRDExists(ctx) {
+		return
+	}
+	go func() {
+		_ = wapp.RunWithFatalLogging(ctx, ldi.doStart)
+	}()
+}
+
+func (ldi *LazyDemandInformer) doStart(ctx context.Context) error {
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
 	for {
@@ -85,7 +98,6 @@ func (ldi *LazyDemandInformer) Run(ctx context.Context) error {
 			}
 		}
 	}
-
 }
 
 func (ldi *LazyDemandInformer) checkDemandCRDExists(ctx context.Context) bool {
@@ -116,7 +128,7 @@ func (ldi *LazyDemandInformer) initializeInformer(ctx context.Context) error {
 		ctxWithTimeout, cancel := context.WithTimeout(ctx, informerSyncTimeout)
 		defer cancel()
 		if ok := clientcache.WaitForCacheSync(ctxWithTimeout.Done(), informer.HasSynced); !ok {
-			return werror.ErrorWithContextParams(ctx,"timeout syncing informer", werror.SafeParam("timeoutSeconds", informerSyncTimeout.Seconds()))
+			return werror.ErrorWithContextParams(ctx, "timeout syncing informer", werror.SafeParam("timeoutSeconds", informerSyncTimeout.Seconds()))
 		}
 		return nil
 	}, retry.WithMaxAttempts(informerSyncRetryCount), retry.WithInitialBackoff(informerSyncRetryInitialBackoff))
@@ -125,5 +137,6 @@ func (ldi *LazyDemandInformer) initializeInformer(ctx context.Context) error {
 		return err
 	}
 	ldi.informer = informerInterface
+	close(ldi.ready)
 	return nil
 }
