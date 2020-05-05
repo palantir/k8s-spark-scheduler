@@ -65,6 +65,8 @@ func (ldi *LazyDemandInformer) Informer() (v1alpha1.DemandInformer, bool) {
 	}
 }
 
+
+
 // Ready returns a channel that will be closed when the informer is initialized
 func (ldi *LazyDemandInformer) Ready() <-chan struct{} {
 	return ldi.ready
