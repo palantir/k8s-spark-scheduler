@@ -17,6 +17,7 @@ package extendertest
 import (
 	"context"
 	"fmt"
+	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"os"
 	"testing"
 
