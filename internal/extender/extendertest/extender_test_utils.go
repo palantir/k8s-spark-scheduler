@@ -17,7 +17,6 @@ package extendertest
 import (
 	"context"
 	"fmt"
-	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"os"
 	"testing"
 
@@ -25,6 +24,7 @@ import (
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	sscache "github.com/palantir/k8s-spark-scheduler/internal/cache"
+	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/witchcraft-go-logging/wlog"
 	"github.com/palantir/witchcraft-go-logging/wlog/evtlog/evt2log"
