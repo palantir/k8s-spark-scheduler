@@ -71,8 +71,8 @@ func (rrm *ResourceReservationManager) CreateReservations(
 	executorNodes []string) (*v1beta1.ResourceReservation, error) {
 	rr, ok := rrm.GetResourceReservation(driver)
 	if !ok {
-		svc1log.FromContext(ctx).Debug("creating executor resource reservations", svc1log.SafeParams(logging.RRSafeParam(rr)))
 		rr = rrm.NewResourceReservation(driverNode, executorNodes, driver, applicationResources.driverResources, applicationResources.executorResources)
+		svc1log.FromContext(ctx).Debug("creating executor resource reservations", svc1log.SafeParams(logging.RRSafeParam(rr)))
 		err := rrm.resourceReservations.Create(rr)
 		if err != nil {
 			return nil, werror.WrapWithContextParams(ctx, err, "failed to create resource reservation", werror.SafeParam("reservationName", rr.Name))
