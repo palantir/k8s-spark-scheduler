@@ -23,6 +23,7 @@ import (
 	"github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"k8s.io/apimachinery/pkg/labels"
+	"math"
 	"sort"
 	"sync"
 
@@ -95,7 +96,11 @@ func (rrm *ResourceReservationManager) FindAlreadyBoundReservationNode(ctx conte
 			return resourceReservation.Spec.Reservations[name].Node, nil
 		}
 	}
-	// TODO(rkaram): Check soft reservations as well
+
+	// Check any soft reservations as well
+	if sr, ok := rrm.softReservationStore.GetExecutorSoftReservation(ctx, executor); ok {
+		return sr.Node, nil
+	}
 	return "", nil
 }
 
@@ -114,15 +119,23 @@ func (rrm *ResourceReservationManager) FindUnboundReservationNodes(ctx context.C
 	return unboundReservationNodes.ToSlice(), nil
 }
 
-func (rrm *ResourceReservationManager) GetFreeExecutorSpots(appId string) int {
-	// count unbound reservations + free soft reservations
+func (rrm *ResourceReservationManager) GetFreeExecutorSpots(ctx context.Context, executor *v1.Pod) (int, error) {
+	unboundReservations, err := rrm.getUnboundReservations(ctx, executor)
+	if err != nil {
+		return 0, err
+	}
+	extraExecutorFreeSpots, err := rrm.getFreeExtraExecutorSpots(ctx, executor)
+	if err != nil {
+		return 0, err
+	}
+	return len(unboundReservations) + extraExecutorFreeSpots, nil
 }
 
 func (rrm *ResourceReservationManager) ReserveForExecutor(ctx context.Context, executor *v1.Pod, node string) error {
 	rrm.mutex.Lock()
 	defer rrm.mutex.Unlock()
 
-	// TODO: make sure executor doesn't already have a reservation, if it does, it must be freed (we don't seem to handle this currently)
+	// TODO: make sure executor doesn't already have a reservation, if it does, it must be freed (we don't seem to handle this in the current logic, but we should going forward)
 
 	unboundReservationsToNodes, err := rrm.getUnboundReservations(ctx, executor)
 	if err != nil {
@@ -143,11 +156,22 @@ func (rrm *ResourceReservationManager) ReserveForExecutor(ctx context.Context, e
 	}
 
 	// Try to get a soft reservation if it is a dynamic allocation application
-	if rrm.getFreeExtraExecutorSpots(executor) > 0 {
+	extraExecutorFreeSpots, err := rrm.getFreeExtraExecutorSpots(ctx, executor)
+	if err != nil {
+		return werror.WrapWithContextParams(ctx, err, "failed to count free extra executor spots remaining")
+	}
+	if extraExecutorFreeSpots > 0 {
 		return rrm.bindExecutorToSoftReservation(ctx, executor, node)
 	}
 
 	return werror.ErrorWithContextParams(ctx, "failed to find free reservation for executor")
+}
+
+func (rrm *ResourceReservationManager) GetReservedResources() resources.NodeGroupResources {
+	resourceReservations := rrm.resourceReservations.List()
+	usage := resources.UsageForNodes(resourceReservations)
+	usage.Add(rrm.softReservationStore.UsedSoftReservationResources())
+	return usage
 }
 
 func (rrm *ResourceReservationManager) bindExecutorToResourceReservation(ctx context.Context, executor *v1.Pod, reservationName string, node string) error {
@@ -204,8 +228,23 @@ func (rrm *ResourceReservationManager) getUnboundReservations(ctx context.Contex
 	return unboundReservationsToNodes, nil
 }
 
-func (rrm *ResourceReservationManager) getFreeExtraExecutorSpots(executor *v1.Pod) int {
-	// count free soft reservations
+func (rrm *ResourceReservationManager) getFreeExtraExecutorSpots(ctx context.Context, executor *v1.Pod) (int, error) {
+	extraExecutorCount := 0
+	sr, ok := rrm.softReservationStore.GetSoftReservation(executor.Labels[common.SparkAppIDLabel])
+	if !ok {
+		return 0, nil
+	}
+	extraExecutorCount = len(sr.Reservations)
+	driver, err := rrm.podLister.getDriverPod(ctx, executor)
+	if err != nil {
+		return 0, err
+	}
+	sparkResources, err := sparkResources(ctx, driver)
+	if err != nil {
+		return 0, err
+	}
+	maxAllowedExtraExecutors := sparkResources.maxExecutorCount - sparkResources.minExecutorCount
+	return int(math.Max(float64(maxAllowedExtraExecutors - extraExecutorCount), 0)), nil
 }
 
 // getActivePodNames returns a map of pod names that are still active in the passed pod's namespace

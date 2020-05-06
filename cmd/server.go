@@ -163,6 +163,9 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	softReservationStore := cache.NewSoftReservationStore(ctx, podInformerInterface)
 
+	sparkPodLister := extender.NewSparkPodLister(podLister, instanceGroupLabel)
+	resourceReservationManager := extender.NewResourceReservationManager(resourceReservationCache, softReservationStore, sparkPodLister)
+
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,
 		podLister,
@@ -176,9 +179,8 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeLister,
-		extender.NewSparkPodLister(podLister, instanceGroupLabel),
-		resourceReservationCache,
-		softReservationStore,
+		sparkPodLister,
+		resourceReservationManager,
 		kubeClient.CoreV1(),
 		demandCache,
 		apiExtensionsClient,

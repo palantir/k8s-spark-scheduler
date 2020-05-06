@@ -19,8 +19,6 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"time"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/logging"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal"
@@ -28,11 +26,10 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/events"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
-	werror "github.com/palantir/witchcraft-go-error"
+	"github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	"k8s.io/apimachinery/pkg/labels"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm/predicates"
@@ -62,8 +59,6 @@ const (
 type SparkSchedulerExtender struct {
 	nodeLister           corelisters.NodeLister
 	podLister            *SparkPodLister
-	resourceReservations *cache.ResourceReservationCache
-	softReservationStore *cache.SoftReservationStore
 	resourceReservationManager *ResourceReservationManager
 	coreClient           corev1.CoreV1Interface
 
@@ -85,8 +80,6 @@ type SparkSchedulerExtender struct {
 func NewExtender(
 	nodeLister corelisters.NodeLister,
 	podLister *SparkPodLister,
-	resourceReservations *cache.ResourceReservationCache,
-	softReservationStore *cache.SoftReservationStore,
 	resourceReservationManager *ResourceReservationManager,
 	coreClient corev1.CoreV1Interface,
 	demands *cache.SafeDemandCache,
@@ -101,8 +94,6 @@ func NewExtender(
 	return &SparkSchedulerExtender{
 		nodeLister:                           nodeLister,
 		podLister:                            podLister,
-		resourceReservations:                 resourceReservations,
-		softReservationStore:                 softReservationStore,
 		resourceReservationManager:			  resourceReservationManager,
 		coreClient:                           coreClient,
 		demands:                              demands,
@@ -261,7 +252,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		return "", failureInternal, err
 	}
 
-	usages := s.usedResources()
+	usages := s.resourceReservationManager.GetReservedResources()
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
 	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usages)
 	driverNodeNames, executorNodeNames := s.potentialNodes(availableNodesSchedulingMetadata, nodeNames)
@@ -366,7 +357,10 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	}
 
 	// Else, check if you still can have an executor, and if yes, reschedule
-	freeExecutorSpots := s.resourceReservationManager.GetFreeExecutorSpots()
+	freeExecutorSpots, err := s.resourceReservationManager.GetFreeExecutorSpots(ctx, executor)
+	if err != nil {
+		return "", failureInternal, werror.WrapWithContextParams(ctx, err, "error when checking for free executor spots")
+	}
 	if freeExecutorSpots > 0 {
 		nodeName, outcome, err := s.rescheduleExecutor(ctx, executor, nodeNames)
 		if err != nil {
@@ -410,13 +404,6 @@ func (s *SparkSchedulerExtender) getNodes(ctx context.Context, nodeNames []strin
 	return availableNodes
 }
 
-func (s *SparkSchedulerExtender) usedResources() resources.NodeGroupResources {
-	resourceReservations := s.resourceReservations.List()
-	usage := resources.UsageForNodes(resourceReservations)
-	usage.Add(s.softReservationStore.UsedSoftReservationResources())
-	return usage
-}
-
 func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executor *v1.Pod, nodeNames []string) (string, string, error) {
 	driver, err := s.podLister.getDriverPod(ctx, executor)
 	if err != nil {
@@ -428,7 +415,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	}
 	executorResources := &resources.Resources{CPU: sparkResources.executorResources.CPU, Memory: sparkResources.executorResources.Memory}
 	availableNodes := s.getNodes(ctx, nodeNames)
-	usages := s.usedResources()
+	usages := s.resourceReservationManager.GetReservedResources()
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
 	availableResources := resources.AvailableForNodes(availableNodes, usages)
 	for _, name := range nodeNames {
