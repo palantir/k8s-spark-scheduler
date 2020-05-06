@@ -219,6 +219,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	resourceReservationCache.Run(ctx)
 	lazyDemandInformer.Run(ctx)
 	demandCache.Run(ctx)
+	metrics.StartSchedulingOverheadMetrics(ctx, podInformerInterface, lazyDemandInformer)
 	go cacheReporter.StartReporting(ctx)
 	go resourceReporter.StartReportingResourceUsage(ctx)
 	go queueReporter.StartReportingQueues(ctx)

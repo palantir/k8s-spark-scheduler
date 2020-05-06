@@ -109,4 +109,3 @@ func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, a
 	}
 	return nil
 }
-

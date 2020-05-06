@@ -17,13 +17,13 @@ package extender
 import (
 	"context"
 	"encoding/json"
-	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/k8s-spark-scheduler/internal/events"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -174,4 +174,3 @@ func demandResources(applicationResources *sparkApplicationResources) []demandap
 	}
 	return demandUnits
 }
-

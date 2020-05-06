@@ -16,6 +16,7 @@ package utils
 
 import (
 	"context"
+
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
@@ -32,7 +33,8 @@ func IsSparkSchedulerPod(obj interface{}) bool {
 	return false
 }
 
-
+// OnPodScheduled returns a function that will be called if pod is scheduled on
+// the received update. Intended to be used with ResourceEventHandlerFuncs
 func OnPodScheduled(ctx context.Context, fn func(*v1.Pod)) func(interface{}, interface{}) {
 	return func(oldObj interface{}, newObj interface{}) {
 		oldPod, ok := oldObj.(*v1.Pod)

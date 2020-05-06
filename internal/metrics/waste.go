@@ -16,35 +16,54 @@ package metrics
 
 import (
 	"context"
+	"sync"
+	"time"
+
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
+	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientcache "k8s.io/client-go/tools/cache"
-	"sync"
-	"time"
 )
 
 const (
 	cleanupInterval = 6 * time.Hour
 )
 
-type WasteMetricsReporter struct {
-	ctx context.Context
-	schedulingInfo SchedulingInfo
+var (
+	beforeDemandCreation = tagInfo{
+		tag:          metrics.MustNewTag(schedulingWasteTypeTagName, "before-demand-creation"),
+		logThreshold: 1 * time.Minute,
+	}
+	afterDemandFulfilled = tagInfo{
+		tag:          metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled"),
+		logThreshold: 1 * time.Minute,
+	}
+	totalTimeNoDemand = tagInfo{
+		tag:          metrics.MustNewTag(schedulingWasteTypeTagName, "total-time-no-demand"),
+		logThreshold: 10 * time.Minute,
+	}
+)
+
+type wasteMetricsReporter struct {
+	ctx  context.Context
+	info schedulingInfo
 	lock sync.Mutex
 }
 
+// StartSchedulingOverheadMetrics will start tracking demand creation an fulfillment times
+// and report scheduling wasted time per pod
 func StartSchedulingOverheadMetrics(
 	ctx context.Context,
 	podInformer coreinformers.PodInformer,
-	demandInformer crd.LazyDemandInformer,
-	) {
-	reporter := &WasteMetricsReporter{
-		ctx: ctx,
-		schedulingInfo: make(SchedulingInfo),
+	demandInformer *crd.LazyDemandInformer,
+) {
+	reporter := &wasteMetricsReporter{
+		ctx:  ctx,
+		info: make(schedulingInfo),
 	}
 
 	podInformer.Informer().AddEventHandler(
@@ -74,53 +93,73 @@ func StartSchedulingOverheadMetrics(
 			select {
 			case <-ctx.Done():
 				return
-			case <- t.C:
+			case <-t.C:
 				reporter.cleanup()
 			}
 		}
 	}()
 }
 
-type DemandInfo struct {
+type demandInfo struct {
 	demandFulfilledTime time.Time
 	demandCreationTime  time.Time
 }
 
-type PodKey struct {
+type podKey struct {
 	Namespace string
 	Name      string
 }
 
-type SchedulingInfo map[PodKey]DemandInfo
+type schedulingInfo map[podKey]demandInfo
 
-
-func (r *WasteMetricsReporter) onPodScheduled(pod *v1.Pod) {
+func (r *wasteMetricsReporter) onPodScheduled(pod *v1.Pod) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	// TODO: report
+	if info, ok := r.info[podKey{pod.Namespace, pod.Name}]; ok {
+		r.markAndSlowLog(pod, beforeDemandCreation, info.demandCreationTime.Sub(pod.CreationTimestamp.Time))
+		r.markAndSlowLog(pod, afterDemandFulfilled, time.Now().Sub(info.demandFulfilledTime))
+	} else {
+		r.markAndSlowLog(pod, totalTimeNoDemand, time.Now().Sub(pod.CreationTimestamp.Time))
+	}
 }
 
-func (r *WasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
+func (r *wasteMetricsReporter) markAndSlowLog(pod *v1.Pod, tag tagInfo, duration time.Duration) {
+	if duration > tag.logThreshold {
+		svc1log.FromContext(r.ctx).Info("pod wait time is above threshold",
+			svc1log.SafeParam("podNamespace", pod.Namespace),
+			svc1log.SafeParam("podName", pod.Name),
+			svc1log.SafeParam("waitType", tag.tag.Value()),
+			svc1log.SafeParam("duration", duration))
+	}
+	metrics.FromContext(r.ctx).Histogram(schedulingWaste, tag.tag).Update(duration.Nanoseconds())
+}
+
+func (r *wasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	r.schedulingInfo[PodKey{demand.Namespace, utils.PodName(demand)}] = DemandInfo{
+	r.info[podKey{demand.Namespace, utils.PodName(demand)}] = demandInfo{
 		demandFulfilledTime: time.Now(),
 		demandCreationTime:  demand.CreationTimestamp.Time,
 	}
 }
 
-func (r *WasteMetricsReporter) cleanup() {
+func (r *wasteMetricsReporter) cleanup() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	for key, demandInfo := range r.schedulingInfo {
-		if demandInfo.demandFulfilledTime.Add(cleanupInterval).Before(time.Now()) {
+	for key, info := range r.info {
+		if info.demandFulfilledTime.Add(cleanupInterval).Before(time.Now()) {
 			svc1log.FromContext(r.ctx).Info(
 				"deleting demand from scheduling waste reporter, pod was not scheduled for 6 hours",
 				svc1log.SafeParam("podNamespace", key.Namespace),
 				svc1log.SafeParam("podNamespace", key.Name),
 			)
-			delete(r.schedulingInfo, key)
+			delete(r.info, key)
 		}
 	}
 
+}
+
+type tagInfo struct {
+	tag          metrics.Tag
+	logThreshold time.Duration
 }

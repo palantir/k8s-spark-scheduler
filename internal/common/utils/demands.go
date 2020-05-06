@@ -16,12 +16,15 @@ package utils
 
 import (
 	"context"
+	"strings"
+
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
-	"strings"
 )
 
+// OnDemandFulfilled returns a function that will be called if the demand object is fulfilled on
+// the received update. Intended to be used with ResourceEventHandlerFuncs
 func OnDemandFulfilled(ctx context.Context, fn func(*v1alpha1.Demand)) func(interface{}, interface{}) {
 	return func(oldObj interface{}, newObj interface{}) {
 		oldDemand, ok := oldObj.(*v1alpha1.Demand)
@@ -44,10 +47,12 @@ func isDemandFulfilled(demand *v1alpha1.Demand) bool {
 	return demand.Status.Phase == v1alpha1.DemandPhaseFulfilled
 }
 
+// DemandName returns a demand name from a pod name
 func DemandName(pod *v1.Pod) string {
 	return "demand-" + pod.Name
 }
 
+// PodName returns a pod name from a demand name
 func PodName(demand *v1alpha1.Demand) string {
 	return strings.TrimPrefix("demand-", demand.Name)
 }
