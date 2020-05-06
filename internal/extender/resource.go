@@ -358,6 +358,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 			if err != nil {
 				return "", failureInternal, werror.WrapWithContextParams(ctx, err, "failed to reserve node for executor")
 			}
+			s.removeDemandIfExists(ctx, executor)
 			return resultNode, success, nil
 		}
 	}
@@ -368,7 +369,8 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 		return "", failureInternal, werror.WrapWithContextParams(ctx, err, "error when checking for free executor spots")
 	}
 	if freeExecutorSpots > 0 {
-		nodeName, outcome, err := s.rescheduleExecutor(ctx, executor, nodeNames)
+		isExtraExecutor := len(unboundReservationNodes) > 0			// Dynamic allocation executor since there were no free unbound reservations
+		nodeName, outcome, err := s.rescheduleExecutor(ctx, executor, nodeNames, isExtraExecutor)
 		if err != nil {
 			return "", outcome, werror.WrapWithContextParams(ctx, err, "failed to reschedule executor")
 		}
@@ -376,10 +378,11 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 		if err != nil {
 			return "", failureInternal, werror.WrapWithContextParams(ctx, err, "failed to reserve node for rescheduled executor")
 		}
+		s.removeDemandIfExists(ctx, executor)
 		return nodeName, successRescheduled, nil
 	}
 
-	return "", failureUnbound, werror.ErrorWithContextParams(ctx, "no free space for executor") // TODO: choose proper outcome here
+	return "", failureFit, werror.ErrorWithContextParams(ctx, "application has no free executor spots to schedule this one")
 }
 
 // getReservationNodeFromNodeList filters the list of reservationNodes to return a single one that also appears in nodeNames, or false.
@@ -410,7 +413,7 @@ func (s *SparkSchedulerExtender) getNodes(ctx context.Context, nodeNames []strin
 	return availableNodes
 }
 
-func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executor *v1.Pod, nodeNames []string) (string, string, error) {
+func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executor *v1.Pod, nodeNames []string, isExtraExecutor bool) (string, string, error) {
 	driver, err := s.podLister.getDriverPod(ctx, executor)
 	if err != nil {
 		return "", failureInternal, err
@@ -426,10 +429,17 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	availableResources := resources.AvailableForNodes(availableNodes, usages)
 	for _, name := range nodeNames {
 		if !executorResources.GreaterThan(availableResources[name]) {
+			if isExtraExecutor {
+				return name, successScheduledExtraExecutor, nil
+			}
 			return name, successRescheduled, nil
 		}
 	}
 
+	if isExtraExecutor {
+		return "", failureFitExtraExecutor, werror.ErrorWithContextParams(ctx, "not enough capacity to schedule the extra executor")
+	}
+
 	s.createDemandForExecutor(ctx, executor, executorResources)
-	return "", failureFit, werror.Error("not enough capacity to reschedule the executor")
+	return "", failureFit, werror.ErrorWithContextParams(ctx, "not enough capacity to reschedule the executor")
 }
