@@ -16,7 +16,6 @@ package crd
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
@@ -43,7 +42,6 @@ type LazyDemandInformer struct {
 	apiExtensionsClient apiextensionsclientset.Interface
 	ready               chan struct{}
 	informer            v1alpha1.DemandInformer
-	lock                sync.RWMutex
 }
 
 // NewLazyDemandInformer constructs a new LazyDemandInformer instance
@@ -59,8 +57,6 @@ func NewLazyDemandInformer(
 
 // Informer returns the informer instance if it is initialized, returns false otherwise
 func (ldi *LazyDemandInformer) Informer() (v1alpha1.DemandInformer, bool) {
-	ldi.lock.RLock()
-	defer ldi.lock.RUnlock()
 	select {
 	case <-ldi.Ready():
 		return ldi.informer, true
@@ -118,8 +114,6 @@ func (ldi *LazyDemandInformer) checkDemandCRDExists(ctx context.Context) bool {
 }
 
 func (ldi *LazyDemandInformer) initializeInformer(ctx context.Context) error {
-	ldi.lock.Lock()
-	defer ldi.lock.Unlock()
 	informerInterface := ldi.informerFactory.Scaler().V1alpha1().Demands()
 	informer := informerInterface.Informer()
 	ldi.informerFactory.Start(ctx.Done())
