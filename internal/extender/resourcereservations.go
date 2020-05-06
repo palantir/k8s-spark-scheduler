@@ -54,6 +54,7 @@ func NewResourceReservationManager(
 	}
 }
 
+// GetResourceReservation returns the resource reservation for the passed pod, if any.
 func (rrm *ResourceReservationManager) GetResourceReservation(pod *v1.Pod) (*v1beta1.ResourceReservation, bool) {
 	return rrm.resourceReservations.Get(pod.Namespace, pod.Labels[common.SparkAppIDLabel])
 }
@@ -68,7 +69,7 @@ func (rrm *ResourceReservationManager) CreateReservations(
 	executorNodes []string) (*v1beta1.ResourceReservation, error) {
 	rr, ok := rrm.GetResourceReservation(driver); if !ok {
 		svc1log.FromContext(ctx).Debug("creating executor resource reservations", svc1log.SafeParams(logging.RRSafeParam(rr)))
-		rr = rrm.newResourceReservation(driverNode, executorNodes, driver, applicationResources.driverResources, applicationResources.executorResources)
+		rr = rrm.NewResourceReservation(driverNode, executorNodes, driver, applicationResources.driverResources, applicationResources.executorResources)
 		err := rrm.resourceReservations.Create(rr)
 		if err != nil {
 			return nil, werror.WrapWithContextParams(ctx, err, "failed to create resource reservation", werror.SafeParam("reservationName", rr.Name))
@@ -119,6 +120,7 @@ func (rrm *ResourceReservationManager) FindUnboundReservationNodes(ctx context.C
 	return unboundReservationNodes.ToSlice(), nil
 }
 
+// GetFreeExecutorSpots returns the number of executors the application can still schedule.
 func (rrm *ResourceReservationManager) GetFreeExecutorSpots(ctx context.Context, executor *v1.Pod) (int, error) {
 	unboundReservations, err := rrm.getUnboundReservations(ctx, executor)
 	if err != nil {
@@ -131,6 +133,8 @@ func (rrm *ResourceReservationManager) GetFreeExecutorSpots(ctx context.Context,
 	return len(unboundReservations) + extraExecutorFreeSpots, nil
 }
 
+// ReserveForExecutor creates a reservation for the passed executor on the passed node. This reservation could either be a resource reservation,
+// or a soft reservation if dynamic allocation is enabled.
 func (rrm *ResourceReservationManager) ReserveForExecutor(ctx context.Context, executor *v1.Pod, node string) error {
 	rrm.mutex.Lock()
 	defer rrm.mutex.Unlock()
@@ -256,14 +260,15 @@ func (rrm *ResourceReservationManager) getActivePodNames(ctx context.Context, po
 	}
 	activePodNames := make(map[string]bool, len(pods))
 	for _, pod := range pods {
-		if !rrm.isPodTerminated(pod) {
+		if !rrm.IsPodTerminated(pod) {
 			activePodNames[pod.Name] = true
 		}
 	}
 	return activePodNames, nil
 }
 
-func (rrm *ResourceReservationManager) isPodTerminated(pod *v1.Pod) bool {
+// IsPodTerminated returns whether the pod is considered to be terminated
+func (rrm *ResourceReservationManager) IsPodTerminated(pod *v1.Pod) bool {
 	allTerminated := len(pod.Status.ContainerStatuses) > 0
 	for _, status := range pod.Status.ContainerStatuses {
 		allTerminated = allTerminated && status.State.Terminated != nil
@@ -271,7 +276,8 @@ func (rrm *ResourceReservationManager) isPodTerminated(pod *v1.Pod) bool {
 	return allTerminated
 }
 
-func (rrm *ResourceReservationManager) newResourceReservation(driverNode string, executorNodes []string, driver *v1.Pod, driverResources, executorResources *resources.Resources) *v1beta1.ResourceReservation {
+// NewResourceReservation builds a reservation object with the pods and resources passed and returns it.
+func (rrm *ResourceReservationManager) NewResourceReservation(driverNode string, executorNodes []string, driver *v1.Pod, driverResources, executorResources *resources.Resources) *v1beta1.ResourceReservation {
 	reservations := make(map[string]v1beta1.Reservation, len(executorNodes)+1)
 	reservations["driver"] = v1beta1.Reservation{
 		Node:   driverNode,
@@ -279,7 +285,7 @@ func (rrm *ResourceReservationManager) newResourceReservation(driverNode string,
 		Memory: driverResources.Memory,
 	}
 	for idx, nodeName := range executorNodes {
-		reservations[rrm.executorReservationName(idx)] = v1beta1.Reservation{
+		reservations[rrm.ExecutorReservationName(idx)] = v1beta1.Reservation{
 			Node:   nodeName,
 			CPU:    executorResources.CPU,
 			Memory: executorResources.Memory,
@@ -303,6 +309,7 @@ func (rrm *ResourceReservationManager) newResourceReservation(driverNode string,
 	}
 }
 
-func (rrm *ResourceReservationManager) executorReservationName(i int) string {
+// ExecutorReservationName returns a string following the convention of calling executor reservations in increments
+func (rrm *ResourceReservationManager) ExecutorReservationName(i int) string {
 	return fmt.Sprintf("executor-%d", i+1)
 }

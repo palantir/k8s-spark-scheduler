@@ -180,6 +180,8 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeLister,
 		sparkPodLister,
+		resourceReservationCache,
+		softReservationStore,
 		resourceReservationManager,
 		kubeClient.CoreV1(),
 		demandCache,

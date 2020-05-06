@@ -59,6 +59,8 @@ const (
 type SparkSchedulerExtender struct {
 	nodeLister           corelisters.NodeLister
 	podLister            *SparkPodLister
+	resourceReservations *cache.ResourceReservationCache
+	softReservationStore *cache.SoftReservationStore
 	resourceReservationManager *ResourceReservationManager
 	coreClient           corev1.CoreV1Interface
 
@@ -80,6 +82,8 @@ type SparkSchedulerExtender struct {
 func NewExtender(
 	nodeLister corelisters.NodeLister,
 	podLister *SparkPodLister,
+	resourceReservations *cache.ResourceReservationCache,
+	softReservationStore *cache.SoftReservationStore,
 	resourceReservationManager *ResourceReservationManager,
 	coreClient corev1.CoreV1Interface,
 	demands *cache.SafeDemandCache,
@@ -94,6 +98,8 @@ func NewExtender(
 	return &SparkSchedulerExtender{
 		nodeLister:                           nodeLister,
 		podLister:                            podLister,
+		resourceReservations:                 resourceReservations,
+		softReservationStore:                 softReservationStore,
 		resourceReservationManager:			  resourceReservationManager,
 		coreClient:                           coreClient,
 		demands:                              demands,
