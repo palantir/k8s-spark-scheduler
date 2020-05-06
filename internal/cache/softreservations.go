@@ -132,7 +132,6 @@ func (s *SoftReservationStore) ExecutorHasSoftReservation(ctx context.Context, e
 	return ok
 }
 
-
 // GetExecutorSoftReservation returns the Reservation object associated with this executor if it exists.
 func (s *SoftReservationStore) GetExecutorSoftReservation(ctx context.Context, executor *v1.Pod) (*v1beta1.Reservation, bool) {
 	s.storeLock.RLock()

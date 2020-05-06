@@ -16,7 +16,6 @@ package extender
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
@@ -24,11 +23,12 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/k8s-spark-scheduler/internal/events"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
-	"github.com/palantir/witchcraft-go-error"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
@@ -57,12 +57,12 @@ const (
 // a spark driver and all of the executors can be scheduled together given current
 // resources available across the nodes
 type SparkSchedulerExtender struct {
-	nodeLister           corelisters.NodeLister
-	podLister            *SparkPodLister
-	resourceReservations *cache.ResourceReservationCache
-	softReservationStore *cache.SoftReservationStore
+	nodeLister                 corelisters.NodeLister
+	podLister                  *SparkPodLister
+	resourceReservations       *cache.ResourceReservationCache
+	softReservationStore       *cache.SoftReservationStore
 	resourceReservationManager *ResourceReservationManager
-	coreClient           corev1.CoreV1Interface
+	coreClient                 corev1.CoreV1Interface
 
 	demands             *cache.SafeDemandCache
 	apiExtensionsClient apiextensionsclientset.Interface
@@ -100,7 +100,7 @@ func NewExtender(
 		podLister:                            podLister,
 		resourceReservations:                 resourceReservations,
 		softReservationStore:                 softReservationStore,
-		resourceReservationManager:			  resourceReservationManager,
+		resourceReservationManager:           resourceReservationManager,
 		coreClient:                           coreClient,
 		demands:                              demands,
 		apiExtensionsClient:                  apiExtensionsClient,

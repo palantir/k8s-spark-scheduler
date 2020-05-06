@@ -17,40 +17,42 @@ package extender
 import (
 	"context"
 	"fmt"
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/logging"
-	"github.com/palantir/k8s-spark-scheduler/internal/cache"
-	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
-	"github.com/palantir/witchcraft-go-error"
-	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	"k8s.io/apimachinery/pkg/labels"
 	"math"
 	"sort"
 	"sync"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/logging"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
-	"k8s.io/api/core/v1"
+	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
+	werror "github.com/palantir/witchcraft-go-error"
+	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 var podGroupVersionKind = v1.SchemeGroupVersion.WithKind("Pod")
 
+// ResourceReservationManager is a central point which manages the creation and reading of both resource reservations and soft reservations
 type ResourceReservationManager struct {
 	resourceReservations *cache.ResourceReservationCache
 	softReservationStore *cache.SoftReservationStore
 	podLister            *SparkPodLister
-	mutex 		 		 sync.RWMutex
+	mutex                sync.RWMutex
 }
 
+// NewResourceReservationManager creates and returns a ResourceReservationManager
 func NewResourceReservationManager(
 	resourceReservations *cache.ResourceReservationCache,
 	softReservationStore *cache.SoftReservationStore,
-	podLister            *SparkPodLister) *ResourceReservationManager  {
+	podLister *SparkPodLister) *ResourceReservationManager {
 	return &ResourceReservationManager{
 		resourceReservations: resourceReservations,
 		softReservationStore: softReservationStore,
-		podLister: podLister,
+		podLister:            podLister,
 	}
 }
 
@@ -67,7 +69,8 @@ func (rrm *ResourceReservationManager) CreateReservations(
 	applicationResources *sparkApplicationResources,
 	driverNode string,
 	executorNodes []string) (*v1beta1.ResourceReservation, error) {
-	rr, ok := rrm.GetResourceReservation(driver); if !ok {
+	rr, ok := rrm.GetResourceReservation(driver)
+	if !ok {
 		svc1log.FromContext(ctx).Debug("creating executor resource reservations", svc1log.SafeParams(logging.RRSafeParam(rr)))
 		rr = rrm.NewResourceReservation(driverNode, executorNodes, driver, applicationResources.driverResources, applicationResources.executorResources)
 		err := rrm.resourceReservations.Create(rr)
@@ -171,6 +174,7 @@ func (rrm *ResourceReservationManager) ReserveForExecutor(ctx context.Context, e
 	return werror.ErrorWithContextParams(ctx, "failed to find free reservation for executor")
 }
 
+// GetReservedResources returns the resources per node that are reserved for executors.
 func (rrm *ResourceReservationManager) GetReservedResources() resources.NodeGroupResources {
 	resourceReservations := rrm.resourceReservations.List()
 	usage := resources.UsageForNodes(resourceReservations)
@@ -181,7 +185,7 @@ func (rrm *ResourceReservationManager) GetReservedResources() resources.NodeGrou
 func (rrm *ResourceReservationManager) bindExecutorToResourceReservation(ctx context.Context, executor *v1.Pod, reservationName string, node string) error {
 	resourceReservation, ok := rrm.GetResourceReservation(executor)
 	if !ok {
-		return werror.ErrorWithContextParams(ctx,"failed to get resource reservationName")
+		return werror.ErrorWithContextParams(ctx, "failed to get resource reservationName")
 	}
 	copyResourceReservation := resourceReservation.DeepCopy()
 	reservationObject := copyResourceReservation.Spec.Reservations[reservationName]
@@ -215,7 +219,7 @@ func (rrm *ResourceReservationManager) bindExecutorToSoftReservation(ctx context
 func (rrm *ResourceReservationManager) getUnboundReservations(ctx context.Context, executor *v1.Pod) (map[string]string, error) {
 	resourceReservation, ok := rrm.GetResourceReservation(executor)
 	if !ok {
-		return nil, werror.ErrorWithContextParams(ctx,"failed to get resource reservation")
+		return nil, werror.ErrorWithContextParams(ctx, "failed to get resource reservation")
 	}
 	activePodNames, err := rrm.getActivePodNames(ctx, executor)
 	if err != nil {
@@ -248,7 +252,7 @@ func (rrm *ResourceReservationManager) getFreeExtraExecutorSpots(ctx context.Con
 		return 0, err
 	}
 	maxAllowedExtraExecutors := sparkResources.maxExecutorCount - sparkResources.minExecutorCount
-	return int(math.Max(float64(maxAllowedExtraExecutors - extraExecutorCount), 0)), nil
+	return int(math.Max(float64(maxAllowedExtraExecutors-extraExecutorCount), 0)), nil
 }
 
 // getActivePodNames returns a map of pod names that are still active in the passed pod's namespace
