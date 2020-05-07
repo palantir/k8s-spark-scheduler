@@ -369,7 +369,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 		return "", failureInternal, werror.WrapWithContextParams(ctx, err, "error when checking for free executor spots")
 	}
 	if freeExecutorSpots > 0 {
-		isExtraExecutor := len(unboundReservationNodes) > 0			// Dynamic allocation executor since there were no free unbound reservations
+		isExtraExecutor := len(unboundReservationNodes) > 0 // Dynamic allocation executor since there were no free unbound reservations
 		nodeName, outcome, err := s.rescheduleExecutor(ctx, executor, nodeNames, isExtraExecutor)
 		if err != nil {
 			return "", outcome, werror.WrapWithContextParams(ctx, err, "failed to reschedule executor")
