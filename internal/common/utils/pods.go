@@ -33,8 +33,7 @@ func IsSparkSchedulerPod(obj interface{}) bool {
 	return false
 }
 
-// OnPodScheduled returns a function that will be called if pod is scheduled on
-// the received update. Intended to be used with ResourceEventHandlerFuncs
+// OnPodScheduled returns a function that calls the wrapped function if the pod is scheduled
 func OnPodScheduled(ctx context.Context, fn func(*v1.Pod)) func(interface{}, interface{}) {
 	return func(oldObj interface{}, newObj interface{}) {
 		oldPod, ok := oldObj.(*v1.Pod)

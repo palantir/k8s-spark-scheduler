@@ -30,27 +30,27 @@ import (
 )
 
 const (
-	cleanupInterval = 6 * time.Hour
+	metricCacheCleanupInterval = 6 * time.Hour
 )
 
 var (
 	beforeDemandCreation = tagInfo{
 		tag:          metrics.MustNewTag(schedulingWasteTypeTagName, "before-demand-creation"),
-		logThreshold: 1 * time.Minute,
+		slowLogThreshold: 1 * time.Minute,
 	}
 	afterDemandFulfilled = tagInfo{
 		tag:          metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled"),
-		logThreshold: 1 * time.Minute,
+		slowLogThreshold: 1 * time.Minute,
 	}
 	totalTimeNoDemand = tagInfo{
 		tag:          metrics.MustNewTag(schedulingWasteTypeTagName, "total-time-no-demand"),
-		logThreshold: 10 * time.Minute,
+		slowLogThreshold: 10 * time.Minute,
 	}
 )
 
 type wasteMetricsReporter struct {
 	ctx  context.Context
-	info schedulingInfo
+	info demandsByPod
 	lock sync.Mutex
 }
 
@@ -63,7 +63,7 @@ func StartSchedulingOverheadMetrics(
 ) {
 	reporter := &wasteMetricsReporter{
 		ctx:  ctx,
-		info: make(schedulingInfo),
+		info: make(demandsByPod),
 	}
 
 	podInformer.Informer().AddEventHandler(
@@ -87,14 +87,14 @@ func StartSchedulingOverheadMetrics(
 	}()
 
 	go func() {
-		t := time.NewTicker(cleanupInterval)
+		t := time.NewTicker(metricCacheCleanupInterval)
 		defer t.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				reporter.cleanup()
+				reporter.cleanupMetricCache()
 			}
 		}
 	}()
@@ -110,7 +110,7 @@ type podKey struct {
 	Name      string
 }
 
-type schedulingInfo map[podKey]demandInfo
+type demandsByPod map[podKey]demandInfo
 
 func (r *wasteMetricsReporter) onPodScheduled(pod *v1.Pod) {
 	r.lock.Lock()
@@ -124,7 +124,7 @@ func (r *wasteMetricsReporter) onPodScheduled(pod *v1.Pod) {
 }
 
 func (r *wasteMetricsReporter) markAndSlowLog(pod *v1.Pod, tag tagInfo, duration time.Duration) {
-	if duration > tag.logThreshold {
+	if duration > tag.slowLogThreshold {
 		svc1log.FromContext(r.ctx).Info("pod wait time is above threshold",
 			svc1log.SafeParam("podNamespace", pod.Namespace),
 			svc1log.SafeParam("podName", pod.Name),
@@ -143,11 +143,11 @@ func (r *wasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
 	}
 }
 
-func (r *wasteMetricsReporter) cleanup() {
+func (r *wasteMetricsReporter) cleanupMetricCache() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	for key, info := range r.info {
-		if info.demandFulfilledTime.Add(cleanupInterval).Before(time.Now()) {
+		if info.demandFulfilledTime.Add(metricCacheCleanupInterval).Before(time.Now()) {
 			svc1log.FromContext(r.ctx).Info(
 				"deleting demand from scheduling waste reporter, pod was not scheduled for 6 hours",
 				svc1log.SafeParam("podNamespace", key.Namespace),
@@ -161,5 +161,5 @@ func (r *wasteMetricsReporter) cleanup() {
 
 type tagInfo struct {
 	tag          metrics.Tag
-	logThreshold time.Duration
+	slowLogThreshold time.Duration
 }

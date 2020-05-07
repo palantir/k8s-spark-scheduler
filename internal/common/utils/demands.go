@@ -23,8 +23,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-// OnDemandFulfilled returns a function that will be called if the demand object is fulfilled on
-// the received update. Intended to be used with ResourceEventHandlerFuncs
+// OnDemandFulfilled returns a function that calls the wrapped function if the demand object is fulfilled
 func OnDemandFulfilled(ctx context.Context, fn func(*v1alpha1.Demand)) func(interface{}, interface{}) {
 	return func(oldObj interface{}, newObj interface{}) {
 		oldDemand, ok := oldObj.(*v1alpha1.Demand)
@@ -34,7 +33,7 @@ func OnDemandFulfilled(ctx context.Context, fn func(*v1alpha1.Demand)) func(inte
 		}
 		newDemand, ok := newObj.(*v1alpha1.Demand)
 		if !ok {
-			svc1log.FromContext(ctx).Error("failed to parse new Obj as demand")
+			svc1log.FromContext(ctx).Error("failed to parse newObj as demand")
 		}
 		if !isDemandFulfilled(oldDemand) && isDemandFulfilled(newDemand) {
 			fn(newDemand)
