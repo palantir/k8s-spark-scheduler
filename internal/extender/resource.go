@@ -382,7 +382,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 		return nodeName, successRescheduled, nil
 	}
 
-	return "", failureFit, werror.ErrorWithContextParams(ctx, "application has no free executor spots to schedule this one")
+	return "", failureUnbound, werror.ErrorWithContextParams(ctx, "application has no free executor spots to schedule this one")
 }
 
 // getReservationNodeFromNodeList filters the list of reservationNodes to return a single one that also appears in nodeNames, or false.
