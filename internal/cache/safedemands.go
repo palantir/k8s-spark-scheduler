@@ -57,20 +57,16 @@ func (sdc *SafeDemandCache) Run(ctx context.Context) {
 		return
 	}
 	go func() {
-		err := wapp.RunWithFatalLogging(ctx, sdc.wait)
-		if err != nil {
-			panic(err)
+		select {
+		case <-ctx.Done():
+			return
+		case <-sdc.lazyDemandInformer.Ready():
+			err := wapp.RunWithFatalLogging(ctx, sdc.initializeCache)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}()
-}
-
-func (sdc *SafeDemandCache) wait(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		return nil
-	case <-sdc.lazyDemandInformer.Ready():
-		return sdc.initializeCache(ctx)
-	}
 }
 
 func (sdc *SafeDemandCache) initializeCache(ctx context.Context) error {
