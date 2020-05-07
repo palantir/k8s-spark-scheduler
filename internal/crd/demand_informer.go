@@ -73,7 +73,7 @@ func (ldi *LazyDemandInformer) Ready() <-chan struct{} {
 // Run starts the goroutine to check for the existence of the demand CRD,
 // and initialize the demand informer if CRD exists
 func (ldi *LazyDemandInformer) Run(ctx context.Context) {
-	if ldi.checkDemandCRDExists(ctx) {
+	if ldi.initializeInformer(ctx) {
 		return
 	}
 	go func() {
@@ -89,31 +89,36 @@ func (ldi *LazyDemandInformer) doStart(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-t.C:
-			if ldi.checkDemandCRDExists(ctx) {
+			if ldi.initializeInformer(ctx) {
 				return nil
 			}
 		}
 	}
 }
 
-func (ldi *LazyDemandInformer) checkDemandCRDExists(ctx context.Context) bool {
+func(ldi *LazyDemandInformer) initializeInformer(ctx context.Context) bool {
 	_, ready, err := CheckCRDExists(demandapi.DemandCustomResourceDefinitionName(), ldi.apiExtensionsClient)
 	if err != nil {
 		svc1log.FromContext(ctx).Info("failed to determine if demand CRD exists", svc1log.Stacktrace(err))
 		return false
 	}
-	if ready {
-		svc1log.FromContext(ctx).Info("demand CRD has been initialized. Demand resources can now be created")
-		err = ldi.initializeInformer(ctx)
-		if err != nil {
-			svc1log.FromContext(ctx).Error("failed initializing demand informer", svc1log.Stacktrace(err))
-			return false
-		}
+	if !ready {
+		return false
 	}
+	svc1log.FromContext(ctx).Info("demand CRD has been initialized. Demand resources can now be created")
+	informer, err := ldi.createInformer(ctx)
+	if err != nil {
+		svc1log.FromContext(ctx).Error("failed initializing demand informer", svc1log.Stacktrace(err))
+		return false
+	}
+
+	ldi.informer = informer
+	close(ldi.ready)
 	return ready
 }
 
-func (ldi *LazyDemandInformer) initializeInformer(ctx context.Context) error {
+
+func (ldi *LazyDemandInformer) createInformer(ctx context.Context) (v1alpha1.DemandInformer, error) {
 	informerInterface := ldi.informerFactory.Scaler().V1alpha1().Demands()
 	informer := informerInterface.Informer()
 	ldi.informerFactory.Start(ctx.Done())
@@ -128,9 +133,7 @@ func (ldi *LazyDemandInformer) initializeInformer(ctx context.Context) error {
 	}, retry.WithMaxAttempts(informerSyncRetryCount), retry.WithInitialBackoff(informerSyncRetryInitialBackoff))
 
 	if err != nil {
-		return err
+		return nil, err
 	}
-	ldi.informer = informerInterface
-	close(ldi.ready)
-	return nil
+	return informerInterface, nil
 }
