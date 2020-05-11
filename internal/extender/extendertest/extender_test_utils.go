@@ -111,7 +111,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	softReservationStore := sscache.NewSoftReservationStore(ctx, podInformerInterface)
 
 	sparkPodLister := extender.NewSparkPodLister(podLister, instanceGroupLabel)
-	resourceReservationManager := extender.NewResourceReservationManager(resourceReservationCache, softReservationStore, sparkPodLister)
+	resourceReservationManager := extender.NewResourceReservationManager(ctx, resourceReservationCache, softReservationStore, sparkPodLister, podInformerInterface)
 
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,

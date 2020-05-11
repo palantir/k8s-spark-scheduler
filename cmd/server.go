@@ -164,7 +164,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	softReservationStore := cache.NewSoftReservationStore(ctx, podInformerInterface)
 
 	sparkPodLister := extender.NewSparkPodLister(podLister, instanceGroupLabel)
-	resourceReservationManager := extender.NewResourceReservationManager(resourceReservationCache, softReservationStore, sparkPodLister)
+	resourceReservationManager := extender.NewResourceReservationManager(ctx, resourceReservationCache, softReservationStore, sparkPodLister, podInformerInterface)
 
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,

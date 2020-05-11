@@ -137,6 +137,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 		logger.Error(msg, svc1log.Stacktrace(err))
 		return failWithMessage(ctx, args, msg)
 	}
+	s.resourceReservationManager.CompactDynamicAllocationApplications(ctx)
 
 	nodeName, outcome, err := s.selectNode(ctx, args.Pod.Labels[common.SparkRoleLabel], args.Pod, *args.NodeNames)
 	timer.Mark(ctx, role, outcome)

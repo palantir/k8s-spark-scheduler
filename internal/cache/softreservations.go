@@ -189,11 +189,12 @@ func (s *SoftReservationStore) onPodDeletion(obj interface{}) {
 	case common.Driver:
 		s.removeDriverReservation(appID)
 	case common.Executor:
-		s.removeExecutorReservation(appID, pod.Name)
+		s.RemoveExecutorReservation(appID, pod.Name)
 	}
 }
 
-func (s *SoftReservationStore) removeExecutorReservation(appID string, executorName string) {
+// RemoveExecutorReservation deletes the soft reservation bound to the passed executor if it exists.
+func (s *SoftReservationStore) RemoveExecutorReservation(appID string, executorName string) {
 	s.storeLock.Lock()
 	defer s.storeLock.Unlock()
 	sr, found := s.store[appID]

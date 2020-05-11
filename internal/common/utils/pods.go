@@ -17,15 +17,43 @@ package utils
 import (
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	v1 "k8s.io/api/core/v1"
+	clientcache "k8s.io/client-go/tools/cache"
 )
 
 // IsSparkSchedulerPod returns whether the passed object is a spark application pod which has this scheduler in the scheduler spec
 func IsSparkSchedulerPod(obj interface{}) bool {
-	if pod, ok := obj.(*v1.Pod); ok {
-		_, labelFound := pod.Labels[common.SparkRoleLabel]
-		if labelFound && pod.Spec.SchedulerName == common.SparkSchedulerName {
-			return true
-		}
+	_, isSparkSchedulerPod := getRoleIfSparkSchedulerPod(obj)
+	return isSparkSchedulerPod
+}
+
+func IsSparkSchedulerExecutorPod(obj interface{}) bool {
+	if role, isSparkSchedulerPod := getRoleIfSparkSchedulerPod(obj); isSparkSchedulerPod {
+		return role == common.Executor
 	}
 	return false
+}
+
+func GetPodFromObjectOrTombstone(obj interface{}) (*v1.Pod, bool) {
+	pod, ok := obj.(*v1.Pod)
+	if !ok {
+		tombstone, ok := obj.(clientcache.DeletedFinalStateUnknown)
+		if !ok {
+			return nil, false
+		}
+		pod, ok = tombstone.Obj.(*v1.Pod)
+		if !ok {
+			return nil, false
+		}
+	}
+	return pod, true
+}
+
+func getRoleIfSparkSchedulerPod(obj interface{}) (string, bool) {
+	if pod, ok := GetPodFromObjectOrTombstone(obj); ok {
+		role, labelFound := pod.Labels[common.SparkRoleLabel]
+		if labelFound && pod.Spec.SchedulerName == common.SparkSchedulerName {
+			return role, true
+		}
+	}
+	return "", false
 }
