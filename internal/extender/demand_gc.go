@@ -19,7 +19,6 @@ import (
 
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
-	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientcache "k8s.io/client-go/tools/cache"
@@ -43,34 +42,10 @@ func StartDemandGC(ctx context.Context, podInformer coreinformers.PodInformer, d
 		clientcache.FilteringResourceEventHandler{
 			FilterFunc: utils.IsSparkSchedulerPod,
 			Handler: clientcache.ResourceEventHandlerFuncs{
-				UpdateFunc: dgc.onPodUpdate,
+				UpdateFunc: utils.OnPodScheduled(ctx, func(pod *v1.Pod) {
+					DeleteDemandIfExists(dgc.ctx, dgc.demandCache, pod, "DemandGC")
+				}),
 			},
 		},
 	)
-}
-
-func (dgc *DemandGC) onPodUpdate(oldObj interface{}, newObj interface{}) {
-	oldPod, ok := oldObj.(*v1.Pod)
-	if !ok {
-		svc1log.FromContext(dgc.ctx).Error("failed to parse oldObj as pod")
-		return
-	}
-	newPod, ok := newObj.(*v1.Pod)
-	if !ok {
-		svc1log.FromContext(dgc.ctx).Error("failed to parse newObj as pod")
-		return
-	}
-
-	if !dgc.isPodScheduled(oldPod) && dgc.isPodScheduled(newPod) {
-		DeleteDemandIfExists(dgc.ctx, dgc.demandCache, newPod, "DemandGC")
-	}
-}
-
-func (dgc *DemandGC) isPodScheduled(pod *v1.Pod) bool {
-	for _, cond := range pod.Status.Conditions {
-		if cond.Type == v1.PodScheduled && cond.Status == v1.ConditionTrue {
-			return true
-		}
-	}
-	return false
 }
