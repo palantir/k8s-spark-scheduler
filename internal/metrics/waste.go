@@ -35,15 +35,15 @@ const (
 
 var (
 	beforeDemandCreation = tagInfo{
-		tag:          metrics.MustNewTag(schedulingWasteTypeTagName, "before-demand-creation"),
+		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "before-demand-creation"),
 		slowLogThreshold: 1 * time.Minute,
 	}
 	afterDemandFulfilled = tagInfo{
-		tag:          metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled"),
+		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled"),
 		slowLogThreshold: 1 * time.Minute,
 	}
 	totalTimeNoDemand = tagInfo{
-		tag:          metrics.MustNewTag(schedulingWasteTypeTagName, "total-time-no-demand"),
+		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "total-time-no-demand"),
 		slowLogThreshold: 10 * time.Minute,
 	}
 )
@@ -160,6 +160,6 @@ func (r *wasteMetricsReporter) cleanupMetricCache() {
 }
 
 type tagInfo struct {
-	tag          metrics.Tag
+	tag              metrics.Tag
 	slowLogThreshold time.Duration
 }
