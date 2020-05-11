@@ -30,23 +30,23 @@ import (
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
-	coreinformers "k8s.io/client-go/informers/core/v1"
-	clientcache "k8s.io/client-go/tools/cache"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	coreinformers "k8s.io/client-go/informers/core/v1"
+	clientcache "k8s.io/client-go/tools/cache"
 )
 
 var podGroupVersionKind = v1.SchemeGroupVersion.WithKind("Pod")
 
 // ResourceReservationManager is a central point which manages the creation and reading of both resource reservations and soft reservations
 type ResourceReservationManager struct {
-	resourceReservations *cache.ResourceReservationCache
-	softReservationStore *cache.SoftReservationStore
-	podLister            *SparkPodLister
-	mutex                sync.RWMutex
-	dynamicAllocationCompactionPods []*v1.Pod
+	resourceReservations                 *cache.ResourceReservationCache
+	softReservationStore                 *cache.SoftReservationStore
+	podLister                            *SparkPodLister
+	mutex                                sync.RWMutex
+	dynamicAllocationCompactionPods      []*v1.Pod
 	dynamicAllocationCompactionSliceLock sync.RWMutex
-	logger    svc1log.Logger
+	logger                               svc1log.Logger
 }
 
 // NewResourceReservationManager creates and returns a ResourceReservationManager
@@ -60,7 +60,7 @@ func NewResourceReservationManager(
 		resourceReservations: resourceReservations,
 		softReservationStore: softReservationStore,
 		podLister:            podLister,
-		logger: svc1log.FromContext(ctx),
+		logger:               svc1log.FromContext(ctx),
 	}
 
 	informer.Informer().AddEventHandler(
@@ -269,7 +269,7 @@ func (rrm *ResourceReservationManager) drainDynamicAllocationCompactionSlice() [
 	for _, p := range rrm.dynamicAllocationCompactionPods {
 		dynamicAllocationCompactionDrain = append(dynamicAllocationCompactionDrain, p)
 	}
-	rrm.dynamicAllocationCompactionPods =  make([]*v1.Pod, len(dynamicAllocationCompactionDrain))
+	rrm.dynamicAllocationCompactionPods = make([]*v1.Pod, len(dynamicAllocationCompactionDrain))
 	return dynamicAllocationCompactionDrain
 }
 
@@ -350,7 +350,7 @@ func (rrm *ResourceReservationManager) getFreeExtraExecutorSpots(ctx context.Con
 func (rrm *ResourceReservationManager) getActivePodNames(ctx context.Context, pod *v1.Pod) (*utils.StringSet, error) {
 	if activePods, err := rrm.getActivePods(ctx, pod); err != nil {
 		activePodNames := utils.NewStringSet(len(activePods))
-		for podName, _ := range activePods {
+		for podName := range activePods {
 			activePodNames.Add(podName)
 		}
 		return activePodNames, nil
