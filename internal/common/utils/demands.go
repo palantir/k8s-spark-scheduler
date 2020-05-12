@@ -53,5 +53,5 @@ func DemandName(pod *v1.Pod) string {
 
 // PodName returns a pod name from a demand name
 func PodName(demand *v1alpha1.Demand) string {
-	return strings.TrimPrefix("demand-", demand.Name)
+	return strings.TrimPrefix(demand.Name, "demand-")
 }
