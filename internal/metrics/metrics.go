@@ -49,21 +49,23 @@ const (
 	softReservationExecutorCount    = "foundry.spark.scheduler.softreservation.executorcount"
 	executorsWithNoReservationCount = "foundry.spark.scheduler.softreservation.executorswithnoreservations"
 	podInformerDelay                = "foundry.spark.scheduler.informer.delay"
+	schedulingWaste                 = "foundry.spark.scheduler.scheduling.waste"
 )
 
 const (
-	sparkRoleLabel       = "spark-role"
-	executor             = "executor"
-	sparkRoleTagName     = "sparkrole"
-	outcomeTagName       = "outcome"
-	instanceGroupTagName = "instance-group"
-	hostTagName          = "nodename"
-	lifecycleTagName     = "lifecycle"
-	sparkSchedulerName   = "spark-scheduler"
-	pathTagName          = "requestpath"
-	verbTagName          = "requestverb"
-	statusCodeTagName    = "requeststatuscode"
-	queueIndexTagName    = "queueIndex"
+	sparkRoleLabel             = "spark-role"
+	executor                   = "executor"
+	sparkRoleTagName           = "sparkrole"
+	outcomeTagName             = "outcome"
+	instanceGroupTagName       = "instance-group"
+	hostTagName                = "nodename"
+	lifecycleTagName           = "lifecycle"
+	sparkSchedulerName         = "spark-scheduler"
+	pathTagName                = "requestpath"
+	verbTagName                = "requestverb"
+	statusCodeTagName          = "requeststatuscode"
+	queueIndexTagName          = "queueIndex"
+	schedulingWasteTypeTagName = "wastetype"
 )
 
 const (

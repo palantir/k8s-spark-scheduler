@@ -15,7 +15,10 @@
 package utils
 
 import (
+	"context"
+
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -37,4 +40,32 @@ func IsPodTerminated(pod *v1.Pod) bool {
 		allTerminated = allTerminated && status.State.Terminated != nil
 	}
 	return allTerminated
+}
+
+// OnPodScheduled returns a function that calls the wrapped function if the pod is scheduled
+func OnPodScheduled(ctx context.Context, fn func(*v1.Pod)) func(interface{}, interface{}) {
+	return func(oldObj interface{}, newObj interface{}) {
+		oldPod, ok := oldObj.(*v1.Pod)
+		if !ok {
+			svc1log.FromContext(ctx).Error("failed to parse oldObj as pod")
+			return
+		}
+		newPod, ok := newObj.(*v1.Pod)
+		if !ok {
+			svc1log.FromContext(ctx).Error("failed to parse newObj as pod")
+			return
+		}
+		if !isPodScheduled(oldPod) && isPodScheduled(newPod) {
+			fn(newPod)
+		}
+	}
+}
+
+func isPodScheduled(pod *v1.Pod) bool {
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type == v1.PodScheduled && cond.Status == v1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }

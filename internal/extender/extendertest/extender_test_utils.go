@@ -24,6 +24,7 @@ import (
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	sscache "github.com/palantir/k8s-spark-scheduler/internal/cache"
+	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/witchcraft-go-logging/wlog"
 	"github.com/palantir/witchcraft-go-logging/wlog/evtlog/evt2log"
@@ -102,9 +103,12 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		return nil, err
 	}
 
-	demandCache := sscache.NewSafeDemandCache(
+	lazyDemandInformer := crd.NewLazyDemandInformer(
 		sparkSchedulerInformerFactory,
 		fakeAPIExtensionsClient,
+	)
+	demandCache := sscache.NewSafeDemandCache(
+		lazyDemandInformer,
 		fakeSchedulerClient.ScalerV1alpha1(),
 		installConfig.AsyncClientConfig,
 	)
