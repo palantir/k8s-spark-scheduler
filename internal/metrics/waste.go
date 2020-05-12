@@ -122,10 +122,10 @@ func (r *wasteMetricsReporter) onPodScheduled(pod *v1.Pod) {
 		r.markAndSlowLog(pod, totalTimeNoDemand, time.Now().Sub(pod.CreationTimestamp.Time))
 	}
 	svc1log.FromContext(r.ctx).Info(
-		"demand fulfilled",
+		"pod scheduled",
 		svc1log.SafeParam("demandNamespace", pod.Namespace),
 		svc1log.SafeParam("demandName", pod.Name),
-		svc1log.SafeParam("demandInfo", r.info))
+		svc1log.SafeParam("demandInfo", len(r.info)))
 }
 
 func (r *wasteMetricsReporter) markAndSlowLog(pod *v1.Pod, tag tagInfo, duration time.Duration) {
@@ -151,7 +151,7 @@ func (r *wasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
 		svc1log.SafeParam("demandNamespace", demand.Namespace),
 		svc1log.SafeParam("demandName", demand.Name),
 		svc1log.SafeParam("podName", utils.PodName(demand)),
-		svc1log.SafeParam("demandInfo", r.info))
+		svc1log.SafeParam("demandInfo", len(r.info)))
 }
 
 func (r *wasteMetricsReporter) cleanupMetricCache() {
