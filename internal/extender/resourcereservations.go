@@ -71,7 +71,7 @@ func (rrm *ResourceReservationManager) CreateReservations(
 	executorNodes []string) (*v1beta1.ResourceReservation, error) {
 	rr, ok := rrm.GetResourceReservation(driver)
 	if !ok {
-		rr = rrm.NewResourceReservation(driverNode, executorNodes, driver, applicationResources.driverResources, applicationResources.executorResources)
+		rr = newResourceReservation(driverNode, executorNodes, driver, applicationResources.driverResources, applicationResources.executorResources)
 		svc1log.FromContext(ctx).Debug("creating executor resource reservations", svc1log.SafeParams(logging.RRSafeParam(rr)))
 		err := rrm.resourceReservations.Create(rr)
 		if err != nil {
@@ -88,52 +88,54 @@ func (rrm *ResourceReservationManager) CreateReservations(
 	return rr, nil
 }
 
-// FindAlreadyBoundReservationNode returns a node name that was previously allocated to this executor, if any.
+// FindAlreadyBoundReservationNode returns a node name that was previously allocated to this executor if any, or false otherwise.
 // Binding reservations have to be idempotent. Binding the pod to the node on kube-scheduler might fail, so we want to get the same executor pod on a retry.
-func (rrm *ResourceReservationManager) FindAlreadyBoundReservationNode(ctx context.Context, executor *v1.Pod) (string, error) {
+func (rrm *ResourceReservationManager) FindAlreadyBoundReservationNode(ctx context.Context, executor *v1.Pod) (string, bool, error) {
 	resourceReservation, ok := rrm.GetResourceReservation(executor)
 	if !ok {
-		return "", werror.ErrorWithContextParams(ctx, "failed to get resource reservations")
+		return "", false, werror.ErrorWithContextParams(ctx, "failed to get resource reservations")
 	}
 	for name := range resourceReservation.Spec.Reservations {
 		if resourceReservation.Status.Pods[name] == executor.Name {
-			return resourceReservation.Spec.Reservations[name].Node, nil
+			return resourceReservation.Spec.Reservations[name].Node, true, nil
 		}
 	}
 
 	// Check any soft reservations as well
 	if sr, ok := rrm.softReservationStore.GetExecutorSoftReservation(ctx, executor); ok {
-		return sr.Node, nil
+		return sr.Node, true, nil
 	}
-	return "", nil
+	return "", false, nil
 }
 
 // FindUnboundReservationNodes returns a slice of node names that have unbound reservations for this Spark application.
 // This includes both reservations we have not yet scheduled any executors on as well as reservations that have executors that are now dead.
 // Spark will recreate lost executors, so the replacement executors should be placed on the reserved spaces of dead executors.
-func (rrm *ResourceReservationManager) FindUnboundReservationNodes(ctx context.Context, executor *v1.Pod) ([]string, error) {
+func (rrm *ResourceReservationManager) FindUnboundReservationNodes(ctx context.Context, executor *v1.Pod) ([]string, bool, error) {
 	unboundReservationsToNodes, err := rrm.getUnboundReservations(ctx, executor)
 	if err != nil {
-		return []string{}, err
+		return []string{}, false, err
 	}
 	unboundReservationNodes := utils.NewStringSet(len(unboundReservationsToNodes))
+	found := false
 	for _, node := range unboundReservationsToNodes {
 		unboundReservationNodes.Add(node)
+		found = true
 	}
-	return unboundReservationNodes.ToSlice(), nil
+	return unboundReservationNodes.ToSlice(), found, nil
 }
 
-// GetFreeExecutorSpots returns the number of executors the application can still schedule.
-func (rrm *ResourceReservationManager) GetFreeExecutorSpots(ctx context.Context, executor *v1.Pod) (int, error) {
+// GetRemainingAllowedExecutorCount returns the number of executors the application can still schedule.
+func (rrm *ResourceReservationManager) GetRemainingAllowedExecutorCount(ctx context.Context, executor *v1.Pod) (int, error) {
 	unboundReservations, err := rrm.getUnboundReservations(ctx, executor)
 	if err != nil {
 		return 0, err
 	}
-	extraExecutorFreeSpots, err := rrm.getFreeExtraExecutorSpots(ctx, executor)
+	softReservationFreeSpots, err := rrm.getFreeSoftReservationSpots(ctx, executor)
 	if err != nil {
 		return 0, err
 	}
-	return len(unboundReservations) + extraExecutorFreeSpots, nil
+	return len(unboundReservations) + softReservationFreeSpots, nil
 }
 
 // ReserveForExecutor creates a reservation for the passed executor on the passed node. This reservation could either be a resource reservation,
@@ -163,7 +165,7 @@ func (rrm *ResourceReservationManager) ReserveForExecutor(ctx context.Context, e
 	}
 
 	// Try to get a soft reservation if it is a dynamic allocation application
-	extraExecutorFreeSpots, err := rrm.getFreeExtraExecutorSpots(ctx, executor)
+	extraExecutorFreeSpots, err := rrm.getFreeSoftReservationSpots(ctx, executor)
 	if err != nil {
 		return werror.WrapWithContextParams(ctx, err, "failed to count free extra executor spots remaining")
 	}
@@ -185,7 +187,7 @@ func (rrm *ResourceReservationManager) GetReservedResources() resources.NodeGrou
 func (rrm *ResourceReservationManager) bindExecutorToResourceReservation(ctx context.Context, executor *v1.Pod, reservationName string, node string) error {
 	resourceReservation, ok := rrm.GetResourceReservation(executor)
 	if !ok {
-		return werror.ErrorWithContextParams(ctx, "failed to get resource reservationName")
+		return werror.ErrorWithContextParams(ctx, "failed to get resource reservationName", werror.SafeParam("reservationName", reservationName))
 	}
 	copyResourceReservation := resourceReservation.DeepCopy()
 	reservationObject := copyResourceReservation.Spec.Reservations[reservationName]
@@ -194,7 +196,7 @@ func (rrm *ResourceReservationManager) bindExecutorToResourceReservation(ctx con
 	copyResourceReservation.Status.Pods[reservationName] = executor.Name
 	err := rrm.resourceReservations.Update(copyResourceReservation)
 	if err != nil {
-		return werror.WrapWithContextParams(ctx, err, "failed to update resource reservationName")
+		return werror.WrapWithContextParams(ctx, err, "failed to update resource reservationName", werror.SafeParam("reservationName", reservationName))
 	}
 	return nil
 }
@@ -236,13 +238,13 @@ func (rrm *ResourceReservationManager) getUnboundReservations(ctx context.Contex
 	return unboundReservationsToNodes, nil
 }
 
-func (rrm *ResourceReservationManager) getFreeExtraExecutorSpots(ctx context.Context, executor *v1.Pod) (int, error) {
-	extraExecutorCount := 0
+func (rrm *ResourceReservationManager) getFreeSoftReservationSpots(ctx context.Context, executor *v1.Pod) (int, error) {
+	usedSoftReservationCount := 0
 	sr, ok := rrm.softReservationStore.GetSoftReservation(executor.Labels[common.SparkAppIDLabel])
 	if !ok {
 		return 0, nil
 	}
-	extraExecutorCount = len(sr.Reservations)
+	usedSoftReservationCount = len(sr.Reservations)
 	driver, err := rrm.podLister.getDriverPod(ctx, executor)
 	if err != nil {
 		return 0, err
@@ -252,7 +254,7 @@ func (rrm *ResourceReservationManager) getFreeExtraExecutorSpots(ctx context.Con
 		return 0, err
 	}
 	maxAllowedExtraExecutors := sparkResources.maxExecutorCount - sparkResources.minExecutorCount
-	return int(math.Max(float64(maxAllowedExtraExecutors-extraExecutorCount), 0)), nil
+	return int(math.Max(float64(maxAllowedExtraExecutors-usedSoftReservationCount), 0)), nil
 }
 
 // getActivePodNames returns a map of pod names that are still active in the passed pod's namespace
@@ -264,24 +266,15 @@ func (rrm *ResourceReservationManager) getActivePodNames(ctx context.Context, po
 	}
 	activePodNames := make(map[string]bool, len(pods))
 	for _, pod := range pods {
-		if !rrm.IsPodTerminated(pod) {
+		if !utils.IsPodTerminated(pod) {
 			activePodNames[pod.Name] = true
 		}
 	}
 	return activePodNames, nil
 }
 
-// IsPodTerminated returns whether the pod is considered to be terminated
-func (rrm *ResourceReservationManager) IsPodTerminated(pod *v1.Pod) bool {
-	allTerminated := len(pod.Status.ContainerStatuses) > 0
-	for _, status := range pod.Status.ContainerStatuses {
-		allTerminated = allTerminated && status.State.Terminated != nil
-	}
-	return allTerminated
-}
-
-// NewResourceReservation builds a reservation object with the pods and resources passed and returns it.
-func (rrm *ResourceReservationManager) NewResourceReservation(driverNode string, executorNodes []string, driver *v1.Pod, driverResources, executorResources *resources.Resources) *v1beta1.ResourceReservation {
+// newResourceReservation builds a reservation object with the pods and resources passed and returns it.
+func newResourceReservation(driverNode string, executorNodes []string, driver *v1.Pod, driverResources, executorResources *resources.Resources) *v1beta1.ResourceReservation {
 	reservations := make(map[string]v1beta1.Reservation, len(executorNodes)+1)
 	reservations["driver"] = v1beta1.Reservation{
 		Node:   driverNode,
@@ -289,7 +282,7 @@ func (rrm *ResourceReservationManager) NewResourceReservation(driverNode string,
 		Memory: driverResources.Memory,
 	}
 	for idx, nodeName := range executorNodes {
-		reservations[rrm.ExecutorReservationName(idx)] = v1beta1.Reservation{
+		reservations[executorReservationName(idx)] = v1beta1.Reservation{
 			Node:   nodeName,
 			CPU:    executorResources.CPU,
 			Memory: executorResources.Memory,
@@ -313,7 +306,7 @@ func (rrm *ResourceReservationManager) NewResourceReservation(driverNode string,
 	}
 }
 
-// ExecutorReservationName returns a string following the convention of calling executor reservations in increments
-func (rrm *ResourceReservationManager) ExecutorReservationName(i int) string {
+// executorReservationName returns a string following the convention of calling executor reservations in increments
+func executorReservationName(i int) string {
 	return fmt.Sprintf("executor-%d", i+1)
 }

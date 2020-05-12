@@ -15,41 +15,44 @@
 package utils
 
 // StringSet is a non-thread safe set of unique strings
-type StringSet struct {
-	elements map[string]bool
-}
+type StringSet map[string]bool
 
 // NewStringSet constructs and returns a StringSet
-func NewStringSet(size int) *StringSet {
-	return &StringSet{
-		elements: make(map[string]bool, size),
-	}
+func NewStringSet(size int) StringSet {
+	return make(StringSet, size)
 }
 
 // Add adds the string e to the StringSet if it is not already there
-func (s *StringSet) Add(e string) {
-	s.elements[e] = true
+func (s StringSet) Add(e string) {
+	s[e] = true
+}
+
+// AddAll adds the strings in es to the StringSet if they are not already there
+func (s StringSet) AddAll(es []string) {
+	for _, e := range es {
+		s[e] = true
+	}
 }
 
 // Remove removes the string e from the StringSet if it is there. It is a no-op otherwise
-func (s *StringSet) Remove(e string) {
-	delete(s.elements, e)
+func (s StringSet) Remove(e string) {
+	delete(s, e)
 }
 
 // Contains returns true if the string e is in the StringSet, false otherwise
-func (s *StringSet) Contains(e string) bool {
-	return s.elements[e]
+func (s StringSet) Contains(e string) bool {
+	return s[e]
 }
 
 // Size returns the number of elements in the StringSet
-func (s *StringSet) Size() int {
-	return len(s.elements)
+func (s StringSet) Size() int {
+	return len(s)
 }
 
 // ToSlice returns all the elements of StringSet as a slice of strings
-func (s *StringSet) ToSlice() []string {
-	result := make([]string, len(s.elements))
-	for e := range s.elements {
+func (s StringSet) ToSlice() []string {
+	result := make([]string, s.Size())
+	for e := range s {
 		result = append(result, e)
 	}
 	return result

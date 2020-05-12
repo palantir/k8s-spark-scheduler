@@ -29,3 +29,12 @@ func IsSparkSchedulerPod(obj interface{}) bool {
 	}
 	return false
 }
+
+// IsPodTerminated returns whether the pod is considered to be terminated
+func IsPodTerminated(pod *v1.Pod) bool {
+	allTerminated := len(pod.Status.ContainerStatuses) > 0
+	for _, status := range pod.Status.ContainerStatuses {
+		allTerminated = allTerminated && status.State.Terminated != nil
+	}
+	return allTerminated
+}
