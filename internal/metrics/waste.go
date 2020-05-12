@@ -135,6 +135,10 @@ func (r *wasteMetricsReporter) markAndSlowLog(pod *v1.Pod, tag tagInfo, duration
 }
 
 func (r *wasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
+	svc1log.FromContext(r.ctx).Info(
+		"demand fulfilled",
+		svc1log.SafeParam("demandNamespace", demand.Namespace),
+		svc1log.SafeParam("demandName", demand.Name))
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.info[podKey{demand.Namespace, utils.PodName(demand)}] = demandInfo{
