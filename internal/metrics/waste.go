@@ -84,7 +84,7 @@ func StartSchedulingOverheadMetrics(
 				clientcache.FilteringResourceEventHandler{
 					FilterFunc: utils.IsSparkSchedulerDemand,
 					Handler: clientcache.ResourceEventHandlerFuncs{
-						AddFunc: reporter.onDemandCreated,
+						AddFunc:    reporter.onDemandCreated,
 						UpdateFunc: utils.OnDemandFulfilled(ctx, reporter.onDemandFulfilled),
 					},
 				},
@@ -161,7 +161,7 @@ func (r *wasteMetricsReporter) onDemandCreated(obj interface{}) {
 		return
 	}
 	r.info[podKey{demand.Namespace, utils.PodName(demand)}] = demandInfo{
-		demandCreationTime:  demand.CreationTimestamp.Time,
+		demandCreationTime: demand.CreationTimestamp.Time,
 	}
 }
 
