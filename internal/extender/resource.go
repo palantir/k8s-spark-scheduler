@@ -348,8 +348,10 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	if found {
 		// check that it is part of the nodes passed and return it
 		if resultNode, ok := s.getReservationNodeFromNodeList([]string{alreadyBoundNode}, nodeNames); ok {
+			svc1log.FromContext(ctx).Info("found already bound reservation node for executor", svc1log.SafeParam("nodeName", resultNode))
 			return resultNode, successAlreadyBound, nil
 		}
+		svc1log.FromContext(ctx).Info("found already bound reservation node for executor, but it was not part of the potential nodes", svc1log.SafeParam("nodeName", alreadyBoundNode))
 	}
 
 	unboundReservationNodes, foundUnbound, err := s.resourceReservationManager.FindUnboundReservationNodes(ctx, executor)
@@ -358,12 +360,14 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	}
 	if foundUnbound {
 		if resultNode, ok := s.getReservationNodeFromNodeList(unboundReservationNodes, nodeNames); ok {
+			svc1log.FromContext(ctx).Info("found unbound reservation node for executor", svc1log.SafeParam("nodeName", resultNode))
 			err := s.resourceReservationManager.ReserveForExecutor(ctx, executor, resultNode)
 			if err != nil {
 				return "", failureInternal, werror.WrapWithContextParams(ctx, err, "failed to reserve node for executor")
 			}
 			return resultNode, success, nil
 		}
+		svc1log.FromContext(ctx).Info("found unbound reservation nodes for executor, but none were part of the potential nodes", svc1log.SafeParam("nodeNames", unboundReservationNodes))
 	}
 
 	// Else, check if you still can have an executor, and if yes, reschedule
@@ -377,6 +381,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 		if err != nil {
 			return "", outcome, werror.WrapWithContextParams(ctx, err, "failed to reschedule executor")
 		}
+		svc1log.FromContext(ctx).Info("rescheduling executor onto node", svc1log.SafeParam("nodeName", nodeName), svc1log.SafeParam("isExtraExecutor", isExtraExecutor))
 		err = s.resourceReservationManager.ReserveForExecutor(ctx, executor, nodeName)
 		if err != nil {
 			return "", failureInternal, werror.WrapWithContextParams(ctx, err, "failed to reserve node for rescheduled executor")
