@@ -18,7 +18,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"sort"
 	"sync"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
@@ -138,9 +137,9 @@ func (rrm *ResourceReservationManager) GetRemainingAllowedExecutorCount(ctx cont
 	return len(unboundReservations) + softReservationFreeSpots, nil
 }
 
-// ReserveForExecutor creates a reservation for the passed executor on the passed node. This reservation could either be a resource reservation,
-// or a soft reservation if dynamic allocation is enabled.
-func (rrm *ResourceReservationManager) ReserveForExecutor(ctx context.Context, executor *v1.Pod, node string) error {
+// ReserveForExecutorOnUnboundReservation binds a resource reservation already tied to the passed node to the executor.
+// This will only succeed if there are unbound reservations on that node.
+func (rrm *ResourceReservationManager) ReserveForExecutorOnUnboundReservation(ctx context.Context, executor *v1.Pod, node string) error {
 	rrm.mutex.Lock()
 	defer rrm.mutex.Unlock()
 
@@ -148,17 +147,28 @@ func (rrm *ResourceReservationManager) ReserveForExecutor(ctx context.Context, e
 	if err != nil {
 		return err
 	}
-	// Sort the unbound reservations such that we favor reservations that are already tied to the requested node first
-	sortedUnboundReservations := make([]string, len(unboundReservationsToNodes))
-	for reservation := range unboundReservationsToNodes {
-		sortedUnboundReservations = append(sortedUnboundReservations, reservation)
+	for reservationName, reservationNode := range unboundReservationsToNodes {
+		if reservationNode == node {
+			return rrm.bindExecutorToResourceReservation(ctx, executor, reservationName, reservationNode)
+		}
 	}
-	sort.Slice(sortedUnboundReservations, func(i, j int) bool {
-		return unboundReservationsToNodes[sortedUnboundReservations[i]] == node
-	})
 
-	if len(sortedUnboundReservations) > 0 {
-		reservationName := sortedUnboundReservations[0]
+	return werror.ErrorWithContextParams(ctx, "failed to find free reservation on requested node for executor")
+}
+
+// ReserveForExecutorOnRescheduledNode creates a reservation for the passed executor on the passed node by replacing another unbound reservation.
+// This reservation could either be a resource reservation, or a soft reservation if dynamic allocation is enabled.
+func (rrm *ResourceReservationManager) ReserveForExecutorOnRescheduledNode(ctx context.Context, executor *v1.Pod, node string) error {
+	rrm.mutex.Lock()
+	defer rrm.mutex.Unlock()
+
+	unboundReservationsToNodes, err := rrm.getUnboundReservations(ctx, executor)
+	if err != nil {
+		return err
+	}
+
+	if len(unboundReservationsToNodes) > 0 {
+		reservationName, _ := getAKeyFromMap(unboundReservationsToNodes)
 		return rrm.bindExecutorToResourceReservation(ctx, executor, reservationName, unboundReservationsToNodes[reservationName])
 	}
 
@@ -310,4 +320,11 @@ func newResourceReservation(driverNode string, executorNodes []string, driver *v
 // executorReservationName returns a string following the convention of calling executor reservations in increments
 func executorReservationName(i int) string {
 	return fmt.Sprintf("executor-%d", i+1)
+}
+
+func getAKeyFromMap(input map[string]string) (string, bool) {
+	for key := range input {
+		return key, true
+	}
+	return "", false
 }
