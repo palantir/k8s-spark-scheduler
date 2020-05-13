@@ -80,9 +80,15 @@ func StartSchedulingOverheadMetrics(
 			return
 		case <-demandInformer.Ready():
 			informer, _ := demandInformer.Informer()
-			informer.Informer().AddEventHandler(clientcache.ResourceEventHandlerFuncs{
-				UpdateFunc: utils.OnDemandFulfilled(ctx, reporter.onDemandFulfilled),
-			})
+			informer.Informer().AddEventHandler(
+				clientcache.FilteringResourceEventHandler{
+					FilterFunc: utils.IsSparkSchedulerDemand,
+					Handler: clientcache.ResourceEventHandlerFuncs{
+						AddFunc: reporter.onDemandCreated,
+						UpdateFunc: utils.OnDemandFulfilled(ctx, reporter.onDemandFulfilled),
+					},
+				},
+			)
 		}
 	}()
 
@@ -115,9 +121,12 @@ type demandsByPod map[podKey]demandInfo
 func (r *wasteMetricsReporter) onPodScheduled(pod *v1.Pod) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
+
 	if info, ok := r.info[podKey{pod.Namespace, pod.Name}]; ok {
 		r.markAndSlowLog(pod, beforeDemandCreation, info.demandCreationTime.Sub(pod.CreationTimestamp.Time))
-		r.markAndSlowLog(pod, afterDemandFulfilled, time.Now().Sub(info.demandFulfilledTime))
+		if !info.demandFulfilledTime.IsZero() {
+			r.markAndSlowLog(pod, afterDemandFulfilled, time.Now().Sub(info.demandFulfilledTime))
+		}
 	} else {
 		r.markAndSlowLog(pod, totalTimeNoDemand, time.Now().Sub(pod.CreationTimestamp.Time))
 	}
@@ -139,6 +148,19 @@ func (r *wasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
 	defer r.lock.Unlock()
 	r.info[podKey{demand.Namespace, utils.PodName(demand)}] = demandInfo{
 		demandFulfilledTime: time.Now(),
+		demandCreationTime:  demand.CreationTimestamp.Time,
+	}
+}
+
+func (r *wasteMetricsReporter) onDemandCreated(obj interface{}) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	demand, ok := obj.(*v1alpha1.Demand)
+	if !ok {
+		svc1log.FromContext(r.ctx).Error("failed to parse obj as demand")
+		return
+	}
+	r.info[podKey{demand.Namespace, utils.PodName(demand)}] = demandInfo{
 		demandCreationTime:  demand.CreationTimestamp.Time,
 	}
 }

@@ -16,12 +16,24 @@ package utils
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"strings"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 )
+
+
+// IsSparkSchedulerDemand returns whether the passed object is a demand created by the spark scheduler extender
+func IsSparkSchedulerDemand(obj interface{}) bool {
+	if demand, ok := obj.(*v1alpha1.Demand); ok {
+		_, labelFound := demand.Labels[common.SparkAppIDLabel]
+		return labelFound
+	}
+	return false
+}
+
 
 // OnDemandFulfilled returns a function that calls the wrapped function if the demand object is fulfilled
 func OnDemandFulfilled(ctx context.Context, fn func(*v1alpha1.Demand)) func(interface{}, interface{}) {
