@@ -149,7 +149,7 @@ func (rrm *ResourceReservationManager) ReserveForExecutorOnUnboundReservation(ct
 	}
 	for reservationName, reservationNode := range unboundReservationsToNodes {
 		if reservationNode == node {
-			return rrm.bindExecutorToResourceReservation(ctx, executor, reservationName, reservationNode)
+			return rrm.bindExecutorToResourceReservation(ctx, executor, reservationName, node)
 		}
 	}
 
@@ -168,8 +168,7 @@ func (rrm *ResourceReservationManager) ReserveForExecutorOnRescheduledNode(ctx c
 	}
 
 	if len(unboundReservationsToNodes) > 0 {
-		reservationName, _ := getAKeyFromMap(unboundReservationsToNodes)
-		return rrm.bindExecutorToResourceReservation(ctx, executor, reservationName, unboundReservationsToNodes[reservationName])
+		return rrm.bindExecutorToResourceReservation(ctx, executor, getAKeyFromMap(unboundReservationsToNodes), node)
 	}
 
 	// Try to get a soft reservation if it is a dynamic allocation application
@@ -322,9 +321,9 @@ func executorReservationName(i int) string {
 	return fmt.Sprintf("executor-%d", i+1)
 }
 
-func getAKeyFromMap(input map[string]string) (string, bool) {
+func getAKeyFromMap(input map[string]string) string {
 	for key := range input {
-		return key, true
+		return key
 	}
-	return "", false
+	return ""
 }
