@@ -33,6 +33,15 @@ func IsSparkSchedulerPod(obj interface{}) bool {
 	return false
 }
 
+// IsPodTerminated returns whether the pod is considered to be terminated
+func IsPodTerminated(pod *v1.Pod) bool {
+	allTerminated := len(pod.Status.ContainerStatuses) > 0
+	for _, status := range pod.Status.ContainerStatuses {
+		allTerminated = allTerminated && status.State.Terminated != nil
+	}
+	return allTerminated
+}
+
 // OnPodScheduled returns a function that calls the wrapped function if the pod is scheduled
 func OnPodScheduled(ctx context.Context, fn func(*v1.Pod)) func(interface{}, interface{}) {
 	return func(oldObj interface{}, newObj interface{}) {

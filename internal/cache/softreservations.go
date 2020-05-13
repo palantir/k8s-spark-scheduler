@@ -128,6 +128,12 @@ func (s *SoftReservationStore) AddReservationForPod(ctx context.Context, appID s
 
 // ExecutorHasSoftReservation returns true when the passed executor pod currently has a SoftReservation, false otherwise.
 func (s *SoftReservationStore) ExecutorHasSoftReservation(ctx context.Context, executor *v1.Pod) bool {
+	_, ok := s.GetExecutorSoftReservation(ctx, executor)
+	return ok
+}
+
+// GetExecutorSoftReservation returns the Reservation object associated with this executor if it exists.
+func (s *SoftReservationStore) GetExecutorSoftReservation(ctx context.Context, executor *v1.Pod) (*v1beta1.Reservation, bool) {
 	s.storeLock.RLock()
 	defer s.storeLock.RUnlock()
 	appID, ok := executor.Labels[common.SparkAppIDLabel]
@@ -135,13 +141,14 @@ func (s *SoftReservationStore) ExecutorHasSoftReservation(ctx context.Context, e
 		svc1log.FromContext(ctx).Error("Cannot get SoftReservation for pod which does not have application ID label set",
 			svc1log.SafeParam("podName", executor.Name),
 			svc1log.SafeParam("expectedLabel", common.SparkAppIDLabel))
-		return false
+		return nil, false
 	}
 	if sr, ok := s.store[appID]; ok {
-		_, ok := sr.Reservations[executor.Name]
-		return ok
+		if res, ok := sr.Reservations[executor.Name]; ok {
+			return res.DeepCopy(), true
+		}
 	}
-	return false
+	return nil, false
 }
 
 // UsedSoftReservationResources returns SoftReservation usage by node.
