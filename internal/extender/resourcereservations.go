@@ -241,7 +241,7 @@ func (rrm *ResourceReservationManager) getUnboundReservations(ctx context.Contex
 	for reservationName, reservation := range resourceReservation.Spec.Reservations {
 		podIdentifier, ok := resourceReservation.Status.Pods[reservationName]
 		pod, isActivePod := activePodNames[podIdentifier]
-		if !ok || !isActivePod || pod.Spec.NodeName != reservation.Node {
+		if !ok || !isActivePod || (pod.Spec.NodeName != "" && pod.Spec.NodeName != reservation.Node) {
 			unboundReservationsToNodes[reservationName] = reservation.Node
 		}
 	}
