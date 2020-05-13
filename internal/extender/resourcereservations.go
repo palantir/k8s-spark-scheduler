@@ -144,8 +144,6 @@ func (rrm *ResourceReservationManager) ReserveForExecutor(ctx context.Context, e
 	rrm.mutex.Lock()
 	defer rrm.mutex.Unlock()
 
-	// TODO: make sure executor doesn't already have a reservation, if it does, it must be freed (we don't seem to handle this in the current logic, but we should going forward)
-
 	unboundReservationsToNodes, err := rrm.getUnboundReservations(ctx, executor)
 	if err != nil {
 		return err
@@ -218,12 +216,14 @@ func (rrm *ResourceReservationManager) bindExecutorToSoftReservation(ctx context
 	return rrm.softReservationStore.AddReservationForPod(ctx, driver.Labels[common.SparkAppIDLabel], executor.Name, softReservation)
 }
 
+// getUnboundReservations returns a map of reservationName to node for all reservations that are either not bound to an executor,
+// bound to a now-dead executor, or bound to an executor that has now been scheduled onto another node
 func (rrm *ResourceReservationManager) getUnboundReservations(ctx context.Context, executor *v1.Pod) (map[string]string, error) {
 	resourceReservation, ok := rrm.GetResourceReservation(executor)
 	if !ok {
 		return nil, werror.ErrorWithContextParams(ctx, "failed to get resource reservation")
 	}
-	activePodNames, err := rrm.getActivePodNames(ctx, executor)
+	activePodNames, err := rrm.getActivePods(ctx, executor)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +231,8 @@ func (rrm *ResourceReservationManager) getUnboundReservations(ctx context.Contex
 	unboundReservationsToNodes := make(map[string]string, len(resourceReservation.Spec.Reservations))
 	for reservationName, reservation := range resourceReservation.Spec.Reservations {
 		podIdentifier, ok := resourceReservation.Status.Pods[reservationName]
-		if !ok || !activePodNames[podIdentifier] {
+		pod, isActivePod := activePodNames[podIdentifier]
+		if !ok || !isActivePod || pod.Spec.NodeName != reservation.Node {
 			unboundReservationsToNodes[reservationName] = reservation.Node
 		}
 	}
@@ -257,17 +258,17 @@ func (rrm *ResourceReservationManager) getFreeSoftReservationSpots(ctx context.C
 	return int(math.Max(float64(maxAllowedExtraExecutors-usedSoftReservationCount), 0)), nil
 }
 
-// getActivePodNames returns a map of pod names that are still active in the passed pod's namespace
-func (rrm *ResourceReservationManager) getActivePodNames(ctx context.Context, pod *v1.Pod) (map[string]bool, error) {
+// getActivePods returns a map of pod names to pods that are still active in the passed pod's namespace
+func (rrm *ResourceReservationManager) getActivePods(ctx context.Context, pod *v1.Pod) (map[string]*v1.Pod, error) {
 	selector := labels.Set(map[string]string{common.SparkAppIDLabel: pod.Labels[common.SparkAppIDLabel]}).AsSelector()
 	pods, err := rrm.podLister.Pods(pod.Namespace).List(selector)
 	if err != nil {
 		return nil, werror.WrapWithContextParams(ctx, err, "failed to list pods")
 	}
-	activePodNames := make(map[string]bool, len(pods))
+	activePodNames := make(map[string]*v1.Pod, len(pods))
 	for _, pod := range pods {
 		if !utils.IsPodTerminated(pod) {
-			activePodNames[pod.Name] = true
+			activePodNames[pod.Name] = pod
 		}
 	}
 	return activePodNames, nil
