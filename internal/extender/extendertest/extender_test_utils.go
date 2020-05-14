@@ -24,6 +24,7 @@ import (
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	sscache "github.com/palantir/k8s-spark-scheduler/internal/cache"
+	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/witchcraft-go-logging/wlog"
 	"github.com/palantir/witchcraft-go-logging/wlog/evtlog/evt2log"
@@ -102,9 +103,12 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		return nil, err
 	}
 
-	demandCache := sscache.NewSafeDemandCache(
+	lazyDemandInformer := crd.NewLazyDemandInformer(
 		sparkSchedulerInformerFactory,
 		fakeAPIExtensionsClient,
+	)
+	demandCache := sscache.NewSafeDemandCache(
+		lazyDemandInformer,
 		fakeSchedulerClient.ScalerV1alpha1(),
 		installConfig.AsyncClientConfig,
 	)
@@ -162,11 +166,20 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 }
 
 // Schedule calls the extender's Predicate method for the given pod and nodes
-func (h *Harness) Schedule(pod v1.Pod, nodeNames []string) *schedulerapi.ExtenderFilterResult {
-	return h.Extender.Predicate(h.Ctx, schedulerapi.ExtenderArgs{
+func (h *Harness) Schedule(t *testing.T, pod v1.Pod, nodeNames []string) *schedulerapi.ExtenderFilterResult {
+	extenderPredicateResult := h.Extender.Predicate(h.Ctx, schedulerapi.ExtenderArgs{
 		Pod:       &pod,
 		NodeNames: &nodeNames,
 	})
+	if extenderPredicateResult.NodeNames != nil && len(*extenderPredicateResult.NodeNames) > 0 {
+		pod.Spec.NodeName = (*extenderPredicateResult.NodeNames)[0]
+		pod.Status.Phase = v1.PodRunning
+		err := h.PodStore.Update(&pod)
+		if err != nil {
+			t.Errorf("failed to update pod in store after schedule")
+		}
+	}
+	return extenderPredicateResult
 }
 
 // TerminatePod terminates an existing pod
@@ -187,7 +200,7 @@ func (h *Harness) TerminatePod(pod v1.Pod) error {
 
 // AssertSuccessfulSchedule tries to schedule the provided pods and fails the test if not successful
 func (h *Harness) AssertSuccessfulSchedule(t *testing.T, pod v1.Pod, nodeNames []string, errorDetails string) {
-	result := h.Schedule(pod, nodeNames)
+	result := h.Schedule(t, pod, nodeNames)
 	if result.NodeNames == nil {
 		t.Errorf("Scheduling should succeed: %s", errorDetails)
 	}
@@ -195,7 +208,7 @@ func (h *Harness) AssertSuccessfulSchedule(t *testing.T, pod v1.Pod, nodeNames [
 
 // AssertFailedSchedule tries to schedule the provided pods and fails the test if successful
 func (h *Harness) AssertFailedSchedule(t *testing.T, pod v1.Pod, nodeNames []string, errorDetails string) {
-	result := h.Schedule(pod, nodeNames)
+	result := h.Schedule(t, pod, nodeNames)
 	if result.NodeNames != nil {
 		t.Errorf("Scheduling should not succeed: %s", errorDetails)
 	}

@@ -32,6 +32,7 @@ const (
 // No two requests for the same object will end up in
 // different consumers.
 type ShardedUniqueQueue interface {
+	TryAddIfAbsent(Request) bool
 	AddIfAbsent(Request)
 	GetConsumers() []<-chan func() Request
 	QueueLengths() []int
@@ -62,10 +63,42 @@ type shardedUniqueQueue struct {
 func (q *shardedUniqueQueue) AddIfAbsent(r Request) {
 	added := q.addToInflightIfAbsent(r.Key)
 	if added || r.Type == DeleteRequestType {
-		q.queues[q.bucket(r.Key)] <- func() Request {
+		q.getQueue(r) <- q.releaseFunc(r)
+	}
+}
+
+// TryAddIfAbsent tries to put a request to the queue if it is absent,
+// or if it is a delete request. It is a non blocking version of
+// AddIfAbsent and will return false only if the queue is full.
+func (q *shardedUniqueQueue) TryAddIfAbsent(r Request) bool {
+	added := q.addToInflightIfAbsent(r.Key)
+	if added || r.Type == DeleteRequestType {
+		sent := q.trySend(r)
+		if !sent && added {
 			q.deleteFromStore(r.Key)
-			return r
 		}
+		return sent
+	}
+	return true
+}
+
+func (q *shardedUniqueQueue) trySend(r Request) bool {
+	select {
+	case q.getQueue(r) <- q.releaseFunc(r):
+		return true
+	default:
+		return false
+	}
+}
+
+func (q *shardedUniqueQueue) getQueue(r Request) chan<- func() Request {
+	return q.queues[q.bucket(r.Key)]
+}
+
+func (q *shardedUniqueQueue) releaseFunc(r Request) func() Request {
+	return func() Request {
+		q.deleteFromStore(r.Key)
+		return r
 	}
 }
 

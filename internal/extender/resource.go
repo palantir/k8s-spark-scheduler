@@ -197,7 +197,11 @@ func (s *SparkSchedulerExtender) selectNode(ctx context.Context, role string, po
 	case common.Driver:
 		return s.selectDriverNode(ctx, pod, nodeNames)
 	case common.Executor:
-		return s.selectExecutorNode(ctx, pod, nodeNames)
+		node, outcome, err := s.selectExecutorNode(ctx, pod, nodeNames)
+		if s.isSuccessOutcome(outcome) {
+			s.removeDemandIfExists(ctx, pod)
+		}
+		return node, outcome, err
 	default:
 		return "", failureNonSparkPod, werror.Error("can not schedule non spark pod")
 	}
@@ -338,48 +342,53 @@ func (s *SparkSchedulerExtender) potentialNodes(availableNodesSchedulingMetadata
 }
 
 func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executor *v1.Pod, nodeNames []string) (string, string, error) {
-	alreadyBoundNode, err := s.resourceReservationManager.FindAlreadyBoundReservationNode(ctx, executor)
+	alreadyBoundNode, found, err := s.resourceReservationManager.FindAlreadyBoundReservationNode(ctx, executor)
 	if err != nil {
 		return "", failureInternal, werror.WrapWithContextParams(ctx, err, "error when looking for already bound reservations")
 	}
-	if alreadyBoundNode != "" {
+	if found {
 		// check that it is part of the nodes passed and return it
 		if resultNode, ok := s.getReservationNodeFromNodeList([]string{alreadyBoundNode}, nodeNames); ok {
+			svc1log.FromContext(ctx).Info("found already bound reservation node for executor", svc1log.SafeParam("nodeName", resultNode))
 			return resultNode, successAlreadyBound, nil
 		}
+		svc1log.FromContext(ctx).Info("found already bound reservation node for executor, but it was not part of the potential nodes", svc1log.SafeParam("nodeName", alreadyBoundNode))
 	}
 
-	unboundReservationNodes, err := s.resourceReservationManager.FindUnboundReservationNodes(ctx, executor)
+	unboundReservationNodes, foundUnbound, err := s.resourceReservationManager.FindUnboundReservationNodes(ctx, executor)
 	if err != nil {
 		return "", failureInternal, werror.WrapWithContextParams(ctx, err, "error when looking for unbound reservations")
 	}
-	if len(unboundReservationNodes) > 0 {
+	if foundUnbound {
 		if resultNode, ok := s.getReservationNodeFromNodeList(unboundReservationNodes, nodeNames); ok {
-			err := s.resourceReservationManager.ReserveForExecutor(ctx, executor, resultNode)
+			svc1log.FromContext(ctx).Info("found unbound reservation node for executor", svc1log.SafeParam("nodeName", resultNode))
+			err := s.resourceReservationManager.ReserveForExecutorOnUnboundReservation(ctx, executor, resultNode)
 			if err != nil {
 				return "", failureInternal, werror.WrapWithContextParams(ctx, err, "failed to reserve node for executor")
 			}
-			s.removeDemandIfExists(ctx, executor)
 			return resultNode, success, nil
 		}
+		svc1log.FromContext(ctx).Info("found unbound reservation nodes for executor, but none were part of the potential nodes", svc1log.SafeParam("nodeNames", unboundReservationNodes))
 	}
 
 	// Else, check if you still can have an executor, and if yes, reschedule
-	freeExecutorSpots, err := s.resourceReservationManager.GetFreeExecutorSpots(ctx, executor)
+	freeExecutorSpots, err := s.resourceReservationManager.GetRemainingAllowedExecutorCount(ctx, executor)
 	if err != nil {
-		return "", failureInternal, werror.WrapWithContextParams(ctx, err, "error when checking for free executor spots")
+		return "", failureInternal, werror.WrapWithContextParams(ctx, err, "error when checking for remaining allowed executor count")
 	}
 	if freeExecutorSpots > 0 {
-		isExtraExecutor := len(unboundReservationNodes) > 0 // Dynamic allocation executor since there were no free unbound reservations
+		// We can assume it's a dynamic allocation executor if we can still have executors even though all the reservations are bound
+		// (might change by the time we reserve, but that's alright)
+		isExtraExecutor := !foundUnbound
 		nodeName, outcome, err := s.rescheduleExecutor(ctx, executor, nodeNames, isExtraExecutor)
 		if err != nil {
 			return "", outcome, werror.WrapWithContextParams(ctx, err, "failed to reschedule executor")
 		}
-		err = s.resourceReservationManager.ReserveForExecutor(ctx, executor, nodeName)
+		svc1log.FromContext(ctx).Info("rescheduling executor onto node", svc1log.SafeParam("nodeName", nodeName), svc1log.SafeParam("isExtraExecutor", isExtraExecutor))
+		err = s.resourceReservationManager.ReserveForExecutorOnRescheduledNode(ctx, executor, nodeName)
 		if err != nil {
 			return "", failureInternal, werror.WrapWithContextParams(ctx, err, "failed to reserve node for rescheduled executor")
 		}
-		s.removeDemandIfExists(ctx, executor)
 		return nodeName, successRescheduled, nil
 	}
 
@@ -389,9 +398,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 // getReservationNodeFromNodeList filters the list of reservationNodes to return a single one that also appears in nodeNames, or false.
 func (s *SparkSchedulerExtender) getReservationNodeFromNodeList(reservationNodes []string, nodeNames []string) (string, bool) {
 	reservationNodeSet := utils.NewStringSet(len(reservationNodes))
-	for _, reservationNodeName := range reservationNodes {
-		reservationNodeSet.Add(reservationNodeName)
-	}
+	reservationNodeSet.AddAll(reservationNodes)
 	for _, name := range nodeNames {
 		if reservationNodeSet.Contains(name) {
 			return name, true
@@ -443,4 +450,8 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 
 	s.createDemandForExecutor(ctx, executor, executorResources)
 	return "", failureFit, werror.ErrorWithContextParams(ctx, "not enough capacity to reschedule the executor")
+}
+
+func (s *SparkSchedulerExtender) isSuccessOutcome(outcome string) bool {
+	return outcome == success || outcome == successAlreadyBound || outcome == successRescheduled || outcome == successScheduledExtraExecutor
 }

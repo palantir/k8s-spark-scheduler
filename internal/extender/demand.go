@@ -23,6 +23,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/k8s-spark-scheduler/internal/events"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -123,7 +124,7 @@ func DeleteDemandIfExists(ctx context.Context, cache *cache.SafeDemandCache, pod
 	if !cache.CRDExists() {
 		return
 	}
-	demandName := demandResourceName(pod)
+	demandName := utils.DemandName(pod)
 	if demand, ok := cache.Get(pod.Namespace, demandName); ok {
 		// there is no harm in the demand being deleted elsewhere in between the two calls.
 		cache.Delete(pod.Namespace, demandName)
@@ -137,7 +138,7 @@ func newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit) 
 	if !ok {
 		return nil, werror.Error("pod did not contain expected label for AppID", werror.SafeParam("expectedLabel", common.SparkAppIDLabel))
 	}
-	demandName := demandResourceName(pod)
+	demandName := utils.DemandName(pod)
 	return &demandapi.Demand{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      demandName,
@@ -172,8 +173,4 @@ func demandResources(applicationResources *sparkApplicationResources) []demandap
 		})
 	}
 	return demandUnits
-}
-
-func demandResourceName(pod *v1.Pod) string {
-	return "demand-" + pod.Name
 }

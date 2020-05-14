@@ -24,6 +24,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
@@ -53,7 +54,7 @@ func (s *SparkSchedulerExtender) syncResourceReservationsAndDemands(ctx context.
 	staleSparkPods := unreservedSparkPodsBySparkID(ctx, rrs, s.softReservationStore, pods)
 	svc1log.FromContext(ctx).Info("starting reconciliation", svc1log.SafeParam("appCount", len(staleSparkPods)))
 
-	r := &reconciler{s.podLister, s.resourceReservations, s.softReservationStore, s.resourceReservationManager, s.demands, availableResources, orderedNodes, s.instanceGroupLabel}
+	r := &reconciler{s.podLister, s.resourceReservations, s.softReservationStore, s.demands, availableResources, orderedNodes, s.instanceGroupLabel}
 
 	extraExecutorsWithNoRRs := make(map[string][]*v1.Pod)
 	for _, sp := range staleSparkPods {
@@ -88,7 +89,6 @@ type reconciler struct {
 	podLister                  *SparkPodLister
 	resourceReservations       *cache.ResourceReservationCache
 	softReservations           *cache.SoftReservationStore
-	resourceReservationManager *ResourceReservationManager
 	demands                    *cache.SafeDemandCache
 	availableResources         map[instanceGroup]resources.NodeGroupResources
 	orderedNodes               map[instanceGroup][]*v1.Node
@@ -325,7 +325,7 @@ func (r *reconciler) patchResourceReservation(execs []*v1.Pod, rr *v1beta1.Resou
 				break
 			}
 			pod, err := r.podLister.Pods(e.Namespace).Get(currentPodName)
-			if errors.IsNotFound(err) || (err == nil && r.resourceReservationManager.IsPodTerminated(pod)) {
+			if errors.IsNotFound(err) || (err == nil && utils.IsPodTerminated(pod)) {
 				rr.Status.Pods[name] = e.Name
 				break
 			}
@@ -367,14 +367,14 @@ func (r *reconciler) constructResourceReservation(
 		executorNodes = append(executorNodes, e.Spec.NodeName)
 	}
 	executorNodes = append(executorNodes, reservedNodeNames...)
-	rr := r.resourceReservationManager.NewResourceReservation(
+	rr := newResourceReservation(
 		driver.Spec.NodeName,
 		executorNodes,
 		driver,
 		applicationResources.driverResources,
 		applicationResources.executorResources)
 	for i, e := range executors {
-		rr.Status.Pods[r.resourceReservationManager.ExecutorReservationName(i)] = e.Name
+		rr.Status.Pods[executorReservationName(i)] = e.Name
 	}
 	return rr, reservedResources, nil
 }

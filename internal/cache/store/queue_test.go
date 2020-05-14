@@ -93,6 +93,37 @@ func TestQueue(t *testing.T) {
 	}
 }
 
+func TestTryAddIfAbsent(t *testing.T) {
+	q := NewShardedUniqueQueue(1)
+	q.AddIfAbsent(getRequest("ns", "1", CreateRequestType))
+	for i := 0; i < 99; i++ {
+		q.AddIfAbsent(getRequest("ns", "1", DeleteRequestType))
+	}
+	consumers := q.GetConsumers()
+	if len(consumers) != 1 {
+		t.Fatalf("consumer count, expected:\n %v\n got:\n %v", 1, len(consumers))
+	}
+	c := consumers[0]
+	assertSize(t, c, 100)
+	enqueued := q.TryAddIfAbsent(getRequest("ns", "1", DeleteRequestType))
+	if enqueued {
+		t.Fatalf("must not be able to enqueue if queue is full")
+	}
+	assertSize(t, c, 100)
+	(<-c)()
+	enqueued = q.TryAddIfAbsent(getRequest("ns", "1", DeleteRequestType))
+	if !enqueued {
+		t.Fatalf("must be able to enqueue if queue is not full")
+	}
+	assertSize(t, c, 100)
+}
+
+func assertSize(t *testing.T, c <-chan func() Request, expectedSize int) {
+	if len(c) != expectedSize {
+		t.Fatalf("chan size, expected:\n %v\n got:\n %v", expectedSize, len(c))
+	}
+}
+
 func getRequest(namespace string, name string, requestType RequestType) Request {
 	return Request{Key{namespace, name}, requestType, 0}
 }
