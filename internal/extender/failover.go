@@ -86,13 +86,13 @@ type sparkPods struct {
 type instanceGroup string
 
 type reconciler struct {
-	podLister                  *SparkPodLister
-	resourceReservations       *cache.ResourceReservationCache
-	softReservations           *cache.SoftReservationStore
-	demands                    *cache.SafeDemandCache
-	availableResources         map[instanceGroup]resources.NodeGroupResources
-	orderedNodes               map[instanceGroup][]*v1.Node
-	instanceGroupLabel         string
+	podLister            *SparkPodLister
+	resourceReservations *cache.ResourceReservationCache
+	softReservations     *cache.SoftReservationStore
+	demands              *cache.SafeDemandCache
+	availableResources   map[instanceGroup]resources.NodeGroupResources
+	orderedNodes         map[instanceGroup][]*v1.Node
+	instanceGroupLabel   string
 }
 
 func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods) []*v1.Pod {
