@@ -388,7 +388,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 		if err != nil {
 			return "", failureInternal, werror.WrapWithContextParams(ctx, err, "failed to reserve node for rescheduled executor")
 		}
-		return nodeName, successRescheduled, nil
+		return nodeName, outcome, nil
 	}
 
 	return "", failureUnbound, werror.ErrorWithContextParams(ctx, "application has no free executor spots to schedule this one")
