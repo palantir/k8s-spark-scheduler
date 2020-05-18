@@ -286,11 +286,11 @@ func (rrm *ResourceReservationManager) CompactDynamicAllocationApplications(ctx 
 func (rrm *ResourceReservationManager) drainDynamicAllocationCompactionSlice() []*v1.Pod {
 	rrm.dynamicAllocationCompactionSliceLock.Lock()
 	defer rrm.dynamicAllocationCompactionSliceLock.Unlock()
-	dynamicAllocationCompactionDrain := make([]*v1.Pod, len(rrm.dynamicAllocationCompactionPods))
+	dynamicAllocationCompactionDrain := make([]*v1.Pod, 0, len(rrm.dynamicAllocationCompactionPods))
 	for _, p := range rrm.dynamicAllocationCompactionPods {
 		dynamicAllocationCompactionDrain = append(dynamicAllocationCompactionDrain, p)
 	}
-	rrm.dynamicAllocationCompactionPods = make([]*v1.Pod, len(dynamicAllocationCompactionDrain))
+	rrm.dynamicAllocationCompactionPods = make([]*v1.Pod, 0, len(dynamicAllocationCompactionDrain))
 	return dynamicAllocationCompactionDrain
 }
 
