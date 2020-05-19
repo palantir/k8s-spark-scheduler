@@ -17,6 +17,7 @@ package extender
 import (
 	"context"
 	"fmt"
+	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	"math"
 	"sync"
 
@@ -219,6 +220,8 @@ func (rrm *ResourceReservationManager) GetReservedResources() resources.NodeGrou
 // any soft reservations to resource reservations occupied by now-dead executors. This ensures we have relatively up to date resource
 // reservation objects and report correctly on reserved usage.
 func (rrm *ResourceReservationManager) CompactDynamicAllocationApplications(ctx context.Context) {
+	timer := metrics.GetAndStartSoftReservationCompactionTimer()
+	defer timer.MarkCompactionComplete(ctx)
 	dynamicAllocationAppsToCompact := rrm.drainDynamicAllocationCompactionSlice()
 
 	rrm.mutex.Lock()
@@ -280,12 +283,12 @@ func (rrm *ResourceReservationManager) compactSoftReservationPod(ctx context.Con
 	}
 }
 
-func (rrm *ResourceReservationManager) drainDynamicAllocationCompactionSlice() []sparkAppIdentifier {
+func (rrm *ResourceReservationManager) drainDynamicAllocationCompactionSlice() map[string]sparkAppIdentifier {
 	rrm.dynamicAllocationCompactionSliceLock.Lock()
 	defer rrm.dynamicAllocationCompactionSliceLock.Unlock()
-	dynamicAllocationCompactionDrain := make([]sparkAppIdentifier, 0, len(rrm.dynamicAllocationCompactionPods))
+	dynamicAllocationCompactionDrain := make(map[string]sparkAppIdentifier, len(rrm.dynamicAllocationCompactionPods))
 	for _, app := range rrm.dynamicAllocationCompactionPods {
-		dynamicAllocationCompactionDrain = append(dynamicAllocationCompactionDrain, app)
+		dynamicAllocationCompactionDrain[app.appId] = app
 	}
 	rrm.dynamicAllocationCompactionPods = make([]sparkAppIdentifier, 0, len(dynamicAllocationCompactionDrain))
 	return dynamicAllocationCompactionDrain
