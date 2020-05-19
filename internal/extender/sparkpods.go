@@ -145,8 +145,8 @@ func (s SparkPodLister) getDriverPodForExecutor(ctx context.Context, executor *v
 	return s.getDriverPod(ctx, executor.Labels[common.SparkAppIDLabel], executor.Namespace)
 }
 
-func (s SparkPodLister) getDriverPod(ctx context.Context, appId string, namespace string) (*v1.Pod, error) {
-	selector := labels.Set(map[string]string{common.SparkAppIDLabel: appId, common.SparkRoleLabel: common.Driver}).AsSelector()
+func (s SparkPodLister) getDriverPod(ctx context.Context, appID string, namespace string) (*v1.Pod, error) {
+	selector := labels.Set(map[string]string{common.SparkAppIDLabel: appID, common.SparkRoleLabel: common.Driver}).AsSelector()
 	driver, err := s.Pods(namespace).List(selector)
 	if err != nil || len(driver) != 1 {
 		return nil, err

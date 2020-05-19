@@ -254,15 +254,17 @@ func (r *resultAdapter) Increment(code, verb, host string) {
 	metrics.FromContext(ctx).Counter(requestResult, verbTag, statusCodeTag, hostTag).Inc(1)
 }
 
-type softReservationCompactionTimer struct {
+// SoftReservationCompactionTimer tracks and reports the time it takes to compact soft reservations to resource reservations
+type SoftReservationCompactionTimer struct {
 	startTime time.Time
 }
 
-func GetAndStartSoftReservationCompactionTimer() *softReservationCompactionTimer {
-	return &softReservationCompactionTimer{time.Now()}
+// GetAndStartSoftReservationCompactionTimer returns a SoftReservationCompactionTimer which starts counting the time immediately
+func GetAndStartSoftReservationCompactionTimer() *SoftReservationCompactionTimer {
+	return &SoftReservationCompactionTimer{time.Now()}
 }
 
-func (dct *softReservationCompactionTimer) MarkCompactionComplete(ctx context.Context) {
+// MarkCompactionComplete emits a metric with the time difference between now and when the timer was started by GetAndStartSoftReservationCompactionTimer()
+func (dct *SoftReservationCompactionTimer) MarkCompactionComplete(ctx context.Context) {
 	metrics.FromContext(ctx).Histogram(softReservationCompactionTime).Update(time.Now().Sub(dct.startTime).Nanoseconds())
 }
-
