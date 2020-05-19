@@ -173,7 +173,7 @@ func (r *reconciler) syncSoftReservations(ctx context.Context, extraExecutorsByA
 
 	// Sync executors
 	for appID, extraExecutors := range extraExecutorsByApp {
-		driver, err := r.podLister.getDriverPod(ctx, extraExecutors[0])
+		driver, err := r.podLister.getDriverPodForExecutor(ctx, extraExecutors[0])
 		if err != nil {
 			svc1log.FromContext(ctx).Error("Error getting driver pod for executor, skipping...", svc1log.SafeParam("appID", appID), svc1log.Stacktrace(err))
 			continue
@@ -384,7 +384,7 @@ func (r *reconciler) getAppResources(ctx context.Context, sp *sparkPods) (*spark
 	if sp.inconsistentDriver != nil {
 		driver = sp.inconsistentDriver
 	} else if len(sp.inconsistentExecutors) > 0 {
-		d, err := r.podLister.getDriverPod(ctx, sp.inconsistentExecutors[0])
+		d, err := r.podLister.getDriverPodForExecutor(ctx, sp.inconsistentExecutors[0])
 		if err != nil {
 			logRR(ctx, "error getting driver pod for executor", sp.inconsistentExecutors[0].Namespace, sp.appID)
 			return nil, err
