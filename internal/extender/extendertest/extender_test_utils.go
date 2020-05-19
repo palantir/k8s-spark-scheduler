@@ -17,6 +17,7 @@ package extendertest
 import (
 	"context"
 	"fmt"
+	"github.com/palantir/k8s-spark-scheduler/internal/sort"
 	"os"
 	"testing"
 
@@ -142,7 +143,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		binpacker,
 		overheadComputer,
 		instanceGroupLabel,
-		extender.NewNodeSorter(nil, nil),
+		sort.NewNodeSorter(nil, nil),
 	)
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(

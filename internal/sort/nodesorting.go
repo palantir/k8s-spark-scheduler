@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package extender
+package sort
 
 import (
 	"sort"
@@ -38,7 +38,8 @@ func NewNodeSorter(
 	}
 }
 
-func (n *NodeSorter) potentialNodes(availableNodesSchedulingMetadata resources.NodeGroupSchedulingMetadata, nodeNames []string) (driverNodes, executorNodes []string) {
+// PotentialNodes returns driver and executor nodes in priority order based on scheduling metadata and a list of candidate nodes for the driver.
+func (n *NodeSorter) PotentialNodes(availableNodesSchedulingMetadata resources.NodeGroupSchedulingMetadata, nodeNames []string) (driverNodes, executorNodes []string) {
 	nodesInPriorityOrder := getNodeNamesInPriorityOrder(availableNodesSchedulingMetadata)
 	driverNodeNames := make([]string, 0, len(nodesInPriorityOrder))
 	executorNodeNames := make([]string, 0, len(nodesInPriorityOrder))

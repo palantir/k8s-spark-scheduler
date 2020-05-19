@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/sort"
 	"time"
 
 	clientset "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned"
@@ -188,7 +189,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		binpacker,
 		overheadComputer,
 		instanceGroupLabel,
-		extender.NewNodeSorter(
+		sort.NewNodeSorter(
 			install.DriverPrioritizedNodeLabel,
 			install.ExecutorPrioritizedNodeLabel,
 		),

@@ -16,6 +16,7 @@ package extender
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/sort"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
@@ -62,7 +63,7 @@ type SparkSchedulerExtender struct {
 	softReservationStore       *cache.SoftReservationStore
 	resourceReservationManager *ResourceReservationManager
 	coreClient                 corev1.CoreV1Interface
-	nodeSorter                 *NodeSorter
+	nodeSorter                 *sort.NodeSorter
 
 	demands             *cache.SafeDemandCache
 	apiExtensionsClient apiextensionsclientset.Interface
@@ -88,7 +89,7 @@ func NewExtender(
 	binpacker *Binpacker,
 	overheadComputer *OverheadComputer,
 	instanceGroupLabel string,
-	nodeSorter *NodeSorter) *SparkSchedulerExtender {
+	nodeSorter *sort.NodeSorter) *SparkSchedulerExtender {
 	return &SparkSchedulerExtender{
 		nodeLister:                           nodeLister,
 		podLister:                            podLister,
@@ -257,7 +258,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	usages := s.resourceReservationManager.GetReservedResources()
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
 	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usages)
-	driverNodeNames, executorNodeNames := s.nodeSorter.potentialNodes(availableNodesSchedulingMetadata, nodeNames)
+	driverNodeNames, executorNodeNames := s.nodeSorter.PotentialNodes(availableNodesSchedulingMetadata, nodeNames)
 	applicationResources, err := sparkResources(ctx, driver)
 	if err != nil {
 		return "", failureInternal, werror.Wrap(err, "failed to get spark resources")
