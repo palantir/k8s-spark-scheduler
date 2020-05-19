@@ -21,6 +21,48 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/config"
 )
 
+
+// NodeSorter sorts nodes based on configured node labels and allocated resources.
+type NodeSorter struct {
+	driverNodePriorityLessThanFunction   func(*resources.NodeSchedulingMetadata, *resources.NodeSchedulingMetadata) bool
+	executorNodePriorityLessThanFunction func(*resources.NodeSchedulingMetadata, *resources.NodeSchedulingMetadata) bool
+}
+
+// NewNodeSorter creates a new NodeSorter instance.
+func NewNodeSorter(
+	driverPrioritizedNodeLabel *config.LabelPriorityOrder,
+	executorPrioritizedNodeLabel *config.LabelPriorityOrder) *NodeSorter {
+	return &NodeSorter{
+		driverNodePriorityLessThanFunction: createLabelLessThanFunction(driverPrioritizedNodeLabel),
+		executorNodePriorityLessThanFunction: createLabelLessThanFunction(executorPrioritizedNodeLabel),
+	}
+}
+
+func (n *NodeSorter) potentialNodes(availableNodesSchedulingMetadata resources.NodeGroupSchedulingMetadata, nodeNames []string) (driverNodes, executorNodes []string) {
+	nodesInPriorityOrder := getNodeNamesInPriorityOrder(availableNodesSchedulingMetadata)
+	driverNodeNames := make([]string, 0, len(nodesInPriorityOrder))
+	executorNodeNames := make([]string, 0, len(nodesInPriorityOrder))
+
+	nodeNamesSet := make(map[string]interface{})
+	for _, item := range nodeNames {
+		nodeNamesSet[item] = nil
+	}
+
+	for _, nodeName := range nodesInPriorityOrder {
+		if _, ok := nodeNamesSet[nodeName]; ok {
+			driverNodeNames = append(driverNodeNames, nodeName)
+		}
+		if !availableNodesSchedulingMetadata[nodeName].Unschedulable && availableNodesSchedulingMetadata[nodeName].Ready {
+			executorNodeNames = append(executorNodeNames, nodeName)
+		}
+	}
+
+	// further sort driver and executor nodes based on config if present
+	sortNodesByMetadataLessThanFunction(driverNodeNames, availableNodesSchedulingMetadata, n.driverNodePriorityLessThanFunction)
+	sortNodesByMetadataLessThanFunction(executorNodeNames, availableNodesSchedulingMetadata, n.executorNodePriorityLessThanFunction)
+	return driverNodeNames, executorNodeNames
+}
+
 type scheduleContext struct {
 	// Lower value of priority indicates that the AZ has less resources
 	azPriority    int
@@ -44,14 +86,8 @@ func scheduleContextLessThan(left scheduleContext, right scheduleContext) bool {
 	return resourcesLessThan(left.nodeResources, right.nodeResources)
 }
 
-func getNodeNamesInPriorityOrder(useExperimentalHostPriorities bool, nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) []string {
+func getNodeNamesInPriorityOrder(nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) []string {
 	nodeNames := getNodeNames(nodesSchedulingMetadata)
-	if !useExperimentalHostPriorities {
-		sort.Slice(nodeNames, func(i, j int) bool {
-			return nodesSchedulingMetadata[nodeNames[j]].CreationTimestamp.Before(nodesSchedulingMetadata[nodeNames[i]].CreationTimestamp)
-		})
-		return nodeNames
-	}
 
 	var nodeNamesByAZ = groupNodeNamesByAZ(nodesSchedulingMetadata)
 	var allAzLabels = getAllAZLabels(nodeNamesByAZ)
@@ -150,7 +186,7 @@ func sortNodesByMetadataLessThanFunction(
 	metadata resources.NodeGroupSchedulingMetadata,
 	lessThan func(*resources.NodeSchedulingMetadata, *resources.NodeSchedulingMetadata) bool) {
 	if lessThan != nil {
-		sort.Slice(nodeNames, func(i, j int) bool {
+		sort.SliceStable(nodeNames, func(i, j int) bool {
 			return lessThan(metadata[nodeNames[i]], metadata[nodeNames[j]])
 		})
 	}

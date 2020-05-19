@@ -24,10 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-const (
-	useExperimentalPriorities = true
-)
-
 func TestResourcesSorting(t *testing.T) {
 	var one = *resource.NewQuantity(1, resource.BinarySI)
 	var two = *resource.NewQuantity(2, resource.BinarySI)
@@ -125,7 +121,7 @@ func TestAZAwareNodeSorting(t *testing.T) {
 		"zone1Node3": zone1Node3FreeCPU,
 		"zone2Node1": zone2Node1SchedulingMetadata,
 	}
-	actual := getNodeNamesInPriorityOrder(useExperimentalPriorities, nodesSchedulingMetadata)
+	actual := getNodeNamesInPriorityOrder(nodesSchedulingMetadata)
 
 	expectedResult := []string{"zone2Node1", "zone1Node1", "zone1Node3", "zone1Node2"}
 
@@ -166,7 +162,7 @@ func TestAZAwareNodeSortingWorksIfZoneLabelIsMissing(t *testing.T) {
 		"node2": node2SchedulingMetadata,
 		"node3": node3SchedulingMetadata,
 	}
-	actual := getNodeNamesInPriorityOrder(useExperimentalPriorities, nodesSchedulingMetadata)
+	actual := getNodeNamesInPriorityOrder(nodesSchedulingMetadata)
 
 	expectedResult := []string{"node3", "node1", "node2"}
 

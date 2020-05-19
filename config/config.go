@@ -29,6 +29,8 @@ type Install struct {
 	BinpackAlgo                   string            `yaml:"binpack,omitempty"`
 	InstanceGroupLabel            string            `yaml:"instance-group-label,omitempty"`
 	AsyncClientConfig             AsyncClientConfig `yaml:"async-client-config,omitempty"`
+
+	// Deprecated: assumed true, value not used
 	UseExperimentalHostPriorities bool              `yaml:"use-experimental-host-priorities,omitempty"`
 
 	DriverPrioritizedNodeLabel   *LabelPriorityOrder `yaml:"driver-prioritized-node-label,omitempty"`
