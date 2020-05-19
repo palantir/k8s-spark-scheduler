@@ -21,7 +21,6 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/config"
 )
 
-
 // NodeSorter sorts nodes based on configured node labels and allocated resources.
 type NodeSorter struct {
 	driverNodePriorityLessThanFunction   func(*resources.NodeSchedulingMetadata, *resources.NodeSchedulingMetadata) bool
@@ -33,7 +32,7 @@ func NewNodeSorter(
 	driverPrioritizedNodeLabel *config.LabelPriorityOrder,
 	executorPrioritizedNodeLabel *config.LabelPriorityOrder) *NodeSorter {
 	return &NodeSorter{
-		driverNodePriorityLessThanFunction: createLabelLessThanFunction(driverPrioritizedNodeLabel),
+		driverNodePriorityLessThanFunction:   createLabelLessThanFunction(driverPrioritizedNodeLabel),
 		executorNodePriorityLessThanFunction: createLabelLessThanFunction(executorPrioritizedNodeLabel),
 	}
 }

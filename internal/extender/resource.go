@@ -16,7 +16,6 @@ package extender
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal/sort"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
@@ -26,6 +25,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/k8s-spark-scheduler/internal/events"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
+	"github.com/palantir/k8s-spark-scheduler/internal/sort"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
@@ -68,11 +68,11 @@ type SparkSchedulerExtender struct {
 	demands             *cache.SafeDemandCache
 	apiExtensionsClient apiextensionsclientset.Interface
 
-	isFIFO                        bool
-	binpacker                     *Binpacker
-	overheadComputer              *OverheadComputer
-	lastRequest                   time.Time
-	instanceGroupLabel            string
+	isFIFO             bool
+	binpacker          *Binpacker
+	overheadComputer   *OverheadComputer
+	lastRequest        time.Time
+	instanceGroupLabel string
 }
 
 // NewExtender is responsible for creating and initializing a SparkSchedulerExtender
@@ -91,19 +91,19 @@ func NewExtender(
 	instanceGroupLabel string,
 	nodeSorter *sort.NodeSorter) *SparkSchedulerExtender {
 	return &SparkSchedulerExtender{
-		nodeLister:                           nodeLister,
-		podLister:                            podLister,
-		resourceReservations:                 resourceReservations,
-		softReservationStore:                 softReservationStore,
-		resourceReservationManager:           resourceReservationManager,
-		coreClient:                           coreClient,
-		demands:                              demands,
-		apiExtensionsClient:                  apiExtensionsClient,
-		isFIFO:                               isFIFO,
-		binpacker:                            binpacker,
-		overheadComputer:                     overheadComputer,
-		instanceGroupLabel:                   instanceGroupLabel,
-		nodeSorter: nodeSorter,
+		nodeLister:                 nodeLister,
+		podLister:                  podLister,
+		resourceReservations:       resourceReservations,
+		softReservationStore:       softReservationStore,
+		resourceReservationManager: resourceReservationManager,
+		coreClient:                 coreClient,
+		demands:                    demands,
+		apiExtensionsClient:        apiExtensionsClient,
+		isFIFO:                     isFIFO,
+		binpacker:                  binpacker,
+		overheadComputer:           overheadComputer,
+		instanceGroupLabel:         instanceGroupLabel,
+		nodeSorter:                 nodeSorter,
 	}
 }
 
