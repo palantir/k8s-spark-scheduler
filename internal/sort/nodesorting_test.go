@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package extender
+package sort
 
 import (
 	"reflect"
@@ -22,10 +22,6 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	"k8s.io/apimachinery/pkg/api/resource"
-)
-
-const (
-	useExperimentalPriorities = true
 )
 
 func TestResourcesSorting(t *testing.T) {
@@ -125,7 +121,7 @@ func TestAZAwareNodeSorting(t *testing.T) {
 		"zone1Node3": zone1Node3FreeCPU,
 		"zone2Node1": zone2Node1SchedulingMetadata,
 	}
-	actual := getNodeNamesInPriorityOrder(useExperimentalPriorities, nodesSchedulingMetadata)
+	actual := getNodeNamesInPriorityOrder(nodesSchedulingMetadata)
 
 	expectedResult := []string{"zone2Node1", "zone1Node1", "zone1Node3", "zone1Node2"}
 
@@ -166,7 +162,7 @@ func TestAZAwareNodeSortingWorksIfZoneLabelIsMissing(t *testing.T) {
 		"node2": node2SchedulingMetadata,
 		"node3": node3SchedulingMetadata,
 	}
-	actual := getNodeNamesInPriorityOrder(useExperimentalPriorities, nodesSchedulingMetadata)
+	actual := getNodeNamesInPriorityOrder(nodesSchedulingMetadata)
 
 	expectedResult := []string{"node3", "node1", "node2"}
 

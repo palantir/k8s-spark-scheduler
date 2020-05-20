@@ -20,16 +20,18 @@ import (
 
 // Install contains the install time configuration of the server and kubernetes dependency
 type Install struct {
-	config.Install                `yaml:",inline"`
-	config.Runtime                `yaml:",inline"`
-	Kubeconfig                    string            `yaml:"kube-config,omitempty"`
-	FIFO                          bool              `yaml:"fifo,omitempty"`
-	QPS                           float32           `yaml:"qps,omitempty"`
-	Burst                         int               `yaml:"burst,omitempty"`
-	BinpackAlgo                   string            `yaml:"binpack,omitempty"`
-	InstanceGroupLabel            string            `yaml:"instance-group-label,omitempty"`
-	AsyncClientConfig             AsyncClientConfig `yaml:"async-client-config,omitempty"`
-	UseExperimentalHostPriorities bool              `yaml:"use-experimental-host-priorities,omitempty"`
+	config.Install     `yaml:",inline"`
+	config.Runtime     `yaml:",inline"`
+	Kubeconfig         string            `yaml:"kube-config,omitempty"`
+	FIFO               bool              `yaml:"fifo,omitempty"`
+	QPS                float32           `yaml:"qps,omitempty"`
+	Burst              int               `yaml:"burst,omitempty"`
+	BinpackAlgo        string            `yaml:"binpack,omitempty"`
+	InstanceGroupLabel string            `yaml:"instance-group-label,omitempty"`
+	AsyncClientConfig  AsyncClientConfig `yaml:"async-client-config,omitempty"`
+
+	// Deprecated: assumed true, value not used
+	UseExperimentalHostPriorities bool `yaml:"use-experimental-host-priorities,omitempty"`
 
 	DriverPrioritizedNodeLabel   *LabelPriorityOrder `yaml:"driver-prioritized-node-label,omitempty"`
 	ExecutorPrioritizedNodeLabel *LabelPriorityOrder `yaml:"executor-prioritized-node-label,omitempty"`

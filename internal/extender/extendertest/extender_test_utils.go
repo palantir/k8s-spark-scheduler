@@ -26,6 +26,7 @@ import (
 	sscache "github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
+	"github.com/palantir/k8s-spark-scheduler/internal/sort"
 	"github.com/palantir/witchcraft-go-logging/wlog"
 	"github.com/palantir/witchcraft-go-logging/wlog/evtlog/evt2log"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -142,9 +143,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		binpacker,
 		overheadComputer,
 		instanceGroupLabel,
-		true,
-		nil,
-		nil,
+		sort.NewNodeSorter(nil, nil),
 	)
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(

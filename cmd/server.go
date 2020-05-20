@@ -25,6 +25,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
+	"github.com/palantir/k8s-spark-scheduler/internal/sort"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	"github.com/palantir/witchcraft-go-server/witchcraft"
@@ -70,7 +71,6 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	kubeconfig.QPS = install.QPS
 	kubeconfig.Burst = install.Burst
 	instanceGroupLabel := install.InstanceGroupLabel
-	useExperimentalHostPriorities := install.UseExperimentalHostPriorities
 	if instanceGroupLabel == "" {
 		// for back-compat, as instanceGroupLabel was once hard-coded to this value
 		instanceGroupLabel = "resource_channel"
@@ -189,9 +189,10 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		binpacker,
 		overheadComputer,
 		instanceGroupLabel,
-		useExperimentalHostPriorities,
-		install.DriverPrioritizedNodeLabel,
-		install.ExecutorPrioritizedNodeLabel,
+		sort.NewNodeSorter(
+			install.DriverPrioritizedNodeLabel,
+			install.ExecutorPrioritizedNodeLabel,
+		),
 	)
 
 	resourceReporter := metrics.NewResourceReporter(
