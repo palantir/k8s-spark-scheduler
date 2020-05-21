@@ -38,20 +38,15 @@ import (
 
 var podGroupVersionKind = v1.SchemeGroupVersion.WithKind("Pod")
 
-type sparkAppIdentifier struct {
-	namespace string
-	appID     string
-}
-
 // ResourceReservationManager is a central point which manages the creation and reading of both resource reservations and soft reservations
 type ResourceReservationManager struct {
 	resourceReservations                 *cache.ResourceReservationCache
 	softReservationStore                 *cache.SoftReservationStore
 	podLister                            *SparkPodLister
-	mutex                                sync.RWMutex
-	dynamicAllocationCompactionPods      []sparkAppIdentifier
-	dynamicAllocationCompactionSliceLock sync.RWMutex
-	logger                               svc1log.Logger
+	mutex                                sync.Mutex
+	dynamicAllocationCompactionApps      map[string]string
+	dynamicAllocationCompactionSliceLock sync.Mutex
+	context                              context.Context
 }
 
 // NewResourceReservationManager creates and returns a ResourceReservationManager
@@ -65,7 +60,7 @@ func NewResourceReservationManager(
 		resourceReservations: resourceReservations,
 		softReservationStore: softReservationStore,
 		podLister:            podLister,
-		logger:               svc1log.FromContext(ctx),
+		context:              ctx,
 	}
 
 	informer.Informer().AddEventHandler(
@@ -222,75 +217,81 @@ func (rrm *ResourceReservationManager) GetReservedResources() resources.NodeGrou
 func (rrm *ResourceReservationManager) CompactDynamicAllocationApplications(ctx context.Context) {
 	timer := metrics.GetAndStartSoftReservationCompactionTimer()
 	defer timer.MarkCompactionComplete(ctx)
-	dynamicAllocationAppsToCompact := rrm.drainDynamicAllocationCompactionSlice()
+	dynamicAllocationAppsToCompact := rrm.drainDynamicAllocationCompactionApps()
 
 	rrm.mutex.Lock()
 	defer rrm.mutex.Unlock()
-	for _, app := range dynamicAllocationAppsToCompact {
-		if sr, ok := rrm.softReservationStore.GetSoftReservation(app.appID); ok {
-			rrm.logger.Info("starting executor compaction for application", svc1log.SafeParam("appID", app.appID))
-			pods, err := rrm.getActivePods(ctx, app.namespace, app.appID)
-			if err != nil {
-				rrm.logger.Error("error getting active pods during compaction", svc1log.SafeParam("podNamespace", app.namespace), svc1log.Stacktrace(err))
+	for appID, appNamespace := range dynamicAllocationAppsToCompact {
+		sr, ok := rrm.softReservationStore.GetSoftReservation(appID)
+		if !ok {
+			// this application no longer has soft reservations
+			continue
+		}
+		svc1log.FromContext(rrm.context).Info("starting executor compaction for application", svc1log.SafeParam("appID", appID))
+		pods, err := rrm.getActivePods(ctx, appNamespace, appID)
+		if err != nil {
+			svc1log.FromContext(rrm.context).Error("error getting active pods during compaction", svc1log.SafeParam("podNamespace", appNamespace), svc1log.Stacktrace(err))
+			continue
+		}
+		for podName := range sr.Reservations {
+			pod, ok := pods[podName]
+			if !ok {
+				svc1log.FromContext(rrm.context).Info("executor pod with soft reservation no longer active, skipping compaction for this one",
+					svc1log.SafeParam("podNamespace", pod.Namespace),
+					svc1log.SafeParam("podName", podName))
 				continue
 			}
-			for podName := range sr.Reservations {
-				pod, ok := pods[podName]
-				if !ok {
-					rrm.logger.Info("executor pod with soft reservation no longer active, skipping compaction for this one",
-						svc1log.SafeParam("podNamespace", pod.Namespace),
-						svc1log.SafeParam("podName", podName))
-					continue
-				}
-				rrm.compactSoftReservationPod(ctx, pod)
-			}
+			rrm.compactSoftReservationPod(ctx, pod)
 		}
 	}
 }
 
+// compactSoftReservationPod moves a single pod's soft reservation to a resource reservation if there is an unbound one.
+// Note that this is a helper method and is assumed to have been called inside a lock of the rrm.mutex
 func (rrm *ResourceReservationManager) compactSoftReservationPod(ctx context.Context, pod *v1.Pod) {
 	appID := pod.Labels[common.SparkAppIDLabel]
 	unboundReservationsToNodes, err := rrm.getUnboundReservations(ctx, appID, pod.Namespace)
 	if err != nil {
-		rrm.logger.Error("failed to get unbound reservations for executor", svc1log.SafeParam("podNamespace", pod.Namespace),
+		svc1log.FromContext(rrm.context).Error("failed to get unbound reservations for executor", svc1log.SafeParam("podNamespace", pod.Namespace),
 			svc1log.SafeParam("podName", pod.Name), svc1log.Stacktrace(err))
 		return
 	}
 	if len(unboundReservationsToNodes) > 0 {
 		for reservationName, reservationNode := range unboundReservationsToNodes {
 			if reservationNode == pod.Spec.NodeName {
-				rrm.logger.Info("compacting executor soft reservation to resource reservation",
+				svc1log.FromContext(rrm.context).Info("compacting executor soft reservation to resource reservation",
 					svc1log.SafeParam("podNamespace", pod.Namespace), svc1log.SafeParam("podName", pod.Name),
-					svc1log.SafeParam("nodeName", pod.Spec.NodeName), svc1log.SafeParam("reservationName", reservationName))
-				err := rrm.bindExecutorToResourceReservation(ctx, pod, reservationName, pod.Spec.NodeName)
+					svc1log.SafeParam("nodeName", reservationNode), svc1log.SafeParam("reservationName", reservationName))
+				err := rrm.bindExecutorToResourceReservation(ctx, pod, reservationName, reservationNode)
 				if err != nil {
-					rrm.logger.Error("failed to compact soft reservation to same node resource reservation",
-						svc1log.SafeParam("nodeName", pod.Spec.NodeName), svc1log.Stacktrace(err))
+					svc1log.FromContext(rrm.context).Error("failed to compact soft reservation to same node resource reservation",
+						svc1log.SafeParam("nodeName", reservationNode), svc1log.Stacktrace(err))
 					return
 				}
 				rrm.softReservationStore.RemoveExecutorReservation(appID, pod.Name)
 				return
 			}
 		}
-		err := rrm.bindExecutorToResourceReservation(ctx, pod, getAKeyFromMap(unboundReservationsToNodes), pod.Spec.NodeName)
+		reservationName := getAKeyFromMap(unboundReservationsToNodes)
+		err := rrm.bindExecutorToResourceReservation(ctx, pod, reservationName, unboundReservationsToNodes[reservationName])
 		if err != nil {
-			rrm.logger.Error("failed to compact soft reservation to different node resource reservation",
+			svc1log.FromContext(rrm.context).Error("failed to compact soft reservation to different node resource reservation",
 				svc1log.SafeParam("podNamespace", pod.Namespace), svc1log.SafeParam("podName", pod.Name),
-				svc1log.SafeParam("nodeName", pod.Spec.NodeName), svc1log.Stacktrace(err))
+				svc1log.SafeParam("nodeName", unboundReservationsToNodes[reservationName]), svc1log.Stacktrace(err))
 			return
 		}
 		rrm.softReservationStore.RemoveExecutorReservation(appID, pod.Name)
 	}
 }
 
-func (rrm *ResourceReservationManager) drainDynamicAllocationCompactionSlice() map[string]sparkAppIdentifier {
+func (rrm *ResourceReservationManager) drainDynamicAllocationCompactionApps() map[string]string {
 	rrm.dynamicAllocationCompactionSliceLock.Lock()
 	defer rrm.dynamicAllocationCompactionSliceLock.Unlock()
-	dynamicAllocationCompactionDrain := make(map[string]sparkAppIdentifier, len(rrm.dynamicAllocationCompactionPods))
-	for _, app := range rrm.dynamicAllocationCompactionPods {
-		dynamicAllocationCompactionDrain[app.appID] = app
+	dynamicAllocationCompactionDrain := make(map[string]string, len(rrm.dynamicAllocationCompactionApps))
+	for appID, namespace := range rrm.dynamicAllocationCompactionApps {
+		dynamicAllocationCompactionDrain[appID] = namespace
 	}
-	rrm.dynamicAllocationCompactionPods = make([]sparkAppIdentifier, 0, len(dynamicAllocationCompactionDrain))
+	rrm.dynamicAllocationCompactionApps = make(map[string]string, len(dynamicAllocationCompactionDrain))
 	return dynamicAllocationCompactionDrain
 }
 
@@ -389,13 +390,13 @@ func (rrm *ResourceReservationManager) getActivePods(ctx context.Context, appID 
 func (rrm *ResourceReservationManager) onExecutorPodDeletion(obj interface{}) {
 	pod, ok := utils.GetPodFromObjectOrTombstone(obj)
 	if !ok {
-		rrm.logger.Warn("failed to parse object as pod, skipping")
+		svc1log.FromContext(rrm.context).Warn("failed to parse object as pod, skipping")
 		return
 	}
 
 	// Only keep executor pods which are for dynamic allocation applications and which have resource reservations to give back
 	if _, ok = rrm.softReservationStore.GetSoftReservation(pod.Labels[common.SparkAppIDLabel]); ok {
-		if !rrm.softReservationStore.ExecutorHasSoftReservation(context.Background(), pod) {
+		if !rrm.softReservationStore.ExecutorHasSoftReservation(rrm.context, pod) {
 			rrm.addPodForDynamicAllocationCompaction(pod)
 		}
 	}
@@ -404,7 +405,7 @@ func (rrm *ResourceReservationManager) onExecutorPodDeletion(obj interface{}) {
 func (rrm *ResourceReservationManager) addPodForDynamicAllocationCompaction(pod *v1.Pod) {
 	rrm.dynamicAllocationCompactionSliceLock.Lock()
 	defer rrm.dynamicAllocationCompactionSliceLock.Unlock()
-	rrm.dynamicAllocationCompactionPods = append(rrm.dynamicAllocationCompactionPods, sparkAppIdentifier{pod.Namespace, pod.Labels[common.SparkAppIDLabel]})
+	rrm.dynamicAllocationCompactionApps[pod.Labels[common.SparkAppIDLabel]] = pod.Namespace
 }
 
 // newResourceReservation builds a reservation object with the pods and resources passed and returns it.

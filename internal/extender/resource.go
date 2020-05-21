@@ -342,7 +342,6 @@ func (s *SparkSchedulerExtender) potentialNodes(availableNodesSchedulingMetadata
 }
 
 func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executor *v1.Pod, nodeNames []string) (string, string, error) {
-	appID := executor.Labels[common.SparkAppIDLabel]
 	alreadyBoundNode, found, err := s.resourceReservationManager.FindAlreadyBoundReservationNode(ctx, executor)
 	if err != nil {
 		return "", failureInternal, werror.WrapWithContextParams(ctx, err, "error when looking for already bound reservations")
@@ -373,7 +372,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	}
 
 	// Else, check if you still can have an executor, and if yes, reschedule
-	freeExecutorSpots, err := s.resourceReservationManager.GetRemainingAllowedExecutorCount(ctx, appID, executor.Namespace)
+	freeExecutorSpots, err := s.resourceReservationManager.GetRemainingAllowedExecutorCount(ctx, executor.Labels[common.SparkAppIDLabel], executor.Namespace)
 	if err != nil {
 		return "", failureInternal, werror.WrapWithContextParams(ctx, err, "error when checking for remaining allowed executor count")
 	}
