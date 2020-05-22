@@ -141,9 +141,13 @@ func sparkResourceUsage(driverResources, executorResources *resources.Resources,
 	return res
 }
 
-func (s SparkPodLister) getDriverPod(ctx context.Context, executor *v1.Pod) (*v1.Pod, error) {
-	selector := labels.Set(map[string]string{common.SparkAppIDLabel: executor.Labels[common.SparkAppIDLabel], common.SparkRoleLabel: common.Driver}).AsSelector()
-	driver, err := s.Pods(executor.Namespace).List(selector)
+func (s SparkPodLister) getDriverPodForExecutor(ctx context.Context, executor *v1.Pod) (*v1.Pod, error) {
+	return s.getDriverPod(ctx, executor.Labels[common.SparkAppIDLabel], executor.Namespace)
+}
+
+func (s SparkPodLister) getDriverPod(ctx context.Context, appID string, namespace string) (*v1.Pod, error) {
+	selector := labels.Set(map[string]string{common.SparkAppIDLabel: appID, common.SparkRoleLabel: common.Driver}).AsSelector()
+	driver, err := s.Pods(namespace).List(selector)
 	if err != nil || len(driver) != 1 {
 		return nil, err
 	}

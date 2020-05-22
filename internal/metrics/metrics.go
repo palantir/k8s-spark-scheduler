@@ -48,6 +48,7 @@ const (
 	softReservationCount            = "foundry.spark.scheduler.softreservation.count"
 	softReservationExecutorCount    = "foundry.spark.scheduler.softreservation.executorcount"
 	executorsWithNoReservationCount = "foundry.spark.scheduler.softreservation.executorswithnoreservations"
+	softReservationCompactionTime   = "foundry.spark.scheduler.softreservation.compaction.time"
 	podInformerDelay                = "foundry.spark.scheduler.informer.delay"
 	schedulingWaste                 = "foundry.spark.scheduler.scheduling.waste"
 )
@@ -251,4 +252,19 @@ func (r *resultAdapter) Increment(code, verb, host string) {
 	statusCodeTag := StatusCodeTag(ctx, code)
 	hostTag := HostTag(ctx, host)
 	metrics.FromContext(ctx).Counter(requestResult, verbTag, statusCodeTag, hostTag).Inc(1)
+}
+
+// SoftReservationCompactionTimer tracks and reports the time it takes to compact soft reservations to resource reservations
+type SoftReservationCompactionTimer struct {
+	startTime time.Time
+}
+
+// GetAndStartSoftReservationCompactionTimer returns a SoftReservationCompactionTimer which starts counting the time immediately
+func GetAndStartSoftReservationCompactionTimer() *SoftReservationCompactionTimer {
+	return &SoftReservationCompactionTimer{time.Now()}
+}
+
+// MarkCompactionComplete emits a metric with the time difference between now and when the timer was started by GetAndStartSoftReservationCompactionTimer()
+func (dct *SoftReservationCompactionTimer) MarkCompactionComplete(ctx context.Context) {
+	metrics.FromContext(ctx).Histogram(softReservationCompactionTime).Update(time.Now().Sub(dct.startTime).Nanoseconds())
 }

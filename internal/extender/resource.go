@@ -130,6 +130,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 		logger.Error(msg, svc1log.Stacktrace(err))
 		return failWithMessage(ctx, args, msg)
 	}
+	s.resourceReservationManager.CompactDynamicAllocationApplications(ctx)
 
 	nodeName, outcome, err := s.selectNode(ctx, args.Pod.Labels[common.SparkRoleLabel], args.Pod, *args.NodeNames)
 	timer.Mark(ctx, role, outcome)
@@ -234,7 +235,7 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 }
 
 func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v1.Pod, nodeNames []string) (string, string, error) {
-	if rr, ok := s.resourceReservationManager.GetResourceReservation(driver); ok {
+	if rr, ok := s.resourceReservationManager.GetResourceReservation(driver.Labels[common.SparkAppIDLabel], driver.Namespace); ok {
 		driverReservedNode := rr.Spec.Reservations["driver"].Node
 		for _, node := range nodeNames {
 			if driverReservedNode == node {
@@ -339,7 +340,7 @@ func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executo
 	}
 
 	// Else, check if you still can have an executor, and if yes, reschedule
-	freeExecutorSpots, err := s.resourceReservationManager.GetRemainingAllowedExecutorCount(ctx, executor)
+	freeExecutorSpots, err := s.resourceReservationManager.GetRemainingAllowedExecutorCount(ctx, executor.Labels[common.SparkAppIDLabel], executor.Namespace)
 	if err != nil {
 		return "", failureInternal, werror.WrapWithContextParams(ctx, err, "error when checking for remaining allowed executor count")
 	}
@@ -389,7 +390,7 @@ func (s *SparkSchedulerExtender) getNodes(ctx context.Context, nodeNames []strin
 }
 
 func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executor *v1.Pod, nodeNames []string, isExtraExecutor bool) (string, string, error) {
-	driver, err := s.podLister.getDriverPod(ctx, executor)
+	driver, err := s.podLister.getDriverPodForExecutor(ctx, executor)
 	if err != nil {
 		return "", failureInternal, err
 	}
