@@ -54,7 +54,7 @@ func GetPodFromObjectOrTombstone(obj interface{}) (*v1.Pod, bool) {
 }
 
 func getRoleIfSparkSchedulerPod(obj interface{}) (string, bool) {
-	if pod, ok := GetPodFromObjectOrTombstone(obj); ok {
+	if pod, ok := obj.(*v1.Pod); ok {
 		role, labelFound := pod.Labels[common.SparkRoleLabel]
 		if labelFound && pod.Spec.SchedulerName == common.SparkSchedulerName {
 			return role, true
