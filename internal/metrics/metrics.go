@@ -51,6 +51,7 @@ const (
 	softReservationCompactionTime   = "foundry.spark.scheduler.softreservation.compaction.time"
 	podInformerDelay                = "foundry.spark.scheduler.informer.delay"
 	schedulingWaste                 = "foundry.spark.scheduler.scheduling.waste"
+	schedulingWastePerInstanceGroup = "foundry.spark.scheduler.scheduling.wasteperinstancegroup"
 )
 
 const (
