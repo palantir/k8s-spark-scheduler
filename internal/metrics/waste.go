@@ -146,7 +146,8 @@ func (r *wasteMetricsReporter) markAndSlowLog(pod *v1.Pod, tag tagInfo, duration
 			svc1log.SafeParam("waitType", tag.tag.Value()),
 			svc1log.SafeParam("duration", duration))
 	}
-	metrics.FromContext(r.ctx).Histogram(schedulingWaste, tag.tag, InstanceGroupTag(r.ctx, instanceGroup)).Update(duration.Nanoseconds())
+	metrics.FromContext(r.ctx).Histogram(schedulingWaste, tag.tag).Update(duration.Nanoseconds())
+	metrics.FromContext(r.ctx).Histogram(schedulingWastePerInstanceGroup, tag.tag, InstanceGroupTag(r.ctx, instanceGroup)).Update(duration.Nanoseconds())
 }
 
 func (r *wasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
