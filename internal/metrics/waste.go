@@ -16,11 +16,11 @@ package metrics
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal"
 	"sync"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
+	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/pkg/metrics"
@@ -50,10 +50,10 @@ var (
 )
 
 type wasteMetricsReporter struct {
-	ctx  context.Context
-	info demandsByPod
+	ctx                context.Context
+	info               demandsByPod
 	instanceGroupLabel string
-	lock sync.Mutex
+	lock               sync.Mutex
 }
 
 // StartSchedulingOverheadMetrics will start tracking demand creation an fulfillment times
@@ -65,8 +65,8 @@ func StartSchedulingOverheadMetrics(
 	instanceGroupLabel string,
 ) {
 	reporter := &wasteMetricsReporter{
-		ctx:  ctx,
-		info: make(demandsByPod),
+		ctx:                ctx,
+		info:               make(demandsByPod),
 		instanceGroupLabel: instanceGroupLabel,
 	}
 
