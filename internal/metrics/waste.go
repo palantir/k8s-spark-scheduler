@@ -16,6 +16,7 @@ package metrics
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal"
 	"sync"
 	"time"
 
@@ -51,6 +52,7 @@ var (
 type wasteMetricsReporter struct {
 	ctx  context.Context
 	info demandsByPod
+	instanceGroupLabel string
 	lock sync.Mutex
 }
 
@@ -60,10 +62,12 @@ func StartSchedulingOverheadMetrics(
 	ctx context.Context,
 	podInformer coreinformers.PodInformer,
 	demandInformer *crd.LazyDemandInformer,
+	instanceGroupLabel string,
 ) {
 	reporter := &wasteMetricsReporter{
 		ctx:  ctx,
 		info: make(demandsByPod),
+		instanceGroupLabel: instanceGroupLabel,
 	}
 
 	podInformer.Informer().AddEventHandler(
@@ -133,14 +137,16 @@ func (r *wasteMetricsReporter) onPodScheduled(pod *v1.Pod) {
 }
 
 func (r *wasteMetricsReporter) markAndSlowLog(pod *v1.Pod, tag tagInfo, duration time.Duration) {
+	instanceGroup, _ := internal.FindInstanceGroupFromPodSpec(pod.Spec, r.instanceGroupLabel)
 	if duration > tag.slowLogThreshold {
 		svc1log.FromContext(r.ctx).Info("pod wait time is above threshold",
 			svc1log.SafeParam("podNamespace", pod.Namespace),
 			svc1log.SafeParam("podName", pod.Name),
+			svc1log.SafeParam("instanceGroup", instanceGroup),
 			svc1log.SafeParam("waitType", tag.tag.Value()),
 			svc1log.SafeParam("duration", duration))
 	}
-	metrics.FromContext(r.ctx).Histogram(schedulingWaste, tag.tag).Update(duration.Nanoseconds())
+	metrics.FromContext(r.ctx).Histogram(schedulingWaste, tag.tag, InstanceGroupTag(r.ctx, instanceGroup)).Update(duration.Nanoseconds())
 }
 
 func (r *wasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
