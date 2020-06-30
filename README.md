@@ -18,7 +18,7 @@ To set up the scheduler extender as a new scheduler named `spark-scheduler`, run
 ```sh
 kubectl apply -f examples/extender.yml
 ```
-This will create a new service account, a cluster binding for permissions, a config map and a deployment, all under namespace `kube-system`. It is worth noting that this example sets up the new scheduler with a super user.
+This will create a new service account, a cluster binding for permissions, a config map and a deployment, all under namespace `spark`. It is worth noting that this example sets up the new scheduler with a super user.
 
 Refer to [Spark's website](https://spark.apache.org/docs/2.3.0/running-on-kubernetes.html) for documentation on running Spark with Kubernetes. To schedule a spark application using spark-scheduler, you must apply the following metadata to driver and executor pods.
 ### driver:
