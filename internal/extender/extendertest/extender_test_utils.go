@@ -26,6 +26,7 @@ import (
 	sscache "github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
+	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	"github.com/palantir/k8s-spark-scheduler/internal/sort"
 	"github.com/palantir/witchcraft-go-logging/wlog"
 	"github.com/palantir/witchcraft-go-logging/wlog/evtlog/evt2log"
@@ -130,6 +131,8 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	isFIFO := true
 	binpacker := extender.SelectBinpacker("tightly-pack")
 
+	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
+
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeLister,
 		sparkPodLister,
@@ -144,6 +147,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		overheadComputer,
 		instanceGroupLabel,
 		sort.NewNodeSorter(nil, nil),
+		wasteMetricsReporter,
 	)
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(

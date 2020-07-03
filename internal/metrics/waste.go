@@ -55,46 +55,46 @@ var (
 
 func getTagInfoForFailureAfterDemandFulfilled(outcome string) tagInfo {
 	return tagInfo{
-		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled-failure-" + outcome),
+		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled-failure-"+outcome),
 		slowLogThreshold: 1 * time.Minute,
 	}
 }
 
-type wasteMetricsReporter struct {
-	ctx          				context.Context
-	info               			schedulingMetricInfoByPod
-	instanceGroupLabel 			string
-	failedSchedulingAttempts 	chan podFailedSchedulingAttempt
-	lock               			sync.Mutex
+type WasteMetricsReporter struct {
+	ctx                      context.Context
+	info                     schedulingMetricInfoByPod
+	instanceGroupLabel       string
+	failedSchedulingAttempts chan podFailedSchedulingAttempt
+	lock                     sync.Mutex
 }
 
-// StartSchedulingOverheadMetrics will start tracking demand creation an fulfillment times
-// and report scheduling wasted time per pod
-func StartSchedulingOverheadMetrics(
-	ctx context.Context,
-	podInformer coreinformers.PodInformer,
-	demandInformer *crd.LazyDemandInformer,
-	instanceGroupLabel string,
-) {
-	reporter := &wasteMetricsReporter{
-		ctx:                ctx,
-		info:               make(schedulingMetricInfoByPod),
-		instanceGroupLabel: instanceGroupLabel,
+func NewWasteMetricsReporter(ctx context.Context, instanceGroupLabel string) *WasteMetricsReporter {
+	return &WasteMetricsReporter{
+		ctx:                      ctx,
+		info:                     make(schedulingMetricInfoByPod),
+		instanceGroupLabel:       instanceGroupLabel,
 		failedSchedulingAttempts: make(chan podFailedSchedulingAttempt, 100),
 	}
+}
 
+// StartSchedulingOverheadMetrics will start tracking demand creation and fulfillment times
+// and report scheduling wasted time per pod
+func (r *WasteMetricsReporter) StartSchedulingOverheadMetrics(
+	podInformer coreinformers.PodInformer,
+	demandInformer *crd.LazyDemandInformer,
+) {
 	podInformer.Informer().AddEventHandler(
 		clientcache.FilteringResourceEventHandler{
 			FilterFunc: utils.IsSparkSchedulerPod,
 			Handler: clientcache.ResourceEventHandlerFuncs{
-				UpdateFunc: utils.OnPodScheduled(ctx, reporter.onPodScheduled),
-				DeleteFunc: reporter.onPodDeleted,
+				UpdateFunc: utils.OnPodScheduled(r.ctx, r.onPodScheduled),
+				DeleteFunc: r.onPodDeleted,
 			},
 		},
 	)
 	go func() {
 		select {
-		case <-ctx.Done():
+		case <-r.ctx.Done():
 			return
 		case <-demandInformer.Ready():
 			informer, _ := demandInformer.Informer()
@@ -102,8 +102,8 @@ func StartSchedulingOverheadMetrics(
 				clientcache.FilteringResourceEventHandler{
 					FilterFunc: utils.IsSparkSchedulerDemand,
 					Handler: clientcache.ResourceEventHandlerFuncs{
-						AddFunc:    reporter.onDemandCreated,
-						UpdateFunc: utils.OnDemandFulfilled(ctx, reporter.onDemandFulfilled),
+						AddFunc:    r.onDemandCreated,
+						UpdateFunc: utils.OnDemandFulfilled(r.ctx, r.onDemandFulfilled),
 					},
 				},
 			)
@@ -115,10 +115,10 @@ func StartSchedulingOverheadMetrics(
 		defer t.Stop()
 		for {
 			select {
-			case <-ctx.Done():
+			case <-r.ctx.Done():
 				return
 			case <-t.C:
-				reporter.cleanupMetricCache()
+				r.cleanupMetricCache()
 			}
 		}
 	}()
@@ -126,41 +126,19 @@ func StartSchedulingOverheadMetrics(
 	go func() {
 		for {
 			select {
-			case <- ctx.Done():
+			case <-r.ctx.Done():
 				return
-			case event := <- reporter.failedSchedulingAttempts:
-				reporter.processFailedSchedulingAttemptEvent(event)
+			case event := <-r.failedSchedulingAttempts:
+				r.processFailedSchedulingAttemptEvent(event)
 			}
 		}
 	}()
 }
 
-type failedSchedulingAttemptInfo struct {
-	attemptTime time.Time
-	attemptOutcome string
-}
-
-type schedulingMetricInfo struct {
-	lastFailedSchedulingAttemptInfo failedSchedulingAttemptInfo
-	demandFulfilledTime time.Time
-	demandCreationTime  time.Time
-}
-
-type podKey struct {
-	Namespace string
-	Name      string
-}
-
-type podFailedSchedulingAttempt struct {
-	podKey podKey
-	failedSchedulingAttemptInfo failedSchedulingAttemptInfo
-}
-
-type schedulingMetricInfoByPod map[podKey]schedulingMetricInfo
-
-func (r *wasteMetricsReporter) MarkFailedSchedulingAttempt(pod *v1.Pod, outcome string) {
+// MarkFailedSchedulingAttempt should be called to indicate that scheduling for the passed pod failed with that outcome.
+func (r *WasteMetricsReporter) MarkFailedSchedulingAttempt(pod *v1.Pod, outcome string) {
 	schedulingAttemptInfo := podFailedSchedulingAttempt{
-		podKey: podKey{pod.Namespace, pod.Name},
+		podKey:                      podKey{pod.Namespace, pod.Name},
 		failedSchedulingAttemptInfo: failedSchedulingAttemptInfo{time.Now(), outcome},
 	}
 	select {
@@ -173,7 +151,30 @@ func (r *wasteMetricsReporter) MarkFailedSchedulingAttempt(pod *v1.Pod, outcome 
 	}
 }
 
-func (r *wasteMetricsReporter) processFailedSchedulingAttemptEvent(event podFailedSchedulingAttempt) {
+type failedSchedulingAttemptInfo struct {
+	attemptTime    time.Time
+	attemptOutcome string
+}
+
+type schedulingMetricInfo struct {
+	lastFailedSchedulingAttemptInfo failedSchedulingAttemptInfo
+	demandFulfilledTime             time.Time
+	demandCreationTime              time.Time
+}
+
+type podKey struct {
+	Namespace string
+	Name      string
+}
+
+type podFailedSchedulingAttempt struct {
+	podKey                      podKey
+	failedSchedulingAttemptInfo failedSchedulingAttemptInfo
+}
+
+type schedulingMetricInfoByPod map[podKey]schedulingMetricInfo
+
+func (r *WasteMetricsReporter) processFailedSchedulingAttemptEvent(event podFailedSchedulingAttempt) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -181,8 +182,8 @@ func (r *wasteMetricsReporter) processFailedSchedulingAttemptEvent(event podFail
 	if ok {
 		r.info[event.podKey] = schedulingMetricInfo{
 			lastFailedSchedulingAttemptInfo: event.failedSchedulingAttemptInfo,
-			demandCreationTime: info.demandCreationTime,
-			demandFulfilledTime: info.demandFulfilledTime,
+			demandCreationTime:              info.demandCreationTime,
+			demandFulfilledTime:             info.demandFulfilledTime,
 		}
 	} else {
 		r.info[event.podKey] = schedulingMetricInfo{
@@ -191,7 +192,7 @@ func (r *wasteMetricsReporter) processFailedSchedulingAttemptEvent(event podFail
 	}
 }
 
-func (r *wasteMetricsReporter) onPodScheduled(pod *v1.Pod) {
+func (r *WasteMetricsReporter) onPodScheduled(pod *v1.Pod) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -214,7 +215,7 @@ func (r *wasteMetricsReporter) onPodScheduled(pod *v1.Pod) {
 	}
 }
 
-func (r *wasteMetricsReporter) markAndSlowLog(pod *v1.Pod, tag tagInfo, duration time.Duration) {
+func (r *WasteMetricsReporter) markAndSlowLog(pod *v1.Pod, tag tagInfo, duration time.Duration) {
 	instanceGroup, _ := internal.FindInstanceGroupFromPodSpec(pod.Spec, r.instanceGroupLabel)
 	if duration > tag.slowLogThreshold {
 		svc1log.FromContext(r.ctx).Info("pod wait time is above threshold",
@@ -228,7 +229,7 @@ func (r *wasteMetricsReporter) markAndSlowLog(pod *v1.Pod, tag tagInfo, duration
 	metrics.FromContext(r.ctx).Histogram(schedulingWastePerInstanceGroup, tag.tag, InstanceGroupTag(r.ctx, instanceGroup)).Update(duration.Nanoseconds())
 }
 
-func (r *wasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
+func (r *WasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -237,8 +238,8 @@ func (r *wasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
 	if ok {
 		r.info[podKey] = schedulingMetricInfo{
 			lastFailedSchedulingAttemptInfo: info.lastFailedSchedulingAttemptInfo,
-			demandFulfilledTime: time.Now(),
-			demandCreationTime:  demand.CreationTimestamp.Time,
+			demandFulfilledTime:             time.Now(),
+			demandCreationTime:              demand.CreationTimestamp.Time,
 		}
 	} else {
 		r.info[podKey] = schedulingMetricInfo{
@@ -248,7 +249,7 @@ func (r *wasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
 	}
 }
 
-func (r *wasteMetricsReporter) onDemandCreated(obj interface{}) {
+func (r *WasteMetricsReporter) onDemandCreated(obj interface{}) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	demand, ok := obj.(*v1alpha1.Demand)
@@ -261,16 +262,16 @@ func (r *wasteMetricsReporter) onDemandCreated(obj interface{}) {
 	if ok {
 		r.info[podKey] = schedulingMetricInfo{
 			lastFailedSchedulingAttemptInfo: info.lastFailedSchedulingAttemptInfo,
-			demandCreationTime:  demand.CreationTimestamp.Time,
+			demandCreationTime:              demand.CreationTimestamp.Time,
 		}
 	} else {
 		r.info[podKey] = schedulingMetricInfo{
-			demandCreationTime:  demand.CreationTimestamp.Time,
+			demandCreationTime: demand.CreationTimestamp.Time,
 		}
 	}
 }
 
-func (r *wasteMetricsReporter) onPodDeleted(obj interface{}) {
+func (r *WasteMetricsReporter) onPodDeleted(obj interface{}) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -283,7 +284,7 @@ func (r *wasteMetricsReporter) onPodDeleted(obj interface{}) {
 	delete(r.info, podKey)
 }
 
-func (r *wasteMetricsReporter) cleanupMetricCache() {
+func (r *WasteMetricsReporter) cleanupMetricCache() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	for key, info := range r.info {

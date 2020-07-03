@@ -73,6 +73,8 @@ type SparkSchedulerExtender struct {
 	overheadComputer   *OverheadComputer
 	lastRequest        time.Time
 	instanceGroupLabel string
+
+	wasteMetricsReporter *metrics.WasteMetricsReporter
 }
 
 // NewExtender is responsible for creating and initializing a SparkSchedulerExtender
@@ -89,7 +91,8 @@ func NewExtender(
 	binpacker *Binpacker,
 	overheadComputer *OverheadComputer,
 	instanceGroupLabel string,
-	nodeSorter *sort.NodeSorter) *SparkSchedulerExtender {
+	nodeSorter *sort.NodeSorter,
+	wasteMetricsReporter *metrics.WasteMetricsReporter) *SparkSchedulerExtender {
 	return &SparkSchedulerExtender{
 		nodeLister:                 nodeLister,
 		podLister:                  podLister,
@@ -104,6 +107,7 @@ func NewExtender(
 		overheadComputer:           overheadComputer,
 		instanceGroupLabel:         instanceGroupLabel,
 		nodeSorter:                 nodeSorter,
+		wasteMetricsReporter:       wasteMetricsReporter,
 	}
 }
 
@@ -128,6 +132,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 	if err != nil {
 		msg := "failed to reconcile"
 		logger.Error(msg, svc1log.Stacktrace(err))
+		s.wasteMetricsReporter.MarkFailedSchedulingAttempt(args.Pod, failureInternal)
 		return failWithMessage(ctx, args, msg)
 	}
 	s.resourceReservationManager.CompactDynamicAllocationApplications(ctx)
@@ -140,6 +145,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 		} else {
 			logger.Info("failed to schedule pod", svc1log.SafeParam("outcome", outcome), svc1log.SafeParam("reason", err.Error()))
 		}
+		s.wasteMetricsReporter.MarkFailedSchedulingAttempt(args.Pod, outcome)
 		return failWithMessage(ctx, args, err.Error())
 	}
 
@@ -147,6 +153,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 		appResources, err := sparkResources(ctx, args.Pod)
 		if err != nil {
 			logger.Error("internal error scheduling pod", svc1log.Stacktrace(err))
+			s.wasteMetricsReporter.MarkFailedSchedulingAttempt(args.Pod, failureInternal)
 			return failWithMessage(ctx, args, err.Error())
 		}
 		events.EmitApplicationScheduled(
