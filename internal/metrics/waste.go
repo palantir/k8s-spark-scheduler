@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	metricCacheCleanupInterval = 6 * time.Hour
+	demandFulfilledAgeCleanUp = 6 * time.Hour
 )
 
 var (
@@ -39,8 +39,12 @@ var (
 		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "before-demand-creation"),
 		slowLogThreshold: 1 * time.Minute,
 	}
-	afterDemandFulfilled = tagInfo{
-		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled"),
+	afterDemandFulfilledNoFailures = tagInfo{
+		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled-no-failures"),
+		slowLogThreshold: 1 * time.Minute,
+	}
+	afterDemandFulfilledLastFailure = tagInfo{
+		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled-last-failure"),
 		slowLogThreshold: 1 * time.Minute,
 	}
 	totalTimeNoDemand = tagInfo{
@@ -49,11 +53,19 @@ var (
 	}
 )
 
+func getTagInfoForFailureAfterDemandFulfilled(outcome string) tagInfo {
+	return tagInfo{
+		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled-failure-" + outcome),
+		slowLogThreshold: 1 * time.Minute,
+	}
+}
+
 type wasteMetricsReporter struct {
-	ctx                context.Context
-	info               demandsByPod
-	instanceGroupLabel string
-	lock               sync.Mutex
+	ctx          				context.Context
+	info               			schedulingMetricInfoByPod
+	instanceGroupLabel 			string
+	failedSchedulingAttempts 	chan podFailedSchedulingAttempt
+	lock               			sync.Mutex
 }
 
 // StartSchedulingOverheadMetrics will start tracking demand creation an fulfillment times
@@ -66,8 +78,9 @@ func StartSchedulingOverheadMetrics(
 ) {
 	reporter := &wasteMetricsReporter{
 		ctx:                ctx,
-		info:               make(demandsByPod),
+		info:               make(schedulingMetricInfoByPod),
 		instanceGroupLabel: instanceGroupLabel,
+		failedSchedulingAttempts: make(chan podFailedSchedulingAttempt, 100),
 	}
 
 	podInformer.Informer().AddEventHandler(
@@ -75,6 +88,7 @@ func StartSchedulingOverheadMetrics(
 			FilterFunc: utils.IsSparkSchedulerPod,
 			Handler: clientcache.ResourceEventHandlerFuncs{
 				UpdateFunc: utils.OnPodScheduled(ctx, reporter.onPodScheduled),
+				DeleteFunc: reporter.onPodDeleted,
 			},
 		},
 	)
@@ -97,7 +111,7 @@ func StartSchedulingOverheadMetrics(
 	}()
 
 	go func() {
-		t := time.NewTicker(metricCacheCleanupInterval)
+		t := time.NewTicker(demandFulfilledAgeCleanUp)
 		defer t.Stop()
 		for {
 			select {
@@ -108,9 +122,26 @@ func StartSchedulingOverheadMetrics(
 			}
 		}
 	}()
+
+	go func() {
+		for {
+			select {
+			case <- ctx.Done():
+				return
+			case event := <- reporter.failedSchedulingAttempts:
+				reporter.processFailedSchedulingAttemptEvent(event)
+			}
+		}
+	}()
 }
 
-type demandInfo struct {
+type failedSchedulingAttemptInfo struct {
+	attemptTime time.Time
+	attemptOutcome string
+}
+
+type schedulingMetricInfo struct {
+	lastFailedSchedulingAttemptInfo failedSchedulingAttemptInfo
 	demandFulfilledTime time.Time
 	demandCreationTime  time.Time
 }
@@ -120,19 +151,66 @@ type podKey struct {
 	Name      string
 }
 
-type demandsByPod map[podKey]demandInfo
+type podFailedSchedulingAttempt struct {
+	podKey podKey
+	failedSchedulingAttemptInfo failedSchedulingAttemptInfo
+}
+
+type schedulingMetricInfoByPod map[podKey]schedulingMetricInfo
+
+func (r *wasteMetricsReporter) MarkFailedSchedulingAttempt(pod *v1.Pod, outcome string) {
+	schedulingAttemptInfo := podFailedSchedulingAttempt{
+		podKey: podKey{pod.Namespace, pod.Name},
+		failedSchedulingAttemptInfo: failedSchedulingAttemptInfo{time.Now(), outcome},
+	}
+	select {
+	case r.failedSchedulingAttempts <- schedulingAttemptInfo:
+	default:
+		svc1log.FromContext(r.ctx).Warn("Failed scheduling attempts channel full. Dropping event from waste scheduling reporter",
+			svc1log.SafeParam("podNamespace", pod.Namespace),
+			svc1log.SafeParam("Name", pod.Name),
+			svc1log.SafeParam("outcome", outcome))
+	}
+}
+
+func (r *wasteMetricsReporter) processFailedSchedulingAttemptEvent(event podFailedSchedulingAttempt) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	info, ok := r.info[event.podKey]
+	if ok {
+		r.info[event.podKey] = schedulingMetricInfo{
+			lastFailedSchedulingAttemptInfo: event.failedSchedulingAttemptInfo,
+			demandCreationTime: info.demandCreationTime,
+			demandFulfilledTime: info.demandFulfilledTime,
+		}
+	} else {
+		r.info[event.podKey] = schedulingMetricInfo{
+			lastFailedSchedulingAttemptInfo: event.failedSchedulingAttemptInfo,
+		}
+	}
+}
 
 func (r *wasteMetricsReporter) onPodScheduled(pod *v1.Pod) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	if info, ok := r.info[podKey{pod.Namespace, pod.Name}]; ok {
-		r.markAndSlowLog(pod, beforeDemandCreation, info.demandCreationTime.Sub(pod.CreationTimestamp.Time))
-		if !info.demandFulfilledTime.IsZero() {
-			r.markAndSlowLog(pod, afterDemandFulfilled, time.Now().Sub(info.demandFulfilledTime))
-		}
-	} else {
+	info, ok := r.info[podKey{pod.Namespace, pod.Name}]
+	if !ok || info.demandCreationTime.IsZero() {
 		r.markAndSlowLog(pod, totalTimeNoDemand, time.Now().Sub(pod.CreationTimestamp.Time))
+	} else {
+		r.markAndSlowLog(pod, beforeDemandCreation, info.demandCreationTime.Sub(pod.CreationTimestamp.Time))
+
+		if !info.demandFulfilledTime.IsZero() {
+			if !info.lastFailedSchedulingAttemptInfo.attemptTime.IsZero() && info.lastFailedSchedulingAttemptInfo.attemptTime.After(info.demandFulfilledTime) {
+				// the demand was fulfilled but there were still failures after that
+				r.markAndSlowLog(pod, getTagInfoForFailureAfterDemandFulfilled(info.lastFailedSchedulingAttemptInfo.attemptOutcome),
+					info.lastFailedSchedulingAttemptInfo.attemptTime.Sub(info.demandFulfilledTime))
+				r.markAndSlowLog(pod, afterDemandFulfilledLastFailure, time.Now().Sub(info.lastFailedSchedulingAttemptInfo.attemptTime))
+			} else {
+				r.markAndSlowLog(pod, afterDemandFulfilledNoFailures, time.Now().Sub(info.demandFulfilledTime))
+			}
+		}
 	}
 }
 
@@ -153,9 +231,20 @@ func (r *wasteMetricsReporter) markAndSlowLog(pod *v1.Pod, tag tagInfo, duration
 func (r *wasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	r.info[podKey{demand.Namespace, utils.PodName(demand)}] = demandInfo{
-		demandFulfilledTime: time.Now(),
-		demandCreationTime:  demand.CreationTimestamp.Time,
+
+	podKey := podKey{demand.Namespace, utils.PodName(demand)}
+	info, ok := r.info[podKey]
+	if ok {
+		r.info[podKey] = schedulingMetricInfo{
+			lastFailedSchedulingAttemptInfo: info.lastFailedSchedulingAttemptInfo,
+			demandFulfilledTime: time.Now(),
+			demandCreationTime:  demand.CreationTimestamp.Time,
+		}
+	} else {
+		r.info[podKey] = schedulingMetricInfo{
+			demandFulfilledTime: time.Now(),
+			demandCreationTime:  demand.CreationTimestamp.Time,
+		}
 	}
 }
 
@@ -167,16 +256,38 @@ func (r *wasteMetricsReporter) onDemandCreated(obj interface{}) {
 		svc1log.FromContext(r.ctx).Error("failed to parse obj as demand")
 		return
 	}
-	r.info[podKey{demand.Namespace, utils.PodName(demand)}] = demandInfo{
-		demandCreationTime: demand.CreationTimestamp.Time,
+	podKey := podKey{demand.Namespace, utils.PodName(demand)}
+	info, ok := r.info[podKey]
+	if ok {
+		r.info[podKey] = schedulingMetricInfo{
+			lastFailedSchedulingAttemptInfo: info.lastFailedSchedulingAttemptInfo,
+			demandCreationTime:  demand.CreationTimestamp.Time,
+		}
+	} else {
+		r.info[podKey] = schedulingMetricInfo{
+			demandCreationTime:  demand.CreationTimestamp.Time,
+		}
 	}
+}
+
+func (r *wasteMetricsReporter) onPodDeleted(obj interface{}) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	pod, ok := utils.GetPodFromObjectOrTombstone(obj)
+	if !ok {
+		svc1log.FromContext(r.ctx).Warn("failed to parse object as pod, skipping")
+		return
+	}
+	podKey := podKey{pod.Namespace, pod.Name}
+	delete(r.info, podKey)
 }
 
 func (r *wasteMetricsReporter) cleanupMetricCache() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	for key, info := range r.info {
-		if info.demandFulfilledTime.Add(metricCacheCleanupInterval).Before(time.Now()) {
+		if info.demandFulfilledTime.Add(demandFulfilledAgeCleanUp).Before(time.Now()) {
 			svc1log.FromContext(r.ctx).Info(
 				"deleting demand from scheduling waste reporter, pod was not scheduled for 6 hours",
 				svc1log.SafeParam("podNamespace", key.Namespace),
