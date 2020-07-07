@@ -39,12 +39,16 @@ var (
 		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "before-demand-creation"),
 		slowLogThreshold: 1 * time.Minute,
 	}
+	afterDemandFulfilled = tagInfo{
+		tag: metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled"),
+		slowLogThreshold: 1 * time.Minute,
+	}
 	afterDemandFulfilledNoFailures = tagInfo{
 		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled-no-failures"),
 		slowLogThreshold: 1 * time.Minute,
 	}
-	afterDemandFulfilledLastFailure = tagInfo{
-		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled-last-failure"),
+	afterDemandFulfilledSinceLastFailure = tagInfo{
+		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled-since-last-failure"),
 		slowLogThreshold: 1 * time.Minute,
 	}
 	totalTimeNoDemand = tagInfo{
@@ -198,12 +202,13 @@ func (r *WasteMetricsReporter) onPodScheduled(pod *v1.Pod) {
 	if info.demandFulfilledTime.IsZero() {
 		return
 	}
+	r.markAndSlowLog(pod, afterDemandFulfilled, time.Now().Sub(info.demandFulfilledTime))
 	lastAttemptInfo := info.lastFailedSchedulingAttemptInfo
 	if !lastAttemptInfo.attemptTime.IsZero() && lastAttemptInfo.attemptTime.After(info.demandFulfilledTime) {
 		// the demand was fulfilled but there were still failures after that
 		r.markAndSlowLog(pod, getTagInfoForFailureAfterDemandFulfilled(lastAttemptInfo.attemptOutcome),
 			lastAttemptInfo.attemptTime.Sub(info.demandFulfilledTime))
-		r.markAndSlowLog(pod, afterDemandFulfilledLastFailure, time.Now().Sub(lastAttemptInfo.attemptTime))
+		r.markAndSlowLog(pod, afterDemandFulfilledSinceLastFailure, time.Now().Sub(lastAttemptInfo.attemptTime))
 	} else {
 		r.markAndSlowLog(pod, afterDemandFulfilledNoFailures, time.Now().Sub(info.demandFulfilledTime))
 	}
