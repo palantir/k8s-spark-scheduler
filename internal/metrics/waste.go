@@ -138,7 +138,8 @@ func (r *WasteMetricsReporter) StartSchedulingOverheadMetrics(
 // MarkFailedSchedulingAttempt should be called to indicate that scheduling for the passed pod failed with that outcome.
 func (r *WasteMetricsReporter) MarkFailedSchedulingAttempt(pod *v1.Pod, outcome string) {
 	schedulingAttemptInfo := podFailedSchedulingAttempt{
-		podKey:                      podKey{pod.Namespace, pod.Name},
+		namespace: pod.Namespace,
+		podName: pod.Name,
 		failedSchedulingAttemptInfo: failedSchedulingAttemptInfo{time.Now(), outcome},
 	}
 	select {
@@ -168,36 +169,27 @@ type podKey struct {
 }
 
 type podFailedSchedulingAttempt struct {
-	podKey                      podKey
+	namespace string
+	podName      string
 	failedSchedulingAttemptInfo failedSchedulingAttemptInfo
 }
 
-type schedulingMetricInfoByPod map[podKey]schedulingMetricInfo
+type schedulingMetricInfoByPod map[podKey]*schedulingMetricInfo
 
 func (r *WasteMetricsReporter) processFailedSchedulingAttemptEvent(event podFailedSchedulingAttempt) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	info, ok := r.info[event.podKey]
-	if ok {
-		r.info[event.podKey] = schedulingMetricInfo{
-			lastFailedSchedulingAttemptInfo: event.failedSchedulingAttemptInfo,
-			demandCreationTime:              info.demandCreationTime,
-			demandFulfilledTime:             info.demandFulfilledTime,
-		}
-	} else {
-		r.info[event.podKey] = schedulingMetricInfo{
-			lastFailedSchedulingAttemptInfo: event.failedSchedulingAttemptInfo,
-		}
-	}
+	info := r.getOrCreatePodInfo(event.namespace, event.podName)
+	info.lastFailedSchedulingAttemptInfo = event.failedSchedulingAttemptInfo
 }
 
 func (r *WasteMetricsReporter) onPodScheduled(pod *v1.Pod) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	info, ok := r.info[podKey{pod.Namespace, pod.Name}]
-	if !ok || info.demandCreationTime.IsZero() {
+	info := r.getOrCreatePodInfo(pod.Namespace, pod.Name)
+	if info.demandCreationTime.IsZero() {
 		r.markAndSlowLog(pod, totalTimeNoDemand, time.Now().Sub(pod.CreationTimestamp.Time))
 		return
 	}
@@ -235,20 +227,9 @@ func (r *WasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	podKey := podKey{demand.Namespace, utils.PodName(demand)}
-	info, ok := r.info[podKey]
-	if ok {
-		r.info[podKey] = schedulingMetricInfo{
-			lastFailedSchedulingAttemptInfo: info.lastFailedSchedulingAttemptInfo,
-			demandFulfilledTime:             time.Now(),
-			demandCreationTime:              demand.CreationTimestamp.Time,
-		}
-	} else {
-		r.info[podKey] = schedulingMetricInfo{
-			demandFulfilledTime: time.Now(),
-			demandCreationTime:  demand.CreationTimestamp.Time,
-		}
-	}
+	info := r.getOrCreatePodInfo(demand.Namespace, utils.PodName(demand))
+	info.demandFulfilledTime = time.Now()
+	info.demandCreationTime = demand.CreationTimestamp.Time
 }
 
 func (r *WasteMetricsReporter) onDemandCreated(obj interface{}) {
@@ -259,18 +240,8 @@ func (r *WasteMetricsReporter) onDemandCreated(obj interface{}) {
 		svc1log.FromContext(r.ctx).Error("failed to parse obj as demand")
 		return
 	}
-	podKey := podKey{demand.Namespace, utils.PodName(demand)}
-	info, ok := r.info[podKey]
-	if ok {
-		r.info[podKey] = schedulingMetricInfo{
-			lastFailedSchedulingAttemptInfo: info.lastFailedSchedulingAttemptInfo,
-			demandCreationTime:              demand.CreationTimestamp.Time,
-		}
-	} else {
-		r.info[podKey] = schedulingMetricInfo{
-			demandCreationTime: demand.CreationTimestamp.Time,
-		}
-	}
+	info := r.getOrCreatePodInfo(demand.Namespace, utils.PodName(demand))
+	info.demandCreationTime = demand.CreationTimestamp.Time
 }
 
 func (r *WasteMetricsReporter) onPodDeleted(obj interface{}) {
@@ -284,6 +255,16 @@ func (r *WasteMetricsReporter) onPodDeleted(obj interface{}) {
 	}
 	podKey := podKey{pod.Namespace, pod.Name}
 	delete(r.info, podKey)
+}
+
+func (r *WasteMetricsReporter) getOrCreatePodInfo(namespace string, podName string) *schedulingMetricInfo {
+	podKey := podKey{namespace, podName}
+	info, ok := r.info[podKey]
+	if !ok {
+		info = &schedulingMetricInfo{}
+		r.info[podKey] = info
+	}
+	return info
 }
 
 func (r *WasteMetricsReporter) cleanupMetricCache() {
