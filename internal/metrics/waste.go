@@ -40,7 +40,7 @@ var (
 		slowLogThreshold: 1 * time.Minute,
 	}
 	afterDemandFulfilled = tagInfo{
-		tag: metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled"),
+		tag:              metrics.MustNewTag(schedulingWasteTypeTagName, "after-demand-fulfilled"),
 		slowLogThreshold: 1 * time.Minute,
 	}
 	afterDemandFulfilledNoFailures = tagInfo{
@@ -64,6 +64,9 @@ func getTagInfoForFailureAfterDemandFulfilled(outcome string) tagInfo {
 	}
 }
 
+// WasteMetricsReporter tracks and reports on scheduler latencies between demand creation and pod scheduling times in
+// granular phases so we can keep track of any delays.
+// This is a best-effort reporter in that it keeps track of state in memory.
 type WasteMetricsReporter struct {
 	ctx                      context.Context
 	info                     schedulingMetricInfoByPod
@@ -72,6 +75,7 @@ type WasteMetricsReporter struct {
 	lock                     sync.Mutex
 }
 
+// NewWasteMetricsReporter returns an instance of WasteMetricsReporter
 func NewWasteMetricsReporter(ctx context.Context, instanceGroupLabel string) *WasteMetricsReporter {
 	return &WasteMetricsReporter{
 		ctx:                      ctx,
@@ -142,8 +146,8 @@ func (r *WasteMetricsReporter) StartSchedulingOverheadMetrics(
 // MarkFailedSchedulingAttempt should be called to indicate that scheduling for the passed pod failed with that outcome.
 func (r *WasteMetricsReporter) MarkFailedSchedulingAttempt(pod *v1.Pod, outcome string) {
 	schedulingAttemptInfo := podFailedSchedulingAttempt{
-		namespace: pod.Namespace,
-		podName: pod.Name,
+		namespace:                   pod.Namespace,
+		podName:                     pod.Name,
 		failedSchedulingAttemptInfo: failedSchedulingAttemptInfo{time.Now(), outcome},
 	}
 	select {
@@ -173,8 +177,8 @@ type podKey struct {
 }
 
 type podFailedSchedulingAttempt struct {
-	namespace string
-	podName      string
+	namespace                   string
+	podName                     string
 	failedSchedulingAttemptInfo failedSchedulingAttemptInfo
 }
 
