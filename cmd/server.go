@@ -176,6 +176,8 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	binpacker := extender.SelectBinpacker(install.BinpackAlgo)
 
+	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
+
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeLister,
 		sparkPodLister,
@@ -193,6 +195,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 			install.DriverPrioritizedNodeLabel,
 			install.ExecutorPrioritizedNodeLabel,
 		),
+		wasteMetricsReporter,
 	)
 
 	resourceReporter := metrics.NewResourceReporter(
@@ -224,7 +227,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	resourceReservationCache.Run(ctx)
 	lazyDemandInformer.Run(ctx)
 	demandCache.Run(ctx)
-	metrics.StartSchedulingOverheadMetrics(ctx, podInformerInterface, lazyDemandInformer, instanceGroupLabel)
+	wasteMetricsReporter.StartSchedulingOverheadMetrics(podInformerInterface, lazyDemandInformer)
 	go cacheReporter.StartReporting(ctx)
 	go resourceReporter.StartReportingResourceUsage(ctx)
 	go queueReporter.StartReportingQueues(ctx)
