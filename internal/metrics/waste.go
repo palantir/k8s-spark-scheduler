@@ -199,19 +199,21 @@ func (r *WasteMetricsReporter) onPodScheduled(pod *v1.Pod) {
 	info, ok := r.info[podKey{pod.Namespace, pod.Name}]
 	if !ok || info.demandCreationTime.IsZero() {
 		r.markAndSlowLog(pod, totalTimeNoDemand, time.Now().Sub(pod.CreationTimestamp.Time))
-	} else {
-		r.markAndSlowLog(pod, beforeDemandCreation, info.demandCreationTime.Sub(pod.CreationTimestamp.Time))
+		return
+	}
+	r.markAndSlowLog(pod, beforeDemandCreation, info.demandCreationTime.Sub(pod.CreationTimestamp.Time))
 
-		if !info.demandFulfilledTime.IsZero() {
-			if !info.lastFailedSchedulingAttemptInfo.attemptTime.IsZero() && info.lastFailedSchedulingAttemptInfo.attemptTime.After(info.demandFulfilledTime) {
-				// the demand was fulfilled but there were still failures after that
-				r.markAndSlowLog(pod, getTagInfoForFailureAfterDemandFulfilled(info.lastFailedSchedulingAttemptInfo.attemptOutcome),
-					info.lastFailedSchedulingAttemptInfo.attemptTime.Sub(info.demandFulfilledTime))
-				r.markAndSlowLog(pod, afterDemandFulfilledLastFailure, time.Now().Sub(info.lastFailedSchedulingAttemptInfo.attemptTime))
-			} else {
-				r.markAndSlowLog(pod, afterDemandFulfilledNoFailures, time.Now().Sub(info.demandFulfilledTime))
-			}
-		}
+	if info.demandFulfilledTime.IsZero() {
+		return
+	}
+	lastAttemptInfo := info.lastFailedSchedulingAttemptInfo
+	if !lastAttemptInfo.attemptTime.IsZero() && lastAttemptInfo.attemptTime.After(info.demandFulfilledTime) {
+		// the demand was fulfilled but there were still failures after that
+		r.markAndSlowLog(pod, getTagInfoForFailureAfterDemandFulfilled(lastAttemptInfo.attemptOutcome),
+			lastAttemptInfo.attemptTime.Sub(info.demandFulfilledTime))
+		r.markAndSlowLog(pod, afterDemandFulfilledLastFailure, time.Now().Sub(lastAttemptInfo.attemptTime))
+	} else {
+		r.markAndSlowLog(pod, afterDemandFulfilledNoFailures, time.Now().Sub(info.demandFulfilledTime))
 	}
 }
 
