@@ -15,6 +15,8 @@
 package config
 
 import (
+	"time"
+
 	"github.com/palantir/witchcraft-go-server/config"
 )
 
@@ -24,6 +26,7 @@ type Install struct {
 	config.Runtime     `yaml:",inline"`
 	Kubeconfig         string            `yaml:"kube-config,omitempty"`
 	FIFO               bool              `yaml:"fifo,omitempty"`
+	FifoConfig         FifoConfig        `yaml:"fifo-config,omitempty"`
 	QPS                float32           `yaml:"qps,omitempty"`
 	Burst              int               `yaml:"burst,omitempty"`
 	BinpackAlgo        string            `yaml:"binpack,omitempty"`
@@ -37,6 +40,15 @@ type Install struct {
 	ExecutorPrioritizedNodeLabel *LabelPriorityOrder `yaml:"executor-prioritized-node-label,omitempty"`
 
 	ResourceReservationCRDAnnotations map[string]string `yaml:"resource-reservation-crd-annotations,omitempty"`
+}
+
+// FifoConfig enables the fine-tuning of FIFO enforcement
+type FifoConfig struct {
+	// DefaultEnforceAfterPodAge specifies the time since the pod was created after which a driver which does not fit starts blocking the remaining drivers
+	// (Default is 0, i.e. we always block the queue)
+	DefaultEnforceAfterPodAge time.Duration `yaml:"default-enforce-after-pod-age,omitempty"`
+	// EnforceAfterPodAgeByInstanceGroup allows customizing the fifo enforcement after pod age by instance group
+	EnforceAfterPodAgeByInstanceGroup map[string]time.Duration `yaml:"enforce-after-pod-age-by-instance-group,omitempty"`
 }
 
 // AsyncClientConfig is the configuration for the internal async client

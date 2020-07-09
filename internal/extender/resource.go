@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
@@ -69,6 +70,7 @@ type SparkSchedulerExtender struct {
 	apiExtensionsClient apiextensionsclientset.Interface
 
 	isFIFO             bool
+	fifoConfig         config.FifoConfig
 	binpacker          *Binpacker
 	overheadComputer   *OverheadComputer
 	lastRequest        time.Time
@@ -88,6 +90,7 @@ func NewExtender(
 	demands *cache.SafeDemandCache,
 	apiExtensionsClient apiextensionsclientset.Interface,
 	isFIFO bool,
+	fifoConfig config.FifoConfig,
 	binpacker *Binpacker,
 	overheadComputer *OverheadComputer,
 	instanceGroupLabel string,
@@ -103,6 +106,7 @@ func NewExtender(
 		demands:                    demands,
 		apiExtensionsClient:        apiExtensionsClient,
 		isFIFO:                     isFIFO,
+		fifoConfig:                 fifoConfig,
 		binpacker:                  binpacker,
 		overheadComputer:           overheadComputer,
 		instanceGroupLabel:         instanceGroupLabel,
@@ -227,6 +231,11 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 			applicationResources.minExecutorCount,
 			nodeNames, executorNodeNames, availableNodesSchedulingMetadata)
 		if !hasCapacity {
+			if s.shouldSkipDriverFifo(driver) {
+				svc1log.FromContext(ctx).Debug("Skipping non-fitting driver from FIFO consideration because it is not too old yet",
+					svc1log.SafeParam("earlierDriverName", driver.Name))
+				continue
+			}
 			svc1log.FromContext(ctx).Warn("failed to fit one of the earlier drivers",
 				svc1log.SafeParam("earlierDriverName", driver.Name))
 			return false
@@ -237,6 +246,18 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 			driverNode, executorNodes))
 	}
 	return true
+}
+
+func (s *SparkSchedulerExtender) shouldSkipDriverFifo(pod *v1.Pod) bool {
+	instanceGroup, success := internal.FindInstanceGroupFromPodSpec(pod.Spec, s.instanceGroupLabel)
+	if !success {
+		instanceGroup = ""
+	}
+	enforceAfterPodAgeConfig := s.fifoConfig.DefaultEnforceAfterPodAge
+	if instanceGroupCustomConfig, ok := s.fifoConfig.EnforceAfterPodAgeByInstanceGroup[instanceGroup]; ok {
+		enforceAfterPodAgeConfig = instanceGroupCustomConfig
+	}
+	return pod.CreationTimestamp.Add(enforceAfterPodAgeConfig).After(time.Now())
 }
 
 func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v1.Pod, nodeNames []string) (string, string, error) {

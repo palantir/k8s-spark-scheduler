@@ -129,6 +129,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	)
 
 	isFIFO := true
+	fifoConfig := config.FifoConfig{}
 	binpacker := extender.SelectBinpacker("tightly-pack")
 
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
@@ -143,6 +144,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		demandCache,
 		fakeAPIExtensionsClient,
 		isFIFO,
+		fifoConfig,
 		binpacker,
 		overheadComputer,
 		instanceGroupLabel,

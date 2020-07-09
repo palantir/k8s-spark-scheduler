@@ -188,6 +188,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		demandCache,
 		apiExtensionsClient,
 		install.FIFO,
+		install.FifoConfig,
 		binpacker,
 		overheadComputer,
 		instanceGroupLabel,
