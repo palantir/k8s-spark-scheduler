@@ -18,7 +18,8 @@ To set up the scheduler extender as a new scheduler named `spark-scheduler`, run
 ```sh
 kubectl apply -f examples/extender.yml
 ```
-This will create a new service account, a cluster binding for permissions, a config map and a deployment, all under namespace `spark`. It is worth noting that this example sets up the new scheduler with a super user.
+This will create a new service account, a cluster binding for permissions, a config map and a deployment, all under namespace `spark`. It is worth noting that this example sets up the new scheduler with a super user. `k8s-spark-scheduler-extender` groups nodes in the cluster with a label specified in its [configuration](https://github.com/palantir/k8s-spark-scheduler/blob/master/config/config.go#L33). Nodes that the this scheduler will consider should have this label set. FIFO order is preserved for pods that have a node affinity or a node selector set for the same `instance-group` label
+
 
 Refer to [Spark's website](https://spark.apache.org/docs/2.3.0/running-on-kubernetes.html) for documentation on running Spark with Kubernetes. To schedule a spark application using spark-scheduler, you must apply the following metadata to driver and executor pods.
 ### driver:
