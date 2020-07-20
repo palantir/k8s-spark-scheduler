@@ -18,7 +18,7 @@ To set up the scheduler extender as a new scheduler named `spark-scheduler`, run
 ```sh
 kubectl apply -f examples/extender.yml
 ```
-This will create a new service account, a cluster binding for permissions, a config map and a deployment, all under namespace `spark`. It is worth noting that this example sets up the new scheduler with a super user. `k8s-spark-scheduler-extender` groups nodes in the cluster with a label specified in its [configuration](https://github.com/palantir/k8s-spark-scheduler/blob/master/config/config.go#L33). Nodes that the this scheduler will consider should have this label set. FIFO order is preserved for pods that have a node affinity or a node selector set for the same `instance-group` label
+This will create a new service account, a cluster binding for permissions, a config map and a deployment, all under namespace `spark`. It is worth noting that this example sets up the new scheduler with a super user. `k8s-spark-scheduler-extender` groups nodes in the cluster with a label specified in its [configuration](https://github.com/palantir/k8s-spark-scheduler/blob/master/config/config.go#L33). Nodes that the this scheduler will consider should have this label set. FIFO order is preserved for pods that have a node affinity or a node selector set for the same `instance-group` label. Given example configuration sets this label as `instance-group`.
 
 
 Refer to [Spark's website](https://spark.apache.org/docs/2.3.0/running-on-kubernetes.html) for documentation on running Spark with Kubernetes. To schedule a spark application using spark-scheduler, you must apply the following metadata to driver and executor pods.
@@ -76,7 +76,7 @@ If dynamic allocation is enabled, `k8s-spark-scheduler-extender` will guarantee 
 
 Use `./godelw docker build` to build an image using the [Dockerfile template](docker/Dockerfile). Built image will use the [default configuration](docker/var/conf/install.yml). Deployment created by `kubectl apply -f examples/extender.yml` can be used to iterate locally.
 
-Use `./examples/submit-test-spark-app.sh <id> <executor-count> <driver-cpu> <driver-mem> <executor-cpu> <executor-mem>` to mock a spark application launch.
+Use `./examples/submit-test-spark-app.sh <id> <executor-count> <driver-cpu> <driver-mem> <executor-cpu> <executor-mem>` to mock a spark application launch. Created pods will have a node selector for `instance-group: main`, so desired nodes in the cluster should be modified to have this label set.
 
 Use `./godelw verify` to run tests and style checks
 
