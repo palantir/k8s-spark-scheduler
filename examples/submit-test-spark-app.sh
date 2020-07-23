@@ -29,6 +29,8 @@ metadata:
     spark-executor-count: "$EXECUTOR_COUNT"
 spec:
   schedulerName: spark-scheduler
+  nodeSelector:
+    instance-group: "main"
   containers:
   - name: nginx
     image: nginx
@@ -63,6 +65,8 @@ metadata:
     uid: $DRIVER_UID
 spec:
   schedulerName: spark-scheduler
+  nodeSelector:
+    instance-group: "main"
   containers:
   - name: nginx
     image: nginx

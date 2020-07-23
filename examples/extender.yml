@@ -69,6 +69,7 @@ data:
       management-port: 8484
       context-path: /spark-scheduler
     fifo: true
+    instance-group-label: "instance-group"
     logging:
       level: debug
       output: STDOUT
