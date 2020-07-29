@@ -221,6 +221,13 @@ func podToResources(ctx context.Context, pod *v1.Pod) *resources.Resources {
 		}
 		res.AddFromResourceList(resourceRequests)
 	}
+
+	// The pod requests = max(sum of container requests, any init containers) to match the way kube-scheduler and kubelet compute the requests
+	// Unlike those components though, we do not currently support counting pod overheads
+	for _, c := range pod.Spec.InitContainers {
+		res.SetMaxResource(c.Resources.Requests)
+	}
+
 	return res
 }
 
