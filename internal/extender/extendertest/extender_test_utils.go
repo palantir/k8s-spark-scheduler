@@ -121,11 +121,9 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,
-		podLister,
-		resourceReservationCache,
-		softReservationStore,
+		podInformerInterface,
+		resourceReservationManager,
 		nodeLister,
-		instanceGroupLabel,
 	)
 
 	isFIFO := true

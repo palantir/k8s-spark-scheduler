@@ -68,9 +68,6 @@ func (s *SparkSchedulerExtender) syncResourceReservationsAndDemands(ctx context.
 	if err != nil {
 		return nil
 	}
-
-	// recompute overhead to account for newly created resource reservations
-	s.overheadComputer.compute(ctx)
 	return nil
 }
 

@@ -80,6 +80,26 @@ func (rrm *ResourceReservationManager) GetResourceReservation(appID string, name
 	return rrm.resourceReservations.Get(namespace, appID)
 }
 
+// PodHasReservation returns if the passed pod has any reservation whether it is a resource reservation or a soft reservation
+func (rrm *ResourceReservationManager) PodHasReservation(ctx context.Context, pod *v1.Pod) bool {
+	appID, ok := pod.Labels[common.SparkAppIDLabel]
+	if !ok {
+		return false
+	}
+	if rr, ok := rrm.GetResourceReservation(appID, pod.Namespace); ok {
+		for _, rPodName := range rr.Status.Pods {
+			if pod.Name == rPodName {
+				return true
+			}
+		}
+	}
+	if pod.Labels[common.SparkRoleLabel] == common.Executor && rrm.softReservationStore.ExecutorHasSoftReservation(ctx, pod) {
+		return true
+	}
+
+	return false
+}
+
 // CreateReservations creates the necessary reservations for an application whether those are resource reservation objects or
 // in-memory soft reservations for extra executors.
 func (rrm *ResourceReservationManager) CreateReservations(
