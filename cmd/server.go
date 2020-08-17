@@ -167,11 +167,9 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,
-		podLister,
-		resourceReservationCache,
-		softReservationStore,
+		podInformerInterface,
+		resourceReservationManager,
 		nodeLister,
-		instanceGroupLabel,
 	)
 
 	binpacker := extender.SelectBinpacker(install.BinpackAlgo)
@@ -233,7 +231,6 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	go resourceReporter.StartReportingResourceUsage(ctx)
 	go queueReporter.StartReportingQueues(ctx)
 	go softReservationReporter.StartReporting(ctx)
-	go overheadComputer.Start(ctx)
 	go unschedulablePodMarker.Start(ctx)
 
 	if err := registerExtenderEndpoints(info.Router, sparkSchedulerExtender); err != nil {
