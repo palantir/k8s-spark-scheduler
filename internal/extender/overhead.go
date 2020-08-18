@@ -61,6 +61,7 @@ func NewOverheadComputer(
 	computer := &OverheadComputer{
 		podInformer:                podInformer,
 		resourceReservationManager: resourceReservationManager,
+		resourceRequests:           ClusterRequests{},
 		nodeLister:                 nodeLister,
 		overheadLock:               &sync.RWMutex{},
 		ctx:                        ctx,
