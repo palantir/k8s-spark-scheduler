@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/palantir/witchcraft-go-error"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-tracing/wtracing"
 )
 

@@ -1,5 +1,11 @@
+<p align="right">
+<a href="https://autorelease.general.dmz.palantir.tech/palantir/witchcraft-go-params"><img src="https://img.shields.io/badge/Perform%20an-Autorelease-success.svg" alt="Autorelease"></a>
+</p>
+
 witchcraft-go-params
 ====================
+[![](https://godoc.org/github.com/palantir/witchcraft-go-params?status.svg)](http://godoc.org/github.com/palantir/witchcraft-go-params)
+
 `witchcraft-go-params` defines the `wparams` package, which provides the `ParamStorer` interface and functions for 
 storing and retrieving `ParamStorer` implementations in from a context.
 
