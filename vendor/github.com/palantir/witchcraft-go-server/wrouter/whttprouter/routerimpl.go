@@ -75,6 +75,10 @@ func (r *router) Register(method string, pathSegments []wrouter.PathSegment, han
 	(*httprouter.Router)(r).Handler(method, r.convertPathParams(pathSegments), handler)
 }
 
+func (r *router) RegisterNotFoundHandler(handler http.Handler) {
+	(*httprouter.Router)(r).NotFound = handler
+}
+
 func (r *router) PathParams(req *http.Request, pathVarNames []string) map[string]string {
 	_, vars, _ := (*httprouter.Router)(r).Lookup(req.Method, req.URL.Path)
 	if len(vars) == 0 {

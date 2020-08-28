@@ -135,3 +135,12 @@ func (m *multiRootRouterImpl) AddRouteHandlerMiddleware(handlers ...wrouter.Rout
 		m.mgmtRouter.AddRouteHandlerMiddleware(handlers...)
 	}
 }
+
+func (m *multiRootRouterImpl) RegisterNotFoundHandler(handler http.Handler) {
+	m.mainRouter.RegisterNotFoundHandler(handler)
+
+	// register handler for the management router as well only if it differs from the main one
+	if m.mainRouter != m.mgmtRouter {
+		m.mgmtRouter.RegisterNotFoundHandler(handler)
+	}
+}

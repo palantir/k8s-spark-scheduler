@@ -119,7 +119,7 @@ func OriginFromInitPkg(skipPkg int) Param {
 func OriginFromCallLine() Param {
 	return paramFunc(func(entry wlog.LogEntry) {
 		origin := ""
-		if file, line, ok := initLineCaller(9); ok {
+		if file, line, ok := initLineCaller(8); ok {
 			origin = file + ":" + strconv.Itoa(line)
 		}
 		entry.OptionalStringValue(OriginKey, origin)

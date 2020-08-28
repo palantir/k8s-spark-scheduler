@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	typeValue = "request.2"
+	TypeValue = "request.2"
 
 	methodKey       = "method"
 	protocolKey     = "protocol"

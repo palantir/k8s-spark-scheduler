@@ -27,6 +27,15 @@ func UnhealthyHealthCheckResult(checkType health.CheckType, message string) heal
 	}
 }
 
+// RepairingHealthCheckResult returns an repairing health check result with type checkType and message message.
+func RepairingHealthCheckResult(checkType health.CheckType, message string) health.HealthCheckResult {
+	return health.HealthCheckResult{
+		Type:    checkType,
+		State:   health.HealthStateRepairing,
+		Message: &message,
+	}
+}
+
 // HealthyHealthCheckResult returns healthy health check result with type checkType.
 func HealthyHealthCheckResult(checkType health.CheckType) health.HealthCheckResult {
 	return health.HealthCheckResult{

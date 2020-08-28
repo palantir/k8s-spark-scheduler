@@ -18,9 +18,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"io/ioutil"
-	"path/filepath"
+	"time"
 
-	"github.com/fsnotify/fsnotify"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
@@ -34,74 +33,69 @@ type fileRefreshable struct {
 	fileChecksum [sha256.Size]byte
 }
 
-// NewFileRefreshable returns a new Refreshable whose current value is the bytes of the file at the provided path.
+const (
+	defaultRefreshableSyncPeriod = time.Second
+)
+
+// NewFileRefreshable is identical to NewFileRefreshableWithDuration except it defaults to use defaultRefreshableSyncPeriod for how often the file is checked
+func NewFileRefreshable(ctx context.Context, filePath string) (Refreshable, error) {
+	return NewFileRefreshableWithDuration(ctx, filePath, defaultRefreshableSyncPeriod)
+}
+
+// NewFileRefreshableWithDuration returns a new Refreshable whose current value is the bytes of the file at the provided path.
+// The file is checked every duration time.Duration as an argument.
 // Calling this function also starts a goroutine which updates the value of the refreshable whenever the specified file
 // is changed. The goroutine will terminate when the provided context is done or when the returned cancel function is
 // called.
-func NewFileRefreshable(ctx context.Context, filePath string) (r Refreshable, rErr error) {
+func NewFileRefreshableWithDuration(ctx context.Context, filePath string, duration time.Duration) (Refreshable, error) {
 	initialBytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		return nil, werror.Wrap(err, "failed to create file-based Refreshable because file could not be read", werror.SafeParam("filePath", filePath))
+		return nil, werror.WrapWithContextParams(ctx, err, "failed to create file-based Refreshable because file could not be read", werror.SafeParam("filePath", filePath))
 	}
 	fRefreshable := &fileRefreshable{
 		innerRefreshable: NewDefaultRefreshable(initialBytes),
 		filePath:         filePath,
 		fileChecksum:     sha256.Sum256(initialBytes),
 	}
-	if err := fRefreshable.watchForChanges(ctx); err != nil {
-		return nil, err
-	}
+	fRefreshable.watchForChangesAsync(ctx, duration)
 	return fRefreshable, nil
 }
 
-func (d *fileRefreshable) watchForChanges(ctx context.Context) error {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return werror.Wrap(err, "Failed to initialize file watcher")
-	}
-	// watch the directory to handle scenarios where the file is removed and then re-added
-	fileDir := filepath.Dir(d.filePath)
-	// use the base name of the fileLocation to normalize to the relative path the watcher will return
-	relativeFilePath := filepath.Base(d.filePath)
-	if err := watcher.Add(fileDir); err != nil {
-		return werror.Wrap(err, "Failed to add file to watcher",
-			werror.SafeParam("file", d.filePath),
-			werror.SafeParam("fileDir", fileDir))
-	}
-
+func (d *fileRefreshable) watchForChangesAsync(ctx context.Context, duration time.Duration) {
 	go wapp.RunWithRecoveryLogging(wparams.ContextWithSafeParam(ctx, "filePath", d.filePath), func(ctx context.Context) {
-		for {
-			select {
-			case event := <-watcher.Events:
-				// the watch is for the directory, so discard anything that doesn't match the file we want
-				if filepath.Base(event.Name) != relativeFilePath {
-					continue
-				}
-				// certain editors and write modes will create a new file and update it, this is why we are checking all
-				// 3 operations
-				if event.Op == fsnotify.Write || event.Op == fsnotify.Create || event.Op == fsnotify.Rename {
-					fileBytes, err := ioutil.ReadFile(d.filePath)
-					if err != nil {
-						svc1log.FromContext(ctx).Warn("Failed to read file bytes to update refreshable", svc1log.Stacktrace(err))
-						continue
-					}
-					loadedChecksum := sha256.Sum256(fileBytes)
-					if loadedChecksum == d.fileChecksum {
-						svc1log.FromContext(ctx).Debug("Ignoring fsnotify event for runtime configuration file because file checksum was unchanged")
-						continue
-					}
-					if err := d.innerRefreshable.Update(fileBytes); err != nil {
-						svc1log.FromContext(ctx).Error("Failed to update refreshable with new file bytes", svc1log.Stacktrace(err))
-						continue
-					}
-					d.fileChecksum = loadedChecksum
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
+		d.watchForChanges(ctx, duration)
 	})
-	return nil
+}
+
+func (d *fileRefreshable) watchForChanges(ctx context.Context, duration time.Duration) {
+	gcIntervalTicker := time.NewTicker(duration)
+	defer gcIntervalTicker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-gcIntervalTicker.C:
+			d.evaluateFileOnDisk(ctx)
+		}
+	}
+}
+
+func (d *fileRefreshable) evaluateFileOnDisk(ctx context.Context) {
+	fileBytes, err := ioutil.ReadFile(d.filePath)
+	if err != nil {
+		svc1log.FromContext(ctx).Warn("Failed to read file bytes to update refreshable", svc1log.Stacktrace(err))
+		return
+	}
+	loadedChecksum := sha256.Sum256(fileBytes)
+	if loadedChecksum == d.fileChecksum {
+		return
+	}
+	svc1log.FromContext(ctx).Debug("Attempting to update file refreshable")
+	if err := d.innerRefreshable.Update(fileBytes); err != nil {
+		svc1log.FromContext(ctx).Error("Failed to update refreshable with new file bytes", svc1log.Stacktrace(err))
+		return
+	}
+	d.fileChecksum = loadedChecksum
 }
 
 func (d *fileRefreshable) Current() interface{} {

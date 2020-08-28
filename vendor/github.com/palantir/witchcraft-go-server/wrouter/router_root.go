@@ -18,6 +18,8 @@ import (
 	"context"
 	"net/http"
 	"sort"
+
+	"github.com/palantir/pkg/metrics"
 )
 
 type RootRouter interface {
@@ -26,6 +28,10 @@ type RootRouter interface {
 
 	AddRequestHandlerMiddleware(handlers ...RequestHandlerMiddleware)
 	AddRouteHandlerMiddleware(handlers ...RouteHandlerMiddleware)
+
+	// RegisterNotFoundHandler registers a handler to produce 404 responses.
+	// It should be called after all middlewares are added to the router.
+	RegisterNotFoundHandler(handler http.Handler)
 }
 
 type rootRouter struct {
@@ -63,6 +69,7 @@ func New(impl RouterImpl, params ...RootRouterParam) RootRouter {
 		p.configure(r)
 	}
 	r.updateCachedHandler()
+
 	return r
 }
 
@@ -200,6 +207,28 @@ func (r *rootRouter) AddRequestHandlerMiddleware(handlers ...RequestHandlerMiddl
 
 func (r *rootRouter) AddRouteHandlerMiddleware(handlers ...RouteHandlerMiddleware) {
 	r.routeHandlers = append(r.routeHandlers, handlers...)
+}
+
+func (r *rootRouter) RegisterNotFoundHandler(handler http.Handler) {
+	wrappedHandlerFn := createRouteRequestHandler(func(rw http.ResponseWriter, r *http.Request, reqVals RequestVals) {
+		handler.ServeHTTP(rw, r)
+	}, r.routeHandlers)
+
+	r.impl.RegisterNotFoundHandler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		wrappedHandlerFn(rw, r, RequestVals{
+			Spec: RouteSpec{
+				Method:       r.Method,
+				PathTemplate: "/*",
+			},
+			PathParamVals: map[string]string{},
+			ParamPerms: &requestParamPermsImpl{
+				pathParamPerms:   newParamPerms(nil, nil),
+				queryParamPerms:  newParamPerms(nil, nil),
+				headerParamPerms: newParamPerms(nil, nil),
+			},
+			MetricTags: metrics.Tags{},
+		})
+	}))
 }
 
 type requestHandlerWithNext struct {

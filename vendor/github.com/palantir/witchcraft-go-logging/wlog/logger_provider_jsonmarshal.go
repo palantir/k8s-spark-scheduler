@@ -41,37 +41,33 @@ func (l *jsonMapLogger) Log(params ...Param) {
 func (l *jsonMapLogger) Debug(msg string, params ...Param) {
 	switch l.level {
 	case DebugLevel:
-		l.logOutputWithMessage(msg, "DEBUG", params)
+		l.logOutput(append(params, StringParam("message", msg), StringParam("level", "DEBUG")))
 	}
 }
 
 func (l *jsonMapLogger) Info(msg string, params ...Param) {
 	switch l.level {
 	case DebugLevel, InfoLevel:
-		l.logOutputWithMessage(msg, "INFO", params)
+		l.logOutput(append(params, StringParam("message", msg), StringParam("level", "INFO")))
 	}
 }
 
 func (l *jsonMapLogger) Warn(msg string, params ...Param) {
 	switch l.level {
 	case DebugLevel, InfoLevel, WarnLevel:
-		l.logOutputWithMessage(msg, "WARN", params)
+		l.logOutput(append(params, StringParam("message", msg), StringParam("level", "WARN")))
 	}
 }
 
 func (l *jsonMapLogger) Error(msg string, params ...Param) {
 	switch l.level {
 	case DebugLevel, InfoLevel, WarnLevel, ErrorLevel:
-		l.logOutputWithMessage(msg, "ERROR", params)
+		l.logOutput(append(params, StringParam("message", msg), StringParam("level", "ERROR")))
 	}
 }
 
 func (l *jsonMapLogger) SetLevel(level LogLevel) {
 	l.level = level
-}
-
-func (l *jsonMapLogger) logOutputWithMessage(msg, level string, params []Param) {
-	l.logOutput(append(params, StringParam("message", msg), StringParam("level", level)))
 }
 
 func (l *jsonMapLogger) logOutput(params []Param) {
