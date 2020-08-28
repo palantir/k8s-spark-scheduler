@@ -42,7 +42,7 @@ func (l *defaultLogger) Request(r Request) {
 	idsMap := l.idsExtractor.ExtractIDs(r.Request)
 
 	l.logger.Log(
-		wlog.StringParam(wlog.TypeKey, typeValue),
+		wlog.StringParam(wlog.TypeKey, TypeValue),
 		wlog.OptionalStringParam(methodKey, r.Request.Method),
 		wlog.StringParam(protocolKey, r.Request.Proto),
 		wlog.StringParam(pathKey, reqPath),
