@@ -8,7 +8,7 @@ working_dir: &working_dir
 darwin-linux-no-cgo: &darwin-linux-no-cgo
   <<: *working_dir
   docker:
-    - image: palantirtechnologies/go:go-darwin-linux-no-cgo-1.13.4-java-11-t28
+    - image: palantirtechnologies/go:go-darwin-linux-no-cgo-1.14.7-java-11-t57
       environment:
         CGO_ENABLED: 0
 
