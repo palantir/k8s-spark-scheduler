@@ -1,0 +1,77 @@
+module github.com/palantir/k8s-spark-scheduler
+
+go 1.14
+
+require (
+	github.com/beorn7/perks v1.0.1
+	github.com/coreos/pkg v0.0.0-20180108230652-97fdf19511ea
+	github.com/davecgh/go-spew v1.1.0
+	github.com/evanphx/json-patch v4.5.0+incompatible
+	github.com/fsnotify/fsnotify v1.4.7
+	github.com/gogo/protobuf v1.3.1
+	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
+	github.com/golang/groupcache v0.0.0-20191227052852-215e87163ea7
+	github.com/golang/protobuf v1.3.2
+	github.com/google/go-cmp v0.4.0
+	github.com/google/gofuzz v0.0.0-20170612174753-24818f796faf
+	github.com/google/uuid v1.1.1
+	github.com/googleapis/gnostic v0.2.0
+	github.com/hashicorp/golang-lru v0.0.0-20180201235237-0fb14efe8c47
+	github.com/imdario/mergo v0.3.6
+	github.com/inconshreveable/mousetrap v1.0.0
+	github.com/json-iterator/go v1.1.5
+	github.com/julienschmidt/httprouter v1.1.1-0.20180411154501-adbc77eec0d9
+	github.com/matttproud/golang_protobuf_extensions v1.0.1
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+	github.com/modern-go/reflect2 v0.0.0-20180701023420-4b7aa43c6742
+	github.com/nmiyake/pkg v0.0.0-20170627000939-b64318170fde
+	github.com/openzipkin/zipkin-go v0.1.5
+	github.com/palantir/go-encrypted-config-value v1.0.0
+	github.com/palantir/go-metrics v1.1.0
+	github.com/palantir/k8s-spark-scheduler-lib v0.2.9
+	github.com/palantir/pkg v1.0.1
+	github.com/palantir/witchcraft-go-error v1.3.0
+	github.com/palantir/witchcraft-go-logging v1.5.0
+	github.com/palantir/witchcraft-go-params v0.0.0-20181203221923-d5c8ded2ab55
+	github.com/palantir/witchcraft-go-server v1.14.1
+	github.com/palantir/witchcraft-go-tracing v0.0.0-20181211230021-fa24fe4ff2f1
+	github.com/pkg/errors v0.8.0
+	github.com/prometheus/client_golang v1.1.0
+	github.com/prometheus/client_model v0.1.0
+	github.com/prometheus/common v0.8.0
+	github.com/prometheus/procfs v0.0.8
+	github.com/satori/go.uuid v1.2.0
+	github.com/spf13/cobra v0.0.3
+	github.com/spf13/pflag v1.0.1
+	go.uber.org/atomic v1.3.2
+	go.uber.org/multierr v1.1.0
+	go.uber.org/zap v1.9.1
+	golang.org/x/crypto v0.0.0-20180527072434-ab813273cd59
+	golang.org/x/net v0.0.0-20180530144021-8d282c4e200f
+	golang.org/x/oauth2 v0.0.0-20190115181402-5dab4167f31c
+	golang.org/x/sys v0.0.0-20180525142821-c11f84a56e43
+	golang.org/x/text v0.3.0
+	golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
+	golang.org/x/tools v0.0.0-20180525024113-a5b4c53f6e8b
+	google.golang.org/appengine v1.4.0
+	google.golang.org/genproto v0.0.0-20200115191322-ca5a22157cba
+	google.golang.org/grpc v1.26.0
+	gopkg.in/inf.v0 v0.9.1
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0-20170911140457-aee462912944
+	gopkg.in/yaml.v2 v2.2.1
+	k8s.io/api v0.17.2
+	k8s.io/apiextensions-apiserver v0.17.2
+	k8s.io/apimachinery v0.17.3-beta.0
+	k8s.io/apiserver v0.17.1
+	k8s.io/client-go v0.17.2
+	k8s.io/cloud-provider v0.17.1
+	k8s.io/code-generator v0.0.0-20180602140121-4c99649af8fe
+	k8s.io/component-base v0.17.1
+	k8s.io/csi-translation-lib v0.17.1
+	k8s.io/gengo v0.0.0-20180529185233-2e1a79edcaec
+	k8s.io/klog v1.0.0
+	k8s.io/kube-openapi v0.0.0-20190709113604-33be087ad058
+	k8s.io/kubernetes v1.17.1
+	k8s.io/utils v0.0.0-20200109141947-94aeca20bf09
+	sigs.k8s.io/yaml v1.1.0
+)
