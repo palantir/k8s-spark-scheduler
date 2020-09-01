@@ -20,6 +20,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog"
 	"github.com/palantir/witchcraft-go-logging/wlog/auditlog/audit2log"
 	"github.com/palantir/witchcraft-go-logging/wlog/diaglog/diag1log"
@@ -28,10 +29,19 @@ import (
 	"github.com/palantir/witchcraft-go-logging/wlog/reqlog/req2log"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/trclog/trc1log"
+	"github.com/palantir/witchcraft-go-server/witchcraft/internal/metricloggers"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-func (s *Server) initLoggers(useConsoleLog bool, logLevel wlog.LogLevel) {
+const (
+	defaultLogOutputFormat = "var/log/%s.log"
+	containerEnvVariable   = "CONTAINER"
+)
+
+// initLoggers initializes the Server loggers with instrumented loggers that record metrics in the given registry.
+// If useConsoleLog is true, then all loggers log to stdout.
+// The provided logLevel is used when initializing the service logs only.
+func (s *Server) initLoggers(useConsoleLog bool, logLevel wlog.LogLevel, registry metrics.Registry) {
 	if s.svcLogOrigin == nil {
 		// if origin param is not specified, use a param that uses the package name of the caller of Start()
 		origin := svc1log.CallerPkg(2, 0)
@@ -46,30 +56,40 @@ func (s *Server) initLoggers(useConsoleLog bool, logLevel wlog.LogLevel) {
 		loggerStdoutWriter = s.loggerStdoutWriter
 	}
 
-	logOutputFn := func(logOutputPath string) io.Writer {
-		return newDefaultLogOutput(logOutputPath, useConsoleLog, loggerStdoutWriter)
+	logWriterFn := func(slsFilename string) io.Writer {
+		internalWriter := newDefaultLogOutputWriter(slsFilename, useConsoleLog, loggerStdoutWriter)
+		return metricloggers.NewMetricWriter(internalWriter, registry, slsFilename)
 	}
 
-	s.svcLogger = svc1log.New(logOutputFn("service"), logLevel, svc1LogParams...)
-	s.evtLogger = evt2log.New(logOutputFn("event"))
-	s.metricLogger = metric1log.New(logOutputFn("metrics"))
-	s.trcLogger = trc1log.New(logOutputFn("trace"))
-	s.auditLogger = audit2log.New(logOutputFn("audit"))
-	s.diagLogger = diag1log.New(logOutputFn("diagnostic"))
-	s.reqLogger = req2log.New(logOutputFn("request"),
+	// initialize instrumented loggers
+	s.svcLogger = metricloggers.NewSvc1Logger(
+		svc1log.New(logWriterFn("service"), logLevel, svc1LogParams...), registry)
+	s.evtLogger = metricloggers.NewEvt2Logger(
+		evt2log.New(logWriterFn("event")), registry)
+	s.metricLogger = metricloggers.NewMetric1Logger(
+		metric1log.New(logWriterFn("metrics")), registry)
+	s.trcLogger = metricloggers.NewTrc1Logger(
+		trc1log.New(logWriterFn("trace")), registry)
+	s.auditLogger = metricloggers.NewAudit2Logger(
+		audit2log.New(logWriterFn("audit")), registry)
+	s.diagLogger = metricloggers.NewDiag1Logger(diag1log.New(logWriterFn("diagnostic")), registry)
+	s.reqLogger = metricloggers.NewReq2Logger(req2log.New(logWriterFn("request"),
 		req2log.Extractor(s.idsExtractor),
 		req2log.SafePathParams(s.safePathParams...),
 		req2log.SafeHeaderParams(s.safeHeaderParams...),
 		req2log.SafeQueryParams(s.safeQueryParams...),
-	)
+	), registry)
 }
 
-func newDefaultLogOutput(logOutputPath string, logToStdout bool, stdoutWriter io.Writer) io.Writer {
+// Returns a io.Writer that can be used as the underlying writer for a logger.
+// If either logToStdout or logToStdoutBasedOnEnv() is true, then stdoutWriter is returned.
+// Otherwise, a default writer that writes to slsFilename is returned.
+func newDefaultLogOutputWriter(slsFilename string, logToStdout bool, stdoutWriter io.Writer) io.Writer {
 	if logToStdout || logToStdoutBasedOnEnv() {
 		return stdoutWriter
 	}
 	return &lumberjack.Logger{
-		Filename:   fmt.Sprintf("var/log/%s.log", logOutputPath),
+		Filename:   fmt.Sprintf(defaultLogOutputFormat, slsFilename),
 		MaxSize:    1000,
 		MaxBackups: 10,
 		MaxAge:     30,
@@ -79,7 +99,16 @@ func newDefaultLogOutput(logOutputPath string, logToStdout bool, stdoutWriter io
 
 // logToStdoutBasedOnEnv returns true if the runtime environment is a non-jail Docker container, false otherwise.
 func logToStdoutBasedOnEnv() bool {
-	return isDocker() && !isJail()
+	return isContainer() && !isJail()
+}
+
+func isContainer() bool {
+	return isDocker() || isContainerByEnvVar()
+}
+
+func isContainerByEnvVar() bool {
+	_, present := os.LookupEnv(containerEnvVariable)
+	return present
 }
 
 func isDocker() bool {
