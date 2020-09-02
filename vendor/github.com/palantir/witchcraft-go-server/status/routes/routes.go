@@ -17,7 +17,7 @@ package routes
 import (
 	"net/http"
 
-	"github.com/palantir/witchcraft-go-server/rest"
+	"github.com/palantir/conjure-go-runtime/v2/conjure-go-server/httpserver"
 	"github.com/palantir/witchcraft-go-server/status"
 	"github.com/palantir/witchcraft-go-server/witchcraft/refreshable"
 	"github.com/palantir/witchcraft-go-server/witchcraft/wresource"
@@ -31,8 +31,8 @@ func AddReadinessRoutes(resource wresource.Resource, source status.Source) error
 	return resource.Get("readiness", status.ReadinessEndpoint, handler(source))
 }
 
-func AddHealthRoutes(resource wresource.Resource, source status.HealthCheckSource, sharedSecret refreshable.String) error {
-	return resource.Get("health", status.HealthEndpoint, status.NewHealthCheckHandler(source, sharedSecret))
+func AddHealthRoutes(resource wresource.Resource, source status.HealthCheckSource, sharedSecret refreshable.String, healthStatusChangeHandlers []status.HealthStatusChangeHandler) error {
+	return resource.Get("health", status.HealthEndpoint, status.NewHealthCheckHandler(source, sharedSecret, healthStatusChangeHandlers))
 }
 
 // handler returns an HTTP handler that writes a response based on the provided source. The status code of the response
@@ -47,6 +47,6 @@ func handler(source status.Source) http.Handler {
 			metadata = struct{}{}
 		}
 
-		rest.WriteJSONResponse(w, metadata, respCode)
+		httpserver.WriteJSONResponse(w, metadata, respCode)
 	})
 }

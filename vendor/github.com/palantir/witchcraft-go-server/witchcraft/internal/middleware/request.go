@@ -21,6 +21,7 @@ import (
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog"
 	"github.com/palantir/witchcraft-go-logging/wlog/auditlog/audit2log"
+	"github.com/palantir/witchcraft-go-logging/wlog/diaglog/diag1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/evtlog/evt2log"
 	"github.com/palantir/witchcraft-go-logging/wlog/extractor"
 	"github.com/palantir/witchcraft-go-logging/wlog/metriclog/metric1log"
@@ -50,6 +51,7 @@ func NewRequestContextLoggers(
 	evtLogger evt2log.Logger,
 	auditLogger audit2log.Logger,
 	metricLogger metric1log.Logger,
+	diagLogger diag1log.Logger,
 ) wrouter.RequestHandlerMiddleware {
 	return func(rw http.ResponseWriter, req *http.Request, next http.Handler) {
 		ctx := req.Context()
@@ -64,6 +66,9 @@ func NewRequestContextLoggers(
 		}
 		if metricLogger != nil {
 			ctx = metric1log.WithLogger(ctx, metricLogger)
+		}
+		if diagLogger != nil {
+			ctx = diag1log.WithLogger(ctx, diagLogger)
 		}
 		next.ServeHTTP(rw, req.WithContext(ctx))
 	}

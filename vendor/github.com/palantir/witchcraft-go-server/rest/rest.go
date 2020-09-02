@@ -25,6 +25,8 @@ import (
 // WriteJSONResponse marshals the provided object to JSON using a JSON encoder with SetEscapeHTML(false) and writes the
 // resulting JSON as a JSON response to the provided http.ResponseWriter with the provided status code. If marshaling
 // the provided object as JSON results in an error, writes a 500 response with the text content of the error.
+//
+// Deprecated: Prefer server utilities in github.com/palantir/conjure-go-runtime/v2/conjure-go-server/httpserver.
 func WriteJSONResponse(w http.ResponseWriter, obj interface{}, status int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -39,6 +41,8 @@ func WriteJSONResponse(w http.ResponseWriter, obj interface{}, status int) {
 // ParseBearerTokenHeader parses a bearer token value out of the Authorization header. It expects a header with a key
 // of 'Authorization' and a value of 'bearer {token}'. ParseBearerTokenHeader will return the token value, or an error
 // if the Authorization header is missing, an empty string, or is not in the format expected.
+//
+// Deprecated: Prefer server utilities in github.com/palantir/conjure-go-runtime/v2/conjure-go-server/httpserver.
 func ParseBearerTokenHeader(req *http.Request) (string, error) {
 	authHeader := req.Header.Get("Authorization")
 	if authHeader == "" {

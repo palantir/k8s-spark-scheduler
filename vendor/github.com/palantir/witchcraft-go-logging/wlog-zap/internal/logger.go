@@ -27,12 +27,19 @@ import (
 )
 
 type zapLogEntry struct {
-	fields []zapcore.Field
+	fields map[string]*zapcore.Field
 	wlog.MapValueEntries
 }
 
+func newZapLogEntry() *zapLogEntry {
+	return &zapLogEntry{
+		fields: make(map[string]*zapcore.Field),
+	}
+}
+
 func (e *zapLogEntry) StringValue(key, value string) {
-	e.fields = append(e.fields, zap.String(key, value))
+	s := zap.String(key, value)
+	e.fields[key] = &s
 }
 
 func (e *zapLogEntry) OptionalStringValue(key, value string) {
@@ -43,29 +50,38 @@ func (e *zapLogEntry) OptionalStringValue(key, value string) {
 
 func (e *zapLogEntry) StringListValue(k string, v []string) {
 	if len(v) > 0 {
-		e.fields = append(e.fields, zap.Strings(k, v))
+		s := zap.Strings(k, v)
+		e.fields[k] = &s
 	}
 }
 
 func (e *zapLogEntry) SafeLongValue(key string, value int64) {
-	e.fields = append(e.fields, zap.Int64(key, value))
+	s := zap.Int64(key, value)
+	e.fields[key] = &s
 }
 
 func (e *zapLogEntry) IntValue(key string, value int32) {
-	e.fields = append(e.fields, zap.Int32(key, value))
+	s := zap.Int32(key, value)
+	e.fields[key] = &s
 }
 
 func (e *zapLogEntry) ObjectValue(k string, v interface{}, marshalerType reflect.Type) {
 	if field, ok := marshalers.FieldForType(marshalerType, k, v); ok {
-		e.fields = append(e.fields, field)
+		e.fields[k] = &field
 	} else {
-		e.fields = append(e.fields, zap.Reflect(k, v))
+		s := zap.Reflect(k, v)
+		e.fields[k] = &s
 	}
 }
 
 func (e *zapLogEntry) Fields() []zapcore.Field {
-	fields := e.fields
-	for key, values := range e.StringMapValues() {
+	stringMapValues := e.StringMapValues()
+	anyMapValues := e.AnyMapValues()
+	fields := make([]zapcore.Field, 0, len(e.fields)+len(stringMapValues)+len(anyMapValues))
+	for _, field := range e.fields {
+		fields = append(fields, *field)
+	}
+	for key, values := range stringMapValues {
 		key := key
 		values := values
 		fields = append(fields, zap.Object(key, zapcore.ObjectMarshalerFunc(func(enc zapcore.ObjectEncoder) error {
@@ -80,7 +96,7 @@ func (e *zapLogEntry) Fields() []zapcore.Field {
 			return nil
 		})))
 	}
-	for key, values := range e.AnyMapValues() {
+	for key, values := range anyMapValues {
 		key := key
 		values := values
 		fields = append(fields, zap.Object(key, zapcore.ObjectMarshalerFunc(func(enc zapcore.ObjectEncoder) error {
@@ -130,7 +146,7 @@ func (l *zapLogger) SetLevel(level wlog.LogLevel) {
 }
 
 func logOutput(logFn func(string, ...zap.Field), msg string, params []wlog.Param) {
-	entry := &zapLogEntry{}
+	entry := newZapLogEntry()
 	wlog.ApplyParams(entry, params)
 	logFn(msg, entry.Fields()...)
 }

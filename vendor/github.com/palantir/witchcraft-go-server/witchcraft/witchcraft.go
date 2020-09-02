@@ -110,6 +110,9 @@ type Server struct {
 	// specifies the sources that are used to determine the health of this service
 	healthCheckSources []status.HealthCheckSource
 
+	// specifies the handlers to invoke upon health status changes. The LoggingHealthStatusChangeHandler is added by default.
+	healthStatusChangeHandlers []status.HealthStatusChangeHandler
+
 	// provides the RouterImpl used by the server (and management server if it is separate). If nil, a default function
 	// that returns a new whttprouter is used.
 	routerImplProvider func() wrouter.RouterImpl
@@ -237,6 +240,8 @@ type ConfigurableRouter interface {
 	WithReadiness(readiness status.Source) *Server
 	WithLiveness(liveness status.Source) *Server
 }
+
+const defaultSampleRate = 0.01
 
 // NewServer returns a new uninitialized server.
 func NewServer() *Server {
@@ -492,6 +497,13 @@ func (s *Server) WithLoggerStdoutWriter(loggerStdoutWriter io.Writer) *Server {
 	return s
 }
 
+// WithHealthStatusChangeHandlers configures the health status change handlers that are called whenever the configured HealthCheckSource
+// returns a health status with differing check states.
+func (s *Server) WithHealthStatusChangeHandlers(handlers ...status.HealthStatusChangeHandler) *Server {
+	s.healthStatusChangeHandlers = append(s.healthStatusChangeHandlers, handlers...)
+	return s
+}
+
 const (
 	defaultMetricEmitFrequency = time.Second * 60
 
@@ -517,7 +529,7 @@ func (s *Server) Start() (rErr error) {
 
 			if s.svcLogger == nil {
 				// If we have not yet initialized our loggers, use default configuration as best-effort.
-				s.initLoggers(false, wlog.InfoLevel)
+				s.initLoggers(false, wlog.InfoLevel, metrics.DefaultMetricsRegistry)
 			}
 
 			s.svcLogger.Error("panic recovered", svc1log.SafeParam("stack", diag1log.ThreadDumpV1FromGoroutines(debug.Stack())), svc1log.Stacktrace(rErr))
@@ -527,7 +539,7 @@ func (s *Server) Start() (rErr error) {
 		if rErr != nil {
 			if s.svcLogger == nil {
 				// If we have not yet initialized our loggers, use default configuration as best-effort.
-				s.initLoggers(false, wlog.InfoLevel)
+				s.initLoggers(false, wlog.InfoLevel, metrics.DefaultMetricsRegistry)
 			}
 			s.svcLogger.Error(rErr.Error(), svc1log.Stacktrace(rErr))
 		}
@@ -565,17 +577,22 @@ func (s *Server) Start() (rErr error) {
 		s.idsExtractor = extractor.NewDefaultIDsExtractor()
 	}
 
-	// initialize loggers
-	s.initLoggers(baseInstallCfg.UseConsoleLog, wlog.InfoLevel)
-
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	defer cancelCtx()
+
+	// initialize metrics. Note that loggers have not been initialized or associated with ctx
+	metricsRegistry, metricsDeferFn, err := s.initMetrics(ctx, baseInstallCfg)
+	if err != nil {
+		return err
+	}
+	defer metricsDeferFn()
+	ctx = metrics.WithRegistry(ctx, metricsRegistry)
+
+	// initialize loggers
+	s.initLoggers(baseInstallCfg.UseConsoleLog, wlog.InfoLevel, metricsRegistry)
+
 	// add loggers to context
-	ctx = svc1log.WithLogger(ctx, s.svcLogger)
-	ctx = evt2log.WithLogger(ctx, s.evtLogger)
-	ctx = metric1log.WithLogger(ctx, s.metricLogger)
-	ctx = trc1log.WithLogger(ctx, s.trcLogger)
-	ctx = audit2log.WithLogger(ctx, s.auditLogger)
+	ctx = s.withLoggers(ctx)
 
 	// load runtime configuration
 	baseRefreshableRuntimeCfg, refreshableRuntimeCfg, configReloadHealthCheckSource, err := s.initRuntimeConfig(ctx)
@@ -595,14 +612,6 @@ func (s *Server) Start() (rErr error) {
 
 	// initialize routers
 	router, mgmtRouter := s.initRouters(baseInstallCfg)
-
-	// initialize metrics
-	metricsRegistry, metricsDeferFn, err := s.initMetrics(ctx, baseInstallCfg)
-	if err != nil {
-		return err
-	}
-	defer metricsDeferFn()
-	ctx = metrics.WithRegistry(ctx, metricsRegistry)
 
 	// add middleware
 	s.addMiddleware(router.RootRouter(), metricsRegistry, s.getApplicationTracingOptions(baseInstallCfg))
@@ -699,6 +708,16 @@ func (s *Server) Start() (rErr error) {
 
 	s.stateManager.setState(ServerRunning)
 	return svrStart()
+}
+
+func (s *Server) withLoggers(ctx context.Context) context.Context {
+	ctx = svc1log.WithLogger(ctx, s.svcLogger)
+	ctx = evt2log.WithLogger(ctx, s.evtLogger)
+	ctx = metric1log.WithLogger(ctx, s.metricLogger)
+	ctx = trc1log.WithLogger(ctx, s.trcLogger)
+	ctx = audit2log.WithLogger(ctx, s.auditLogger)
+	ctx = diag1log.WithLogger(ctx, s.diagLogger)
+	return ctx
 }
 
 type configurableRouterImpl struct {
@@ -903,7 +922,7 @@ func stopServer(s *Server, stopper func(s *http.Server) error) error {
 }
 
 func (s *Server) getApplicationTracingOptions(install config.Install) []wtracing.TracerOption {
-	return getTracingOptions(s.applicationTraceSampler, install, alwaysSample, install.Server.Port, install.TraceSampleRate)
+	return getTracingOptions(s.applicationTraceSampler, install, traceSamplerFromSampleRate(defaultSampleRate), install.Server.Port, install.TraceSampleRate)
 }
 
 func (s *Server) getManagementTracingOptions(install config.Install) []wtracing.TracerOption {
