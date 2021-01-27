@@ -53,7 +53,9 @@ func (s *Static) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 		next(rw, r)
 		return
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	fi, err := f.Stat()
 	if err != nil {
@@ -75,7 +77,9 @@ func (s *Static) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 			next(rw, r)
 			return
 		}
-		defer f.Close()
+		defer func() {
+			_ = f.Close()
+		}()
 
 		fi, err = f.Stat()
 		if err != nil || fi.IsDir() {

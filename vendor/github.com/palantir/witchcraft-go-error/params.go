@@ -50,7 +50,9 @@ func SafeAndUnsafeParams(safe, unsafe map[string]interface{}) Param {
 
 func Params(object wparams.ParamStorer) Param {
 	return param(func(z *werror) {
-		SafeParams(object.SafeParams()).apply(z)
-		UnsafeParams(object.UnsafeParams()).apply(z)
+		if object != nil {
+			SafeParams(object.SafeParams()).apply(z)
+			UnsafeParams(object.UnsafeParams()).apply(z)
+		}
 	})
 }
