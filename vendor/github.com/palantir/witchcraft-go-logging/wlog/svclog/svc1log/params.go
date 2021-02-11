@@ -115,11 +115,20 @@ func OriginFromInitPkg(skipPkg int) Param {
 // Note that this parameter is tied to the implementation details of the logger implementations defined in the svc1log
 // package (it hard-codes assumptions relating to the number of call stacks that must be skipped to reach the log site).
 // Using this parameter with an svc1log.Logger implementation not defined in the svc1log package may result in incorrect
-// output.
+// output. If wrapping the default implementation of svc1log.Logger, OriginFromCallLineWithSkip allows for trimming
+// additional stack frames.
 func OriginFromCallLine() Param {
+	return OriginFromCallLineWithSkip(0)
+}
+
+const defaultOriginFromCallLineStackSkip = 8
+
+// OriginFromCallLineWithSkip is like OriginFromCallLine but allows for configuring additional skipped stack frames.
+// This allows for libraries wrapping loggers to hide their implementation frames from the caller.
+func OriginFromCallLineWithSkip(skipFrames int) Param {
 	return paramFunc(func(entry wlog.LogEntry) {
 		origin := ""
-		if file, line, ok := initLineCaller(8); ok {
+		if file, line, ok := initLineCaller(defaultOriginFromCallLineStackSkip + skipFrames); ok {
 			origin = file + ":" + strconv.Itoa(line)
 		}
 		entry.OptionalStringValue(OriginKey, origin)

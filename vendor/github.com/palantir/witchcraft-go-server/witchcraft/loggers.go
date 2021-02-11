@@ -42,15 +42,18 @@ const (
 // If useConsoleLog is true, then all loggers log to stdout.
 // The provided logLevel is used when initializing the service logs only.
 func (s *Server) initLoggers(useConsoleLog bool, logLevel wlog.LogLevel, registry metrics.Registry) {
-	if s.svcLogOrigin == nil {
+	var originParam svc1log.Param
+	switch {
+	case s.svcLogOrigin != nil && *s.svcLogOrigin != "":
+		originParam = svc1log.Origin(*s.svcLogOrigin)
+	case s.svcLogOriginFromCallLine:
+		// Skip two frames because we wrap the default logger in the metric logger
+		originParam = svc1log.OriginFromCallLineWithSkip(2)
+	default:
 		// if origin param is not specified, use a param that uses the package name of the caller of Start()
-		origin := svc1log.CallerPkg(2, 0)
-		s.svcLogOrigin = &origin
+		originParam = svc1log.Origin(svc1log.CallerPkg(2, 0))
 	}
-	var svc1LogParams []svc1log.Param
-	if *s.svcLogOrigin != "" {
-		svc1LogParams = append(svc1LogParams, svc1log.Origin(*s.svcLogOrigin))
-	}
+
 	var loggerStdoutWriter io.Writer = os.Stdout
 	if s.loggerStdoutWriter != nil {
 		loggerStdoutWriter = s.loggerStdoutWriter
@@ -63,7 +66,7 @@ func (s *Server) initLoggers(useConsoleLog bool, logLevel wlog.LogLevel, registr
 
 	// initialize instrumented loggers
 	s.svcLogger = metricloggers.NewSvc1Logger(
-		svc1log.New(logWriterFn("service"), logLevel, svc1LogParams...), registry)
+		svc1log.New(logWriterFn("service"), logLevel, originParam), registry)
 	s.evtLogger = metricloggers.NewEvt2Logger(
 		evt2log.New(logWriterFn("event")), registry)
 	s.metricLogger = metricloggers.NewMetric1Logger(

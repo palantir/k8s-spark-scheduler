@@ -25,9 +25,26 @@ import (
 //
 // The conjure error is wrapped using err's Error() message, and params if ParamStorer is implemented.
 // All other context is discarded, including cause stack (i.e. stacktrace) and type information.
+//
+// DEPRECATED: Use WrapWithNewError for generic errors or WrapWithMyErrorType for conjure-generated errors.
 func NewWrappedError(conjureErr Error, err error) error {
 	if storer, ok := err.(wparams.ParamStorer); ok {
 		return werror.Wrap(conjureErr, err.Error(), werror.Params(storer))
 	}
 	return werror.Wrap(conjureErr, err.Error())
+}
+
+// GetConjureError recursively searches for an error of type Error in a chain of causes. It returns the first
+// instance that it finds, or nil if one is not found.
+func GetConjureError(err error) Error {
+	if err == nil {
+		return nil
+	}
+	if conjureErr, ok := err.(Error); ok {
+		return conjureErr
+	}
+	if werr, ok := err.(werror.Causer); ok {
+		return GetConjureError(werr.Cause())
+	}
+	return nil
 }

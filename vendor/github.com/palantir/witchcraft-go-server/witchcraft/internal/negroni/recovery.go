@@ -110,7 +110,7 @@ func (t *TextPanicFormatter) FormatPanicError(rw http.ResponseWriter, r *http.Re
 	if rw.Header().Get("Content-Type") == "" {
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	}
-	fmt.Fprintf(rw, panicText, infos.RecoveredPanic, infos.Stack)
+	_, _ = fmt.Fprintf(rw, panicText, infos.RecoveredPanic, infos.Stack)
 }
 
 // HTMLPanicFormatter output the stack inside
@@ -122,7 +122,7 @@ func (t *HTMLPanicFormatter) FormatPanicError(rw http.ResponseWriter, r *http.Re
 	if rw.Header().Get("Content-Type") == "" {
 		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 	}
-	panicHTMLTemplate.Execute(rw, infos)
+	_ = panicHTMLTemplate.Execute(rw, infos)
 }
 
 // Recovery is a Negroni middleware that recovers from any panics and writes a 500 if there was one.

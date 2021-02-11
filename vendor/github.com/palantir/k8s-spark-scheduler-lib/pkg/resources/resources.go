@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
@@ -42,7 +42,7 @@ func UsageForNodes(resourceReservations []*v1beta1.ResourceReservation) NodeGrou
 }
 
 // AvailableForNodes finds available resources by subtracting current usage from allocatable per node
-func AvailableForNodes(nodes []*v1.Node, currentUsage NodeGroupResources) NodeGroupResources {
+func AvailableForNodes(nodes []*corev1.Node, currentUsage NodeGroupResources) NodeGroupResources {
 	res := NodeGroupResources(make(map[string]*Resources, len(nodes)))
 	for _, n := range nodes {
 		currentUsageForNode, ok := currentUsage[n.Name]
@@ -55,21 +55,21 @@ func AvailableForNodes(nodes []*v1.Node, currentUsage NodeGroupResources) NodeGr
 }
 
 // NodeSchedulingMetadataForNodes calculate available resources by subtracting current usage from allocatable per node
-func NodeSchedulingMetadataForNodes(nodes []*v1.Node, currentUsage NodeGroupResources) NodeGroupSchedulingMetadata {
+func NodeSchedulingMetadataForNodes(nodes []*corev1.Node, currentUsage NodeGroupResources) NodeGroupSchedulingMetadata {
 	nodeGroupSchedulingMetadata := make(NodeGroupSchedulingMetadata, len(nodes))
 	for _, node := range nodes {
 		currentUsageForNode, ok := currentUsage[node.Name]
 		if !ok {
 			currentUsageForNode = Zero()
 		}
-		zoneLabel, ok := node.Labels[v1.LabelZoneFailureDomain]
+		zoneLabel, ok := node.Labels[corev1.LabelZoneFailureDomain]
 		if !ok {
 			zoneLabel = zoneLabelPlaceholder
 		}
 
 		nodeReady := false
 		for _, condition := range node.Status.Conditions {
-			if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
+			if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
 				nodeReady = true
 			}
 		}
@@ -120,12 +120,12 @@ func (nodesSchedulingMetadata NodeGroupSchedulingMetadata) SubtractUsageIfExists
 	}
 }
 
-func subtractFromResourceList(resourceList v1.ResourceList, resources *Resources) *Resources {
+func subtractFromResourceList(resourceList corev1.ResourceList, resources *Resources) *Resources {
 	// (a - b) == -(b - a)
 	copyResources := resources.Copy()
-	copyResources.CPU.Sub(resourceList[v1.ResourceCPU])
+	copyResources.CPU.Sub(resourceList[corev1.ResourceCPU])
 	copyResources.CPU.Neg()
-	copyResources.Memory.Sub(resourceList[v1.ResourceMemory])
+	copyResources.Memory.Sub(resourceList[corev1.ResourceMemory])
 	copyResources.Memory.Neg()
 	return copyResources
 }
@@ -181,15 +181,15 @@ func (r *Resources) Sub(other *Resources) {
 }
 
 // AddFromResourceList modified the receiver in place
-func (r *Resources) AddFromResourceList(resourceList v1.ResourceList) {
-	r.CPU.Add(resourceList[v1.ResourceCPU])
-	r.Memory.Add(resourceList[v1.ResourceMemory])
+func (r *Resources) AddFromResourceList(resourceList corev1.ResourceList) {
+	r.CPU.Add(resourceList[corev1.ResourceCPU])
+	r.Memory.Add(resourceList[corev1.ResourceMemory])
 }
 
 // SetMaxResource modifies the receiver in place to set each resource to the greater value of itself or the corresponding resource in resourceList
-func (r *Resources) SetMaxResource(resourceList v1.ResourceList) {
-	cpuResource := resourceList[v1.ResourceCPU]
-	memResource := resourceList[v1.ResourceMemory]
+func (r *Resources) SetMaxResource(resourceList corev1.ResourceList) {
+	cpuResource := resourceList[corev1.ResourceCPU]
+	memResource := resourceList[corev1.ResourceMemory]
 	if cpuResource.Cmp(r.CPU) > 0 {
 		r.CPU = cpuResource.DeepCopy()
 	}

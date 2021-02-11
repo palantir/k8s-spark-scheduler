@@ -26,7 +26,6 @@ import (
 
 var HealthStateStatusCodes = map[health.HealthState]int{
 	health.HealthStateHealthy:   http.StatusOK,
-	health.HealthStateUnknown:   500,
 	health.HealthStateDeferring: 518,
 	health.HealthStateSuspended: 519,
 	health.HealthStateRepairing: 520,
@@ -120,7 +119,10 @@ func (h *healthHandlerImpl) computeNewHealthStatus(req *http.Request) (health.He
 func HealthStatusCode(metadata health.HealthStatus) int {
 	worst := http.StatusOK
 	for _, result := range metadata.Checks {
-		code := HealthStateStatusCodes[result.State]
+		code, ok := HealthStateStatusCodes[result.State]
+		if !ok {
+			code = http.StatusInternalServerError
+		}
 		if worst < code {
 			worst = code
 		}

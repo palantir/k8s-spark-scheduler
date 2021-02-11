@@ -51,7 +51,8 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := h.handleFn(w, r); err != nil {
 		status := h.status(err)
 		h.handleError(r.Context(), status, err)
-		switch e := werror.RootCause(err).(type) {
+		cause := getSerializableCause(err)
+		switch e := cause.(type) {
 		case errors.Error:
 			// if error is a conjure error, use WriteErrorResponse utility
 			errors.WriteErrorResponse(w, e)
@@ -85,7 +86,7 @@ func (h handler) handleError(ctx context.Context, statusCode int, err error) {
 // If the provided error is a contains the legacy httpStatusCode parameter, that value is used.
 // Otherwise, returns http.StatusInternalServerError (500).
 func StatusCodeMapper(err error) int {
-	if conjureErr, ok := werror.RootCause(err).(errors.Error); ok {
+	if conjureErr := errors.GetConjureError(err); conjureErr != nil {
 		return conjureErr.Code().StatusCode()
 	}
 	if legacyCode := legacyErrorCode(err); legacyCode != 0 {
@@ -122,4 +123,27 @@ func ErrHandler(ctx context.Context, statusCode int, err error) {
 		fmt.Sprintf("error handling request: %s", err.Error()),
 		svc1log.Stacktrace(err),
 	)
+}
+
+func getSerializableCause(err error) error {
+	if conjureErr := errors.GetConjureError(err); conjureErr != nil {
+		return conjureErr
+	}
+	if marshaler := getJSONMarshaler(err); marshaler != nil {
+		return marshaler
+	}
+	return err
+}
+
+func getJSONMarshaler(err error) error {
+	if err == nil {
+		return nil
+	}
+	if _, ok := err.(json.Marshaler); ok {
+		return err
+	}
+	if werr, ok := err.(werror.Werror); ok {
+		return getJSONMarshaler(werr.Cause())
+	}
+	return nil
 }

@@ -3,6 +3,7 @@
 package logging
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/palantir/pkg/safejson"
@@ -104,6 +105,29 @@ type UnionEventLogVisitor interface {
 	VisitEventLogV2(v EventLogV2) error
 	VisitBeaconLog(v BeaconLogV1) error
 	VisitUnknown(typeName string) error
+}
+
+func (u *UnionEventLog) AcceptWithContext(ctx context.Context, v UnionEventLogVisitorWithContext) error {
+	switch u.typ {
+	default:
+		if u.typ == "" {
+			return fmt.Errorf("invalid value in union type")
+		}
+		return v.VisitUnknownWithContext(ctx, u.typ)
+	case "eventLog":
+		return v.VisitEventLogWithContext(ctx, *u.eventLog)
+	case "eventLogV2":
+		return v.VisitEventLogV2WithContext(ctx, *u.eventLogV2)
+	case "beaconLog":
+		return v.VisitBeaconLogWithContext(ctx, *u.beaconLog)
+	}
+}
+
+type UnionEventLogVisitorWithContext interface {
+	VisitEventLogWithContext(ctx context.Context, v EventLogV1) error
+	VisitEventLogV2WithContext(ctx context.Context, v EventLogV2) error
+	VisitBeaconLogWithContext(ctx context.Context, v BeaconLogV1) error
+	VisitUnknownWithContext(ctx context.Context, typeName string) error
 }
 
 func NewUnionEventLogFromEventLog(v EventLogV1) UnionEventLog {
@@ -254,6 +278,41 @@ type WrappedLogV1PayloadVisitor interface {
 	VisitUnknown(typeName string) error
 }
 
+func (u *WrappedLogV1Payload) AcceptWithContext(ctx context.Context, v WrappedLogV1PayloadVisitorWithContext) error {
+	switch u.typ {
+	default:
+		if u.typ == "" {
+			return fmt.Errorf("invalid value in union type")
+		}
+		return v.VisitUnknownWithContext(ctx, u.typ)
+	case "serviceLogV1":
+		return v.VisitServiceLogV1WithContext(ctx, *u.serviceLogV1)
+	case "requestLogV2":
+		return v.VisitRequestLogV2WithContext(ctx, *u.requestLogV2)
+	case "traceLogV1":
+		return v.VisitTraceLogV1WithContext(ctx, *u.traceLogV1)
+	case "eventLogV2":
+		return v.VisitEventLogV2WithContext(ctx, *u.eventLogV2)
+	case "metricLogV1":
+		return v.VisitMetricLogV1WithContext(ctx, *u.metricLogV1)
+	case "auditLogV2":
+		return v.VisitAuditLogV2WithContext(ctx, *u.auditLogV2)
+	case "diagnosticLogV1":
+		return v.VisitDiagnosticLogV1WithContext(ctx, *u.diagnosticLogV1)
+	}
+}
+
+type WrappedLogV1PayloadVisitorWithContext interface {
+	VisitServiceLogV1WithContext(ctx context.Context, v ServiceLogV1) error
+	VisitRequestLogV2WithContext(ctx context.Context, v RequestLogV2) error
+	VisitTraceLogV1WithContext(ctx context.Context, v TraceLogV1) error
+	VisitEventLogV2WithContext(ctx context.Context, v EventLogV2) error
+	VisitMetricLogV1WithContext(ctx context.Context, v MetricLogV1) error
+	VisitAuditLogV2WithContext(ctx context.Context, v AuditLogV2) error
+	VisitDiagnosticLogV1WithContext(ctx context.Context, v DiagnosticLogV1) error
+	VisitUnknownWithContext(ctx context.Context, typeName string) error
+}
+
 func NewWrappedLogV1PayloadFromServiceLogV1(v ServiceLogV1) WrappedLogV1Payload {
 	return WrappedLogV1Payload{typ: "serviceLogV1", serviceLogV1: &v}
 }
@@ -368,6 +427,26 @@ type DiagnosticVisitor interface {
 	VisitUnknown(typeName string) error
 }
 
+func (u *Diagnostic) AcceptWithContext(ctx context.Context, v DiagnosticVisitorWithContext) error {
+	switch u.typ {
+	default:
+		if u.typ == "" {
+			return fmt.Errorf("invalid value in union type")
+		}
+		return v.VisitUnknownWithContext(ctx, u.typ)
+	case "generic":
+		return v.VisitGenericWithContext(ctx, *u.generic)
+	case "threadDump":
+		return v.VisitThreadDumpWithContext(ctx, *u.threadDump)
+	}
+}
+
+type DiagnosticVisitorWithContext interface {
+	VisitGenericWithContext(ctx context.Context, v GenericDiagnostic) error
+	VisitThreadDumpWithContext(ctx context.Context, v ThreadDumpV1) error
+	VisitUnknownWithContext(ctx context.Context, typeName string) error
+}
+
 func NewDiagnosticFromGeneric(v GenericDiagnostic) Diagnostic {
 	return Diagnostic{typ: "generic", generic: &v}
 }
@@ -460,6 +539,26 @@ type RequestLogVisitor interface {
 	VisitV1(v RequestLogV1) error
 	VisitV2(v RequestLogV2) error
 	VisitUnknown(typeName string) error
+}
+
+func (u *RequestLog) AcceptWithContext(ctx context.Context, v RequestLogVisitorWithContext) error {
+	switch u.typ {
+	default:
+		if u.typ == "" {
+			return fmt.Errorf("invalid value in union type")
+		}
+		return v.VisitUnknownWithContext(ctx, u.typ)
+	case "v1":
+		return v.VisitV1WithContext(ctx, *u.v1)
+	case "v2":
+		return v.VisitV2WithContext(ctx, *u.v2)
+	}
+}
+
+type RequestLogVisitorWithContext interface {
+	VisitV1WithContext(ctx context.Context, v RequestLogV1) error
+	VisitV2WithContext(ctx context.Context, v RequestLogV2) error
+	VisitUnknownWithContext(ctx context.Context, typeName string) error
 }
 
 func NewRequestLogFromV1(v RequestLogV1) RequestLog {
