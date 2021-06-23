@@ -4,10 +4,10 @@ metadata:
   labels:
     spark-app-id: my-custom-id
   annotations:
-    spark-driver-cpus: 1
-    spark-driver-mem: 1g
+    spark-driver-cpu: 1
+    spark-driver-mem: 1Gi
     spark-executor-cpu: 2
-    spark-executor-mem: 4g
+    spark-executor-mem: 4Gi
     spark-executor-count: 8
 spec:
   schedulerName: spark-scheduler
