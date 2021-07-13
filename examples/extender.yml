@@ -94,7 +94,7 @@ spec:
       serviceAccountName: spark-scheduler
       containers:
       - name: kube-scheduler
-        image: gcr.io/google_containers/hyperkube:v1.13.1
+        image: gcr.io/google_containers/hyperkube:v1.15.12
         imagePullPolicy: IfNotPresent
         command:
         - sh
