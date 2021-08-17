@@ -10,7 +10,7 @@ Requirements:
 - Kubernetes: 1.11.0
 - Spark: Any snapshot build that includes commit [f6cc354d83](https://github.com/apache/spark/commit/f6cc354d83). This is expected to be in Spark 3.x
 
-Spark scheduler extender is a [Witchcraft](https://github.com/palantir/witchcraft-go-server) server, and uses [Godel](https://github.com/palantir/godel) for testing and building. It is meant to be deployed with a new `kube-scheduler` instance, running alongside the default scheduler. This way, non-spark pods can continue to be scheduled by the default scheduler, and opt-in pods are scheduled using the spark-sdcheduler.
+Spark scheduler extender is a [Witchcraft](https://github.com/palantir/witchcraft-go-server) server, and uses [Godel](https://github.com/palantir/godel) for testing and building. It is meant to be deployed with a new `kube-scheduler` instance, running alongside the default scheduler. This way, non-spark pods can continue to be scheduled by the default scheduler, and opt-in pods are scheduled using the spark-scheduler.
 
 ## Usage
 
