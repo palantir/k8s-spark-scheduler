@@ -20,7 +20,6 @@ import (
 )
 
 // +genclient
-// +genclient:noStatus
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Demand represents currently unschedulable resources.
@@ -47,14 +46,19 @@ type DemandSpec struct {
 
 // DemandStatus represents the status a demand object is in
 type DemandStatus struct {
-	Phase              string      `json:"phase"`
-	LastTransitionTime metav1.Time `json:"last-transition-time"`
+	// Phase denotes the demand phase.
+	Phase string `json:"phase"`
+	// LastTransitionTime denotes the last transition time of the demand phase.
+	// If left empty, defaults to the creation time of the demand.
+	// +optional
+	LastTransitionTime metav1.Time `json:"last-transition-time,omitempty"`
 }
 
 // DemandUnit represents a single unit of demand as a count of CPU and Memory requirements
 type DemandUnit struct {
 	CPU    resource.Quantity `json:"cpu"`
 	Memory resource.Quantity `json:"memory"`
+	GPU    resource.Quantity `json:"gpu,omitempty"`
 	Count  int               `json:"count"`
 }
 
