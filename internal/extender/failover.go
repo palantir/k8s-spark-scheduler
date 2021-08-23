@@ -186,9 +186,10 @@ func (r *reconciler) syncSoftReservations(ctx context.Context, extraExecutorsByA
 				break
 			}
 			err := r.softReservations.AddReservationForPod(ctx, appID, extraExecutor.Name, v1beta1.Reservation{
-				Node:   extraExecutor.Spec.NodeName,
-				CPU:    applicationResources.executorResources.CPU,
-				Memory: applicationResources.executorResources.Memory,
+				Node:      extraExecutor.Spec.NodeName,
+				CPU:       applicationResources.executorResources.CPU,
+				Memory:    applicationResources.executorResources.Memory,
+				NvidiaGPU: applicationResources.executorResources.NvidiaGPU,
 			})
 			if err != nil {
 				svc1log.FromContext(ctx).Error("failed to add soft reservation for executor on failover. skipping...", svc1log.SafeParam("appID", appID), svc1log.Stacktrace(err))

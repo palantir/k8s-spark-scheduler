@@ -342,9 +342,10 @@ func (rrm *ResourceReservationManager) bindExecutorToSoftReservation(ctx context
 		return err
 	}
 	softReservation := v1beta1.Reservation{
-		Node:   node,
-		CPU:    sparkResources.executorResources.CPU,
-		Memory: sparkResources.executorResources.Memory,
+		Node:      node,
+		CPU:       sparkResources.executorResources.CPU,
+		Memory:    sparkResources.executorResources.Memory,
+		NvidiaGPU: sparkResources.executorResources.NvidiaGPU,
 	}
 	return rrm.softReservationStore.AddReservationForPod(ctx, driver.Labels[common.SparkAppIDLabel], executor.Name, softReservation)
 }
@@ -432,15 +433,17 @@ func (rrm *ResourceReservationManager) addPodForDynamicAllocationCompaction(pod 
 func newResourceReservation(driverNode string, executorNodes []string, driver *v1.Pod, driverResources, executorResources *resources.Resources) *v1beta1.ResourceReservation {
 	reservations := make(map[string]v1beta1.Reservation, len(executorNodes)+1)
 	reservations["driver"] = v1beta1.Reservation{
-		Node:   driverNode,
-		CPU:    driverResources.CPU,
-		Memory: driverResources.Memory,
+		Node:      driverNode,
+		CPU:       driverResources.CPU,
+		Memory:    driverResources.Memory,
+		NvidiaGPU: driverResources.NvidiaGPU,
 	}
 	for idx, nodeName := range executorNodes {
 		reservations[executorReservationName(idx)] = v1beta1.Reservation{
-			Node:   nodeName,
-			CPU:    executorResources.CPU,
-			Memory: executorResources.Memory,
+			Node:      nodeName,
+			CPU:       executorResources.CPU,
+			NvidiaGPU: driverResources.NvidiaGPU,
+			Memory:    executorResources.Memory,
 		}
 	}
 	return &v1beta1.ResourceReservation{
