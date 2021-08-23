@@ -18,12 +18,14 @@ import (
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
-	zoneLabelPlaceholder = "default"
+	zoneLabelPlaceholder                     = "default"
+	ResourceNvidiaGPU    corev1.ResourceName = "nvidia-gpu"
 )
 
 // UsageForNodes tallies resource usages per node from the given list of resource reservations
@@ -127,13 +129,16 @@ func subtractFromResourceList(resourceList corev1.ResourceList, resources *Resou
 	copyResources.CPU.Neg()
 	copyResources.Memory.Sub(resourceList[corev1.ResourceMemory])
 	copyResources.Memory.Neg()
+	copyResources.NvidiaGPU.Sub(resourceList[ResourceNvidiaGPU])
+	copyResources.NvidiaGPU.Neg()
 	return copyResources
 }
 
 // Resources represents the CPU and Memory resource quantities
 type Resources struct {
-	CPU    resource.Quantity
-	Memory resource.Quantity
+	CPU       resource.Quantity
+	Memory    resource.Quantity
+	NvidiaGPU resource.Quantity
 }
 
 // NodeSchedulingMetadata represents various parameters of a node that are considered in scheduling decisions
@@ -149,8 +154,9 @@ type NodeSchedulingMetadata struct {
 // Zero returns a Resources object with quantities of zero
 func Zero() *Resources {
 	return &Resources{
-		CPU:    *resource.NewQuantity(0, resource.DecimalSI),
-		Memory: *resource.NewQuantity(0, resource.BinarySI),
+		CPU:       *resource.NewQuantity(0, resource.DecimalSI),
+		Memory:    *resource.NewQuantity(0, resource.BinarySI),
+		NvidiaGPU: *resource.NewQuantity(0, resource.DecimalSI),
 	}
 }
 
@@ -158,13 +164,15 @@ func Zero() *Resources {
 func (r *Resources) AddFromReservation(reservation *v1beta1.Reservation) {
 	r.CPU.Add(reservation.CPU)
 	r.Memory.Add(reservation.Memory)
+	r.NvidiaGPU.Add(reservation.NvidiaGPU)
 }
 
 // Copy returns a clone of the Resources object
 func (r *Resources) Copy() *Resources {
 	return &Resources{
-		CPU:    r.CPU.DeepCopy(),
-		Memory: r.Memory.DeepCopy(),
+		CPU:       r.CPU.DeepCopy(),
+		Memory:    r.Memory.DeepCopy(),
+		NvidiaGPU: r.NvidiaGPU.DeepCopy(),
 	}
 }
 
@@ -172,39 +180,46 @@ func (r *Resources) Copy() *Resources {
 func (r *Resources) Add(other *Resources) {
 	r.CPU.Add(other.CPU)
 	r.Memory.Add(other.Memory)
+	r.NvidiaGPU.Add(other.NvidiaGPU)
 }
 
 //Sub modifies the receiver in place
 func (r *Resources) Sub(other *Resources) {
 	r.CPU.Sub(other.CPU)
 	r.Memory.Sub(other.Memory)
+	r.NvidiaGPU.Sub(other.NvidiaGPU)
 }
 
 // AddFromResourceList modified the receiver in place
 func (r *Resources) AddFromResourceList(resourceList corev1.ResourceList) {
 	r.CPU.Add(resourceList[corev1.ResourceCPU])
 	r.Memory.Add(resourceList[corev1.ResourceMemory])
+	r.NvidiaGPU.Add(resourceList[ResourceNvidiaGPU])
 }
 
 // SetMaxResource modifies the receiver in place to set each resource to the greater value of itself or the corresponding resource in resourceList
 func (r *Resources) SetMaxResource(resourceList corev1.ResourceList) {
 	cpuResource := resourceList[corev1.ResourceCPU]
 	memResource := resourceList[corev1.ResourceMemory]
+	nvidiaGPUResource := resourceList[ResourceNvidiaGPU]
 	if cpuResource.Cmp(r.CPU) > 0 {
 		r.CPU = cpuResource.DeepCopy()
 	}
 	if memResource.Cmp(r.Memory) > 0 {
 		r.Memory = memResource.DeepCopy()
 	}
+	if nvidiaGPUResource.Cmp(r.NvidiaGPU) > 0 {
+		r.NvidiaGPU = nvidiaGPUResource.DeepCopy()
+	}
 }
 
-// GreaterThan returns true if either the CPU or Memory quantities of this object are greater than those
+// GreaterThan returns true if either the CPU or Memory or NvidiaGPU quantities of this object are greater than those
 // of other
 func (r *Resources) GreaterThan(other *Resources) bool {
-	return r.CPU.Cmp(other.CPU) > 0 || r.Memory.Cmp(other.Memory) > 0
+	return r.CPU.Cmp(other.CPU) > 0 || r.Memory.Cmp(other.Memory) > 0 || r.NvidiaGPU.Cmp(other.NvidiaGPU) > 0
 }
 
-// Eq returns true if both CPU and Memory quantities are equal between this Resources object and other
+// Eq returns true if both CPU and Memory and NvidiaGPU quantities are equal between this Resources object and other
 func (r *Resources) Eq(other *Resources) bool {
-	return r.CPU.Cmp(other.CPU) == 0 && r.Memory.Cmp(other.Memory) == 0
+	return r.CPU.Cmp(other.CPU) == 0 && r.Memory.Cmp(other.Memory) == 0 && r.NvidiaGPU.Cmp(other.CPU) == 0
 }
