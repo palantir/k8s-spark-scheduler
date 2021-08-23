@@ -17,8 +17,8 @@ package cache
 import (
 	"context"
 
-	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
-	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
+	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
+	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha2"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	werror "github.com/palantir/witchcraft-go-error"
@@ -32,7 +32,7 @@ type SafeDemandCache struct {
 	*DemandCache
 	demandCRDInitialized atomic.Bool
 	lazyDemandInformer   *crd.LazyDemandInformer
-	demandKubeClient     demandclient.ScalerV1alpha1Interface
+	demandKubeClient     demandclient.ScalerV1alpha2Interface
 	asyncClientConfig    config.AsyncClientConfig
 }
 
@@ -40,7 +40,7 @@ type SafeDemandCache struct {
 // to no-op if demand CRD doesn't exist
 func NewSafeDemandCache(
 	lazyDemandInformer *crd.LazyDemandInformer,
-	demandKubeClient demandclient.ScalerV1alpha1Interface,
+	demandKubeClient demandclient.ScalerV1alpha2Interface,
 	asyncClientConfig config.AsyncClientConfig,
 ) *SafeDemandCache {
 	return &SafeDemandCache{

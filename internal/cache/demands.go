@@ -17,9 +17,9 @@ package cache
 import (
 	"context"
 
-	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
-	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
-	demandinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/scaler/v1alpha1"
+	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
+	demandclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha2"
+	demandinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/scaler/v1alpha2"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,7 +46,7 @@ type DemandCache struct {
 func NewDemandCache(
 	ctx context.Context,
 	demandInformer demandinformers.DemandInformer,
-	demandKubeClient demandclient.ScalerV1alpha1Interface,
+	demandKubeClient demandclient.ScalerV1alpha2Interface,
 	asyncClientConfig config.AsyncClientConfig,
 ) (*DemandCache, error) {
 	ds, err := demandInformer.Lister().List(labels.Everything())
@@ -97,7 +97,7 @@ func (dc *DemandCache) Get(namespace, name string) (*demandapi.Demand, bool) {
 }
 
 type demandClient struct {
-	demandclient.ScalerV1alpha1Interface
+	demandclient.ScalerV1alpha2Interface
 }
 
 func (client *demandClient) Create(ctx context.Context, obj metav1.Object) (metav1.Object, error) {

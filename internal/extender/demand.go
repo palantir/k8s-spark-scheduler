@@ -17,8 +17,9 @@ package extender
 import (
 	"context"
 	"encoding/json"
+	"k8s.io/apimachinery/pkg/api/resource"
 
-	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
+	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
@@ -61,9 +62,12 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 	}
 	units := []demandapi.DemandUnit{
 		{
-			Count:  1,
-			CPU:    executorResources.CPU,
-			Memory: executorResources.Memory,
+			Count: 1,
+			Resources: demandapi.ResourceList{
+				demandapi.ResourceCPU:       executorResources.CPU,
+				demandapi.ResourceMemory:    executorResources.Memory,
+				demandapi.ResourceNvidiaGPU: *resource.NewQuantity(0, resource.BinarySI), // TODO(cbattarbee): Route GPU properly
+			},
 		},
 	}
 	s.createDemand(ctx, executorPod, units)
@@ -160,16 +164,22 @@ func newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit) 
 func demandResources(applicationResources *sparkApplicationResources) []demandapi.DemandUnit {
 	demandUnits := []demandapi.DemandUnit{
 		{
-			Count:  1,
-			CPU:    applicationResources.driverResources.CPU,
-			Memory: applicationResources.driverResources.Memory,
+			Count: 1,
+			Resources: demandapi.ResourceList{
+				demandapi.ResourceCPU:       applicationResources.driverResources.CPU,
+				demandapi.ResourceMemory:    applicationResources.driverResources.Memory,
+				demandapi.ResourceNvidiaGPU: *resource.NewQuantity(0, resource.BinarySI), // TODO(cbattarbee): Route GPU properly
+			},
 		},
 	}
 	if applicationResources.minExecutorCount > 0 {
 		demandUnits = append(demandUnits, demandapi.DemandUnit{
-			Count:  applicationResources.minExecutorCount,
-			CPU:    applicationResources.executorResources.CPU,
-			Memory: applicationResources.executorResources.Memory,
+			Count: applicationResources.minExecutorCount,
+			Resources: demandapi.ResourceList{
+				demandapi.ResourceCPU:       applicationResources.executorResources.CPU,
+				demandapi.ResourceMemory:    applicationResources.executorResources.Memory,
+				demandapi.ResourceNvidiaGPU: *resource.NewQuantity(0, resource.BinarySI), // TODO(cbattarbee): Route GPU properly
+			},
 		})
 	}
 	return demandUnits
