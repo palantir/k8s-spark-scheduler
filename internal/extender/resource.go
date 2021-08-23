@@ -122,6 +122,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 	role := args.Pod.Labels[common.SparkRoleLabel]
 	ctx = svc1log.WithLoggerParams(ctx, svc1log.SafeParams(params))
 	logger := svc1log.FromContext(ctx)
+	logger.Error("We here")
 	instanceGroup, success := internal.FindInstanceGroupFromPodSpec(args.Pod.Spec, s.instanceGroupLabel)
 	if !success {
 		instanceGroup = ""
