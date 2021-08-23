@@ -53,9 +53,6 @@ func init() {
 func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	var kubeconfig *rest.Config
 	var err error
-
-	svc1log.FromContext(ctx).Error("At entry point!")
-
 	install := info.InstallConfig.(config.Install)
 	if install.Kubeconfig != "" {
 		kubeconfig, err = clientcmd.BuildConfigFromFlags("", install.Kubeconfig)
