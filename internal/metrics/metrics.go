@@ -81,7 +81,7 @@ var (
 )
 
 func init() {
-	clientmetrics.Register(&latencyAdapter{}, &resultAdapter{})
+	clientmetrics.Register(clientmetrics.RegisterOpts{})
 }
 
 func tagWithDefault(ctx context.Context, key, value, defaultValue string) metrics.Tag {

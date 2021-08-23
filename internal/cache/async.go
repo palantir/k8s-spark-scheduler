@@ -35,10 +35,10 @@ var (
 // that acts on metav1.Object, asyncClient can be used
 // for multiple k8s resources.
 type Client interface {
-	Create(metav1.Object) (metav1.Object, error)
-	Update(metav1.Object) (metav1.Object, error)
-	Delete(namespace, name string) error
-	Get(namespace, name string) (metav1.Object, error)
+	Create(context.Context, metav1.Object) (metav1.Object, error)
+	Update(context.Context, metav1.Object) (metav1.Object, error)
+	Delete(ctx context.Context, namespace, name string) error
+	Get(ctx context.Context, namespace, name string) (metav1.Object, error)
 }
 
 type asyncClient struct {
@@ -81,7 +81,7 @@ func (ac *asyncClient) doCreate(ctx context.Context, r store.Request) {
 		return
 	}
 	ac.metrics.MarkRequest(ctx, r.Type)
-	result, err := ac.client.Create(obj)
+	result, err := ac.client.Create(ctx, obj)
 	switch {
 	case err == nil:
 		ac.objectStore.OverrideResourceVersionIfNewer(result)
@@ -104,13 +104,13 @@ func (ac *asyncClient) doUpdate(ctx context.Context, r store.Request) {
 	}
 
 	ac.metrics.MarkRequest(ctx, r.Type)
-	result, err := ac.client.Update(obj)
+	result, err := ac.client.Update(ctx, obj)
 	switch {
 	case err == nil:
 		ac.objectStore.OverrideResourceVersionIfNewer(result)
 	case errors.IsConflict(err):
 		svc1log.FromContext(ctx).Warn("got conflict, will try updating resource version", svc1log.Stacktrace(err))
-		newObj, getErr := ac.client.Get(r.Key.Namespace, r.Key.Name)
+		newObj, getErr := ac.client.Get(ctx, r.Key.Namespace, r.Key.Name)
 		switch {
 		case getErr == nil:
 			ac.objectStore.OverrideResourceVersionIfNewer(newObj)
@@ -125,7 +125,7 @@ func (ac *asyncClient) doUpdate(ctx context.Context, r store.Request) {
 
 func (ac *asyncClient) doDelete(ctx context.Context, r store.Request) {
 	ac.metrics.MarkRequest(ctx, r.Type)
-	err := ac.client.Delete(r.Key.Namespace, r.Key.Name)
+	err := ac.client.Delete(ctx, r.Key.Namespace, r.Key.Name)
 	switch {
 	case err == nil:
 		return

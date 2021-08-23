@@ -121,18 +121,18 @@ type resourceReservationClient struct {
 	sparkschedulerclient.SparkschedulerV1beta1Interface
 }
 
-func (client *resourceReservationClient) Create(obj metav1.Object) (metav1.Object, error) {
-	return client.ResourceReservations(obj.GetNamespace()).Create(obj.(*v1beta1.ResourceReservation))
+func (client *resourceReservationClient) Create(ctx context.Context, obj metav1.Object) (metav1.Object, error) {
+	return client.ResourceReservations(obj.GetNamespace()).Create(ctx, obj.(*v1beta1.ResourceReservation), metav1.CreateOptions{})
 }
 
-func (client *resourceReservationClient) Update(obj metav1.Object) (metav1.Object, error) {
-	return client.ResourceReservations(obj.GetNamespace()).Update(obj.(*v1beta1.ResourceReservation))
+func (client *resourceReservationClient) Update(ctx context.Context, obj metav1.Object) (metav1.Object, error) {
+	return client.ResourceReservations(obj.GetNamespace()).Update(ctx, obj.(*v1beta1.ResourceReservation), metav1.UpdateOptions{})
 }
 
-func (client *resourceReservationClient) Delete(namespace, name string) error {
-	return client.ResourceReservations(namespace).Delete(name, nil) // TODO options
+func (client *resourceReservationClient) Delete(ctx context.Context, namespace, name string) error {
+	return client.ResourceReservations(namespace).Delete(ctx, name, metav1.DeleteOptions{})
 }
 
-func (client *resourceReservationClient) Get(namespace, name string) (metav1.Object, error) {
-	return client.ResourceReservations(namespace).Get(name, metav1.GetOptions{})
+func (client *resourceReservationClient) Get(ctx context.Context, namespace, name string) (metav1.Object, error) {
+	return client.ResourceReservations(namespace).Get(ctx, name, metav1.GetOptions{})
 }

@@ -39,7 +39,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
-	schedulerapi "k8s.io/kubernetes/pkg/scheduler/apis/extender/v1"
+	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 )
 
 const (

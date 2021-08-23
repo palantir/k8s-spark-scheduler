@@ -100,18 +100,18 @@ type demandClient struct {
 	demandclient.ScalerV1alpha1Interface
 }
 
-func (client *demandClient) Create(obj metav1.Object) (metav1.Object, error) {
-	return client.Demands(obj.GetNamespace()).Create(obj.(*demandapi.Demand))
+func (client *demandClient) Create(ctx context.Context, obj metav1.Object) (metav1.Object, error) {
+	return client.Demands(obj.GetNamespace()).Create(ctx, obj.(*demandapi.Demand), metav1.CreateOptions{})
 }
 
-func (client *demandClient) Update(obj metav1.Object) (metav1.Object, error) {
-	return client.Demands(obj.GetNamespace()).Update(obj.(*demandapi.Demand))
+func (client *demandClient) Update(ctx context.Context, obj metav1.Object) (metav1.Object, error) {
+	return client.Demands(obj.GetNamespace()).Update(ctx, obj.(*demandapi.Demand), metav1.UpdateOptions{})
 }
 
-func (client *demandClient) Delete(namespace, name string) error {
-	return client.Demands(namespace).Delete(name, nil)
+func (client *demandClient) Delete(ctx context.Context, namespace, name string) error {
+	return client.Demands(namespace).Delete(ctx, name, metav1.DeleteOptions{})
 }
 
-func (client *demandClient) Get(namespace, name string) (metav1.Object, error) {
-	return client.Demands(namespace).Get(name, metav1.GetOptions{})
+func (client *demandClient) Get(ctx context.Context, namespace, name string) (metav1.Object, error) {
+	return client.Demands(namespace).Get(ctx, name, metav1.GetOptions{})
 }
