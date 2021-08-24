@@ -25,7 +25,7 @@ import (
 
 const (
 	zoneLabelPlaceholder                     = "default"
-	ResourceNvidiaGPU    corev1.ResourceName = "nvidia-gpu"
+	ResourceNvidiaGPU    corev1.ResourceName = "nvidia.com/gpu"
 )
 
 // UsageForNodes tallies resource usages per node from the given list of resource reservations

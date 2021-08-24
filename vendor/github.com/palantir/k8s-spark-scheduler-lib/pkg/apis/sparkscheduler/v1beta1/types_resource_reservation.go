@@ -60,7 +60,7 @@ type Reservation struct {
 	Node      string            `json:"node"`
 	CPU       resource.Quantity `json:"cpu"`
 	Memory    resource.Quantity `json:"memory"`
-	NvidiaGPU resource.Quantity `json:"nvidia-gpu,omitempty"`
+	NvidiaGPU resource.Quantity `json:"nvidia.com/gpu,omitempty"`
 }
 
 // ResourceReservationStatus shows which reservations are bound to which pod names
