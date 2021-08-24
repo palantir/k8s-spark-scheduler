@@ -17,8 +17,6 @@ package extender
 import (
 	"context"
 	"encoding/json"
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
@@ -66,7 +64,7 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 			Resources: demandapi.ResourceList{
 				demandapi.ResourceCPU:       executorResources.CPU,
 				demandapi.ResourceMemory:    executorResources.Memory,
-				demandapi.ResourceNvidiaGPU: *resource.NewQuantity(0, resource.BinarySI), // TODO(cbattarbee): Route GPU properly
+				demandapi.ResourceNvidiaGPU: executorResources.NvidiaGPU,
 			},
 		},
 	}
@@ -168,7 +166,7 @@ func demandResources(applicationResources *sparkApplicationResources) []demandap
 			Resources: demandapi.ResourceList{
 				demandapi.ResourceCPU:       applicationResources.driverResources.CPU,
 				demandapi.ResourceMemory:    applicationResources.driverResources.Memory,
-				demandapi.ResourceNvidiaGPU: *resource.NewQuantity(0, resource.BinarySI), // TODO(cbattarbee): Route GPU properly
+				demandapi.ResourceNvidiaGPU: applicationResources.driverResources.NvidiaGPU,
 			},
 		},
 	}
@@ -178,7 +176,7 @@ func demandResources(applicationResources *sparkApplicationResources) []demandap
 			Resources: demandapi.ResourceList{
 				demandapi.ResourceCPU:       applicationResources.executorResources.CPU,
 				demandapi.ResourceMemory:    applicationResources.executorResources.Memory,
-				demandapi.ResourceNvidiaGPU: *resource.NewQuantity(0, resource.BinarySI), // TODO(cbattarbee): Route GPU properly
+				demandapi.ResourceNvidiaGPU: applicationResources.executorResources.NvidiaGPU,
 			},
 		})
 	}
