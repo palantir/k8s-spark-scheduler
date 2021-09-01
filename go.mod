@@ -2,7 +2,7 @@ module github.com/palantir/k8s-spark-scheduler
 
 go 1.14
 
-replace github.com/palantir/k8s-spark-scheduler-lib v0.2.15 => /Volumes/git/programming/go/src/github.com/k8s-spark-scheduler-lib
+replace github.com/palantir/k8s-spark-scheduler-lib v0.2.15 => /Volumes/git/programming/go/src/github.com/palantir/k8s-spark-scheduler-lib
 
 require (
 	github.com/gogo/protobuf v1.3.1 // indirect

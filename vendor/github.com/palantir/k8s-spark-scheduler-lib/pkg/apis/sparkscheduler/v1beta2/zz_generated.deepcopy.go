@@ -13,6 +13,7 @@ func (in *Reservation) DeepCopyInto(out *Reservation) {
 	*out = *in
 	out.CPU = in.CPU.DeepCopy()
 	out.Memory = in.Memory.DeepCopy()
+	out.NvidiaGPU = in.NvidiaGPU.DeepCopy()
 	return
 }
 

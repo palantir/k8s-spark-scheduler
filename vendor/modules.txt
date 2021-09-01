@@ -76,7 +76,7 @@ github.com/palantir/go-encrypted-config-value/encryption
 # github.com/palantir/go-metrics v1.1.0
 ## explicit
 github.com/palantir/go-metrics
-# github.com/palantir/k8s-spark-scheduler-lib v0.2.15 => /Volumes/git/programming/go/src/github.com/k8s-spark-scheduler-lib
+# github.com/palantir/k8s-spark-scheduler-lib v0.2.15 => /Volumes/git/programming/go/src/github.com/palantir/k8s-spark-scheduler-lib
 ## explicit
 github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1
 github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2
@@ -92,6 +92,8 @@ github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed
 github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha2/fake
 github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1
 github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1/fake
+github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta2
+github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta2/fake
 github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions
 github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/internalinterfaces
 github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/scaler
@@ -99,9 +101,11 @@ github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversion
 github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/scaler/v1alpha2
 github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/sparkscheduler
 github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/sparkscheduler/v1beta1
+github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/sparkscheduler/v1beta2
 github.com/palantir/k8s-spark-scheduler-lib/pkg/client/listers/scaler/v1alpha1
 github.com/palantir/k8s-spark-scheduler-lib/pkg/client/listers/scaler/v1alpha2
 github.com/palantir/k8s-spark-scheduler-lib/pkg/client/listers/sparkscheduler/v1beta1
+github.com/palantir/k8s-spark-scheduler-lib/pkg/client/listers/sparkscheduler/v1beta2
 github.com/palantir/k8s-spark-scheduler-lib/pkg/logging
 github.com/palantir/k8s-spark-scheduler-lib/pkg/resources
 # github.com/palantir/pkg v1.0.1

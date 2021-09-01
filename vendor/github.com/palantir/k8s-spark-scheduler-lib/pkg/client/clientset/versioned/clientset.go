@@ -8,6 +8,7 @@ import (
 	scalerv1alpha1 "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha1"
 	scalerv1alpha2 "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha2"
 	sparkschedulerv1beta1 "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1"
+	sparkschedulerv1beta2 "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta2"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -18,6 +19,7 @@ type Interface interface {
 	ScalerV1alpha1() scalerv1alpha1.ScalerV1alpha1Interface
 	ScalerV1alpha2() scalerv1alpha2.ScalerV1alpha2Interface
 	SparkschedulerV1beta1() sparkschedulerv1beta1.SparkschedulerV1beta1Interface
+	SparkschedulerV1beta2() sparkschedulerv1beta2.SparkschedulerV1beta2Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
@@ -27,6 +29,7 @@ type Clientset struct {
 	scalerV1alpha1        *scalerv1alpha1.ScalerV1alpha1Client
 	scalerV1alpha2        *scalerv1alpha2.ScalerV1alpha2Client
 	sparkschedulerV1beta1 *sparkschedulerv1beta1.SparkschedulerV1beta1Client
+	sparkschedulerV1beta2 *sparkschedulerv1beta2.SparkschedulerV1beta2Client
 }
 
 // ScalerV1alpha1 retrieves the ScalerV1alpha1Client
@@ -42,6 +45,11 @@ func (c *Clientset) ScalerV1alpha2() scalerv1alpha2.ScalerV1alpha2Interface {
 // SparkschedulerV1beta1 retrieves the SparkschedulerV1beta1Client
 func (c *Clientset) SparkschedulerV1beta1() sparkschedulerv1beta1.SparkschedulerV1beta1Interface {
 	return c.sparkschedulerV1beta1
+}
+
+// SparkschedulerV1beta2 retrieves the SparkschedulerV1beta2Client
+func (c *Clientset) SparkschedulerV1beta2() sparkschedulerv1beta2.SparkschedulerV1beta2Interface {
+	return c.sparkschedulerV1beta2
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -77,6 +85,10 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
+	cs.sparkschedulerV1beta2, err = sparkschedulerv1beta2.NewForConfig(&configShallowCopy)
+	if err != nil {
+		return nil, err
+	}
 
 	cs.DiscoveryClient, err = discovery.NewDiscoveryClientForConfig(&configShallowCopy)
 	if err != nil {
@@ -92,6 +104,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 	cs.scalerV1alpha1 = scalerv1alpha1.NewForConfigOrDie(c)
 	cs.scalerV1alpha2 = scalerv1alpha2.NewForConfigOrDie(c)
 	cs.sparkschedulerV1beta1 = sparkschedulerv1beta1.NewForConfigOrDie(c)
+	cs.sparkschedulerV1beta2 = sparkschedulerv1beta2.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -103,6 +116,7 @@ func New(c rest.Interface) *Clientset {
 	cs.scalerV1alpha1 = scalerv1alpha1.New(c)
 	cs.scalerV1alpha2 = scalerv1alpha2.New(c)
 	cs.sparkschedulerV1beta1 = sparkschedulerv1beta1.New(c)
+	cs.sparkschedulerV1beta2 = sparkschedulerv1beta2.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs
