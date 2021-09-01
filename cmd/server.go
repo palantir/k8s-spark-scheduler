@@ -107,7 +107,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	podInformer := podInformerInterface.Informer()
 	podLister := podInformerInterface.Lister()
 
-	resourceReservationInformerInterface := sparkSchedulerInformerFactory.Sparkscheduler().V1beta1().ResourceReservations()
+	resourceReservationInformerInterface := sparkSchedulerInformerFactory.Sparkscheduler().V1beta2().ResourceReservations()
 	resourceReservationInformer := resourceReservationInformerInterface.Informer()
 	resourceReservationLister := resourceReservationInformerInterface.Lister()
 
@@ -137,7 +137,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	resourceReservationCache, err := cache.NewResourceReservationCache(
 		ctx,
 		resourceReservationInformerInterface,
-		sparkSchedulerClient.SparkschedulerV1beta1(),
+		sparkSchedulerClient.SparkschedulerV1beta2(),
 		install.AsyncClientConfig,
 	)
 
