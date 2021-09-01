@@ -16,10 +16,10 @@ package crd
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	"reflect"
 	"time"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	werror "github.com/palantir/witchcraft-go-error"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -60,8 +60,9 @@ func verifyCRD(existing, desired *apiextensionsv1beta1.CustomResourceDefinition)
 
 // EnsureResourceReservationsCRD is responsible for creating and ensuring the ResourceReservation CRD
 // is created
+// TODO(cbattarbee): Look if we need to think about creating v1 here too?
 func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, annotations map[string]string) error {
-	crd := v1beta1.ResourceReservationCustomResourceDefinition()
+	crd := v1beta2.ResourceReservationCustomResourceDefinition()
 	if crd.Annotations == nil {
 		crd.Annotations = make(map[string]string)
 	}
@@ -98,7 +99,7 @@ func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, a
 		if err != nil {
 			return false, err
 		}
-		return ready && verifyCRD(existing, v1beta1.ResourceReservationCustomResourceDefinition()), nil
+		return ready && verifyCRD(existing, v1beta2.ResourceReservationCustomResourceDefinition()), nil
 	})
 
 	if err != nil {

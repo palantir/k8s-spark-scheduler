@@ -20,7 +20,7 @@ import (
 	"math"
 	"sync"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/logging"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
@@ -76,7 +76,7 @@ func NewResourceReservationManager(
 }
 
 // GetResourceReservation returns the resource reservation for the passed pod, if any.
-func (rrm *ResourceReservationManager) GetResourceReservation(appID string, namespace string) (*v1beta1.ResourceReservation, bool) {
+func (rrm *ResourceReservationManager) GetResourceReservation(appID string, namespace string) (*v1beta2.ResourceReservation, bool) {
 	return rrm.resourceReservations.Get(namespace, appID)
 }
 
@@ -107,7 +107,7 @@ func (rrm *ResourceReservationManager) CreateReservations(
 	driver *v1.Pod,
 	applicationResources *sparkApplicationResources,
 	driverNode string,
-	executorNodes []string) (*v1beta1.ResourceReservation, error) {
+	executorNodes []string) (*v1beta2.ResourceReservation, error) {
 	rr, ok := rrm.GetResourceReservation(driver.Labels[common.SparkAppIDLabel], driver.Namespace)
 	if !ok {
 		rr = newResourceReservation(driverNode, executorNodes, driver, applicationResources.driverResources, applicationResources.executorResources)
@@ -341,7 +341,7 @@ func (rrm *ResourceReservationManager) bindExecutorToSoftReservation(ctx context
 	if err != nil {
 		return err
 	}
-	softReservation := v1beta1.Reservation{
+	softReservation := v1beta2.Reservation{
 		Node:      node,
 		CPU:       sparkResources.executorResources.CPU,
 		Memory:    sparkResources.executorResources.Memory,
@@ -430,35 +430,35 @@ func (rrm *ResourceReservationManager) addPodForDynamicAllocationCompaction(pod 
 }
 
 // newResourceReservation builds a reservation object with the pods and resources passed and returns it.
-func newResourceReservation(driverNode string, executorNodes []string, driver *v1.Pod, driverResources, executorResources *resources.Resources) *v1beta1.ResourceReservation {
-	reservations := make(map[string]v1beta1.Reservation, len(executorNodes)+1)
-	reservations["driver"] = v1beta1.Reservation{
+func newResourceReservation(driverNode string, executorNodes []string, driver *v1.Pod, driverResources, executorResources *resources.Resources) *v1beta2.ResourceReservation {
+	reservations := make(map[string]v1beta2.Reservation, len(executorNodes)+1)
+	reservations["driver"] = v1beta2.Reservation{
 		Node:      driverNode,
 		CPU:       driverResources.CPU,
 		Memory:    driverResources.Memory,
 		NvidiaGPU: driverResources.NvidiaGPU,
 	}
 	for idx, nodeName := range executorNodes {
-		reservations[executorReservationName(idx)] = v1beta1.Reservation{
+		reservations[executorReservationName(idx)] = v1beta2.Reservation{
 			Node:      nodeName,
 			CPU:       executorResources.CPU,
 			NvidiaGPU: driverResources.NvidiaGPU,
 			Memory:    executorResources.Memory,
 		}
 	}
-	return &v1beta1.ResourceReservation{
+	return &v1beta2.ResourceReservation{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            driver.Labels[common.SparkAppIDLabel],
 			Namespace:       driver.Namespace,
 			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(driver, podGroupVersionKind)},
 			Labels: map[string]string{
-				v1beta1.AppIDLabel: driver.Labels[common.SparkAppIDLabel],
+				v1beta2.AppIDLabel: driver.Labels[common.SparkAppIDLabel],
 			},
 		},
-		Spec: v1beta1.ResourceReservationSpec{
+		Spec: v1beta2.ResourceReservationSpec{
 			Reservations: reservations,
 		},
-		Status: v1beta1.ResourceReservationStatus{
+		Status: v1beta2.ResourceReservationStatus{
 			Pods: map[string]string{"driver": driver.Name},
 		},
 	}

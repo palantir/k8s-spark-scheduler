@@ -16,10 +16,10 @@ package cache
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
-	sparkschedulerclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1"
-	rrinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/sparkscheduler/v1beta1"
+	sparkschedulerclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta2"
+	rrinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/sparkscheduler/v1beta2"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache/store"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,7 +38,7 @@ const (
 // resource reservations. Any external update and creation will be
 // ignored, but deletions will be reflected in the cache.
 type ResourceReservationCache struct {
-	client      sparkschedulerclient.SparkschedulerV1beta1Interface
+	client      sparkschedulerclient.SparkschedulerV1beta2Interface
 	cache       *cache
 	asyncClient *asyncClient
 }
@@ -47,7 +47,7 @@ type ResourceReservationCache struct {
 func NewResourceReservationCache(
 	ctx context.Context,
 	resourceReservationInformer rrinformers.ResourceReservationInformer,
-	resourceReservationKubeClient sparkschedulerclient.SparkschedulerV1beta1Interface,
+	resourceReservationKubeClient sparkschedulerclient.SparkschedulerV1beta2Interface,
 	asyncClientConfig config.AsyncClientConfig,
 ) (*ResourceReservationCache, error) {
 	rrs, err := resourceReservationInformer.Lister().List(labels.Everything())
@@ -79,12 +79,12 @@ func (rrc *ResourceReservationCache) Run(ctx context.Context) {
 }
 
 // Create enqueues a creation request and puts the object into the store
-func (rrc *ResourceReservationCache) Create(rr *v1beta1.ResourceReservation) error {
+func (rrc *ResourceReservationCache) Create(rr *v1beta2.ResourceReservation) error {
 	return rrc.cache.Create(rr)
 }
 
 // Update enqueues an update request and updates the object in store
-func (rrc *ResourceReservationCache) Update(rr *v1beta1.ResourceReservation) error {
+func (rrc *ResourceReservationCache) Update(rr *v1beta2.ResourceReservation) error {
 	return rrc.cache.Update(rr)
 }
 
@@ -94,20 +94,20 @@ func (rrc *ResourceReservationCache) Delete(namespace, name string) {
 }
 
 // Get returns the object from the store if it exists
-func (rrc *ResourceReservationCache) Get(namespace, name string) (*v1beta1.ResourceReservation, bool) {
+func (rrc *ResourceReservationCache) Get(namespace, name string) (*v1beta2.ResourceReservation, bool) {
 	obj, ok := rrc.cache.Get(namespace, name)
 	if !ok {
 		return nil, false
 	}
-	return obj.(*v1beta1.ResourceReservation), true
+	return obj.(*v1beta2.ResourceReservation), true
 }
 
 // List returns all known objects in the store
-func (rrc *ResourceReservationCache) List() []*v1beta1.ResourceReservation {
+func (rrc *ResourceReservationCache) List() []*v1beta2.ResourceReservation {
 	objects := rrc.cache.List()
-	res := make([]*v1beta1.ResourceReservation, 0, len(objects))
+	res := make([]*v1beta2.ResourceReservation, 0, len(objects))
 	for _, o := range objects {
-		res = append(res, o.(*v1beta1.ResourceReservation))
+		res = append(res, o.(*v1beta2.ResourceReservation))
 	}
 	return res
 }
@@ -118,15 +118,15 @@ func (rrc *ResourceReservationCache) InflightQueueLengths() []int {
 }
 
 type resourceReservationClient struct {
-	sparkschedulerclient.SparkschedulerV1beta1Interface
+	sparkschedulerclient.SparkschedulerV1beta2Interface
 }
 
 func (client *resourceReservationClient) Create(ctx context.Context, obj metav1.Object) (metav1.Object, error) {
-	return client.ResourceReservations(obj.GetNamespace()).Create(ctx, obj.(*v1beta1.ResourceReservation), metav1.CreateOptions{})
+	return client.ResourceReservations(obj.GetNamespace()).Create(ctx, obj.(*v1beta2.ResourceReservation), metav1.CreateOptions{})
 }
 
 func (client *resourceReservationClient) Update(ctx context.Context, obj metav1.Object) (metav1.Object, error) {
-	return client.ResourceReservations(obj.GetNamespace()).Update(ctx, obj.(*v1beta1.ResourceReservation), metav1.UpdateOptions{})
+	return client.ResourceReservations(obj.GetNamespace()).Update(ctx, obj.(*v1beta2.ResourceReservation), metav1.UpdateOptions{})
 }
 
 func (client *resourceReservationClient) Delete(ctx context.Context, namespace, name string) error {

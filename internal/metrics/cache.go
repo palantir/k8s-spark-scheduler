@@ -19,8 +19,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
-	sparkschedulerlisters "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/listers/sparkscheduler/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
+	sparkschedulerlisters "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/listers/sparkscheduler/v1beta2"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -110,7 +110,7 @@ func (c *CacheMetrics) emitDemandMetrics(ctx context.Context) {
 	}
 }
 
-func reportDifference(ctx context.Context, cached, actual []*v1beta1.ResourceReservation) {
+func reportDifference(ctx context.Context, cached, actual []*v1beta2.ResourceReservation) {
 	cachedMap := toMap(cached)
 	for _, rr := range actual {
 		if _, ok := cachedMap[rr.UID]; !ok {
@@ -125,15 +125,15 @@ func reportDifference(ctx context.Context, cached, actual []*v1beta1.ResourceRes
 	}
 }
 
-func toMap(rrs []*v1beta1.ResourceReservation) map[types.UID]*v1beta1.ResourceReservation {
-	res := make(map[types.UID]*v1beta1.ResourceReservation, len(rrs))
+func toMap(rrs []*v1beta2.ResourceReservation) map[types.UID]*v1beta2.ResourceReservation {
+	res := make(map[types.UID]*v1beta2.ResourceReservation, len(rrs))
 	for _, rr := range rrs {
 		res[rr.UID] = rr
 	}
 	return res
 }
 
-func rrParams(rr *v1beta1.ResourceReservation) svc1log.Param {
+func rrParams(rr *v1beta2.ResourceReservation) svc1log.Param {
 	return svc1log.SafeParams(map[string]interface{}{
 		"resourceReservationName":      rr.Name,
 		"resourceReservationNamespace": rr.Namespace,
