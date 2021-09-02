@@ -21,7 +21,7 @@ import (
 	"time"
 
 	werror "github.com/palantir/witchcraft-go-error"
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,8 +29,8 @@ import (
 )
 
 // CheckCRDExists checks if the given crd exists and is established
-func CheckCRDExists(crdName string, clientset apiextensionsclientset.Interface) (*apiextensionsv1beta1.CustomResourceDefinition, bool, error) {
-	crd, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.Background(), crdName, metav1.GetOptions{})
+func CheckCRDExists(crdName string, clientset apiextensionsclientset.Interface) (*v1.CustomResourceDefinition, bool, error) {
+	crd, err := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(context.Background(), crdName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil, false, nil
@@ -38,23 +38,23 @@ func CheckCRDExists(crdName string, clientset apiextensionsclientset.Interface) 
 		return nil, false, err
 	}
 	for _, cond := range crd.Status.Conditions {
-		if cond.Type == apiextensionsv1beta1.Established && cond.Status == apiextensionsv1beta1.ConditionTrue {
+		if cond.Type == v1.Established && cond.Status == v1.ConditionTrue {
 			return crd, true, nil
 		}
 	}
 	return crd, false, nil
 }
 
-func getStorageVersion(crd *apiextensionsv1beta1.CustomResourceDefinition) string {
+func getStorageVersion(crd *v1.CustomResourceDefinition) string {
 	for _, crdVersion := range crd.Spec.Versions {
 		if crdVersion.Storage {
 			return crdVersion.Name
 		}
 	}
-	return crd.Spec.Version
+	return crd.Spec.Versions[0].Name
 }
 
-func verifyCRD(existing, desired *apiextensionsv1beta1.CustomResourceDefinition) bool {
+func verifyCRD(existing, desired *v1.CustomResourceDefinition) bool {
 	return getStorageVersion(existing) == getStorageVersion(desired) && reflect.DeepEqual(existing.Annotations, desired.Annotations)
 }
 
@@ -62,7 +62,7 @@ func verifyCRD(existing, desired *apiextensionsv1beta1.CustomResourceDefinition)
 // is created
 // TODO(cbattarbee): Look if we need to think about creating v1 here too?
 func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, annotations map[string]string) error {
-	crd := v1beta2.ResourceReservationCustomResourceDefinition()
+	crd := v1beta2.ResourceReservationCustomResourceDefinitionBase()
 	if crd.Annotations == nil {
 		crd.Annotations = make(map[string]string)
 	}
@@ -76,7 +76,7 @@ func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, a
 	if ready && verifyCRD(existing, crd) {
 		return nil
 	}
-	_, err = clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(context.Background(), crd, metav1.CreateOptions{})
+	_, err = clientset.ApiextensionsV1().CustomResourceDefinitions().Create(context.Background(), crd, metav1.CreateOptions{})
 	if err != nil {
 		if errors.IsAlreadyExists(err) {
 			existing, getErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.Background(), crd.Name, metav1.GetOptions{})
@@ -85,7 +85,7 @@ func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, a
 			}
 			copyCrd := crd.DeepCopy()
 			copyCrd.ResourceVersion = existing.ResourceVersion
-			_, updateErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Update(context.Background(), copyCrd, metav1.UpdateOptions{})
+			_, updateErr := clientset.ApiextensionsV1().CustomResourceDefinitions().Update(context.Background(), copyCrd, metav1.UpdateOptions{})
 			if updateErr != nil {
 				return werror.Wrap(updateErr, "Failed to update CRD")
 			}
@@ -99,11 +99,11 @@ func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, a
 		if err != nil {
 			return false, err
 		}
-		return ready && verifyCRD(existing, v1beta2.ResourceReservationCustomResourceDefinition()), nil
+		return ready && verifyCRD(existing, v1beta2.ResourceReservationCustomResourceDefinitionBase()), nil
 	})
 
 	if err != nil {
-		deleteErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Delete(context.Background(), crd.Name, metav1.DeleteOptions{})
+		deleteErr := clientset.ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), crd.Name, metav1.DeleteOptions{})
 		if deleteErr != nil {
 			return werror.Wrap(deleteErr, err.Error())
 		}
