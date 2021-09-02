@@ -58,6 +58,7 @@ var v1beta1VersionDefinition = v1.CustomResourceDefinitionVersion{
 							Type: "object",
 							AdditionalProperties: &v1.JSONSchemaPropsOrBool{
 								Schema: &v1.JSONSchemaProps{
+									Type:     "object",
 									Required: []string{"node", "cpu", "memory"},
 									Properties: map[string]v1.JSONSchemaProps{
 										"node": {
@@ -105,4 +106,9 @@ var resourceReservationDefinition = &v1.CustomResourceDefinition{
 // ResourceReservationCustomResourceDefinition returns the CRD definition for resource reservations
 func ResourceReservationCustomResourceDefinition() *v1.CustomResourceDefinition {
 	return resourceReservationDefinition.DeepCopy()
+}
+
+// ResourceReservationCustomResourceDefinitionVersion returns the CustomResourceDefinitionVersion for the demand resource
+func ResourceReservationCustomResourceDefinitionVersion() v1.CustomResourceDefinitionVersion {
+	return v1beta1VersionDefinition
 }

@@ -46,6 +46,7 @@ var v1beta2VersionDefinition = v1.CustomResourceDefinitionVersion{
 							Type: "object",
 							AdditionalProperties: &v1.JSONSchemaPropsOrBool{
 								Schema: &v1.JSONSchemaProps{
+									Type:     "object",
 									Required: []string{"node", "cpu", "memory", "nvidia.com/gpu"},
 									Properties: map[string]v1.JSONSchemaProps{
 										"node": {
