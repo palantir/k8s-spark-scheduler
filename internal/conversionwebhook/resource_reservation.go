@@ -6,7 +6,7 @@ import (
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-server/config"
 	"github.com/palantir/witchcraft-go-server/wrouter"
-	"io/ioutil"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"path/filepath"
 
@@ -41,15 +41,9 @@ func InitializeCRDConversionWebhook(
 		return nil, err
 	}
 
-	caBundle, err := ioutil.ReadFile(server.ClientCAFiles[0])
-	if err != nil {
-		return nil, werror.WrapWithContextParams(ctx, err, "failed to read CA bundle from file")
-	}
-
 	path := filepath.Join(server.ContextPath, webhookPath)
 	port := int32(server.Port)
 	return &apiextensionsv1.WebhookClientConfig{
-		CABundle: caBundle,
 		Service: &apiextensionsv1.ServiceReference{
 			Namespace: "spark",
 			Name:      "spark-scheduler",
