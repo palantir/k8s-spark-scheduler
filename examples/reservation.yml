@@ -1,0 +1,32 @@
+  apiVersion: sparkscheduler.palantir.com/v1beta1
+  kind: ResourceReservation
+  metadata:
+    creationTimestamp: "2021-09-14T18:51:49Z"
+    generation: 1
+    labels:
+      app-id: "4"
+    name: "4"
+    namespace: default
+    ownerReferences:
+      - apiVersion: v1
+        blockOwnerDeletion: true
+        controller: true
+        kind: Pod
+        name: test-driver-3
+        uid: 83bab17d-ad47-4dde-a347-fcb821f4bdbd
+    resourceVersion: "2032811"
+    uid: dc4aac21-6e31-436e-9d36-1668d3120822
+  spec:
+    reservations:
+      driver:
+        cpu: "1"
+        memory: 100M
+        node: minikube
+      executor-1:
+        cpu: "1"
+        memory: 100M
+        node: minikube
+  status:
+    pods:
+      driver: test-driver-3
+      executor-1: test-executor-3-1

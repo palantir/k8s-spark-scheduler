@@ -43,13 +43,10 @@ func InitializeCRDConversionWebhook(
 
 	path := filepath.Join(server.ContextPath, webhookPath)
 	port := int32(server.Port)
+	url := "https://localhost:" + string(port) + path
+
 	return &apiextensionsv1.WebhookClientConfig{
-		Service: &apiextensionsv1.ServiceReference{
-			Namespace: "spark",
-			Name:      "spark-scheduler",
-			Path:      &path,
-			Port:      &port,
-		},
+		URL: &url,
 	}, nil
 }
 
