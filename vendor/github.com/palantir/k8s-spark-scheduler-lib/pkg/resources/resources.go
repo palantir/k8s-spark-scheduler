@@ -18,14 +18,14 @@ import (
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 const (
-	zoneLabelPlaceholder                     = "default"
-	ResourceNvidiaGPU    corev1.ResourceName = "nvidia.com/gpu"
+	zoneLabelPlaceholder = "default"
+	// ResourceNvidiaGPU is the name of the nvidia gpu resource
+	ResourceNvidiaGPU corev1.ResourceName = "nvidia.com/gpu"
 )
 
 // UsageForNodes tallies resource usages per node from the given list of resource reservations
