@@ -16,6 +16,7 @@ package crd
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	"reflect"
 	"time"
@@ -61,8 +62,10 @@ func verifyCRD(existing, desired *v1.CustomResourceDefinition) bool {
 // EnsureResourceReservationsCRD is responsible for creating and ensuring the ResourceReservation CRD
 // is created
 // TODO(cbattarbee): Look if we need to think about creating v1 here too?
-func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, annotations map[string]string) error {
-	crd := v1beta2.ResourceReservationCustomResourceDefinitionBase()
+func EnsureResourceReservationsCRD(
+	webhookClientConfig *v1.WebhookClientConfig,
+	clientset apiextensionsclientset.Interface, annotations map[string]string) error {
+	crd := v1beta2.ResourceReservationCustomResourceDefinition(webhookClientConfig, v1beta1.ResourceReservationCustomResourceDefinitionVersion())
 	if crd.Annotations == nil {
 		crd.Annotations = make(map[string]string)
 	}
@@ -99,7 +102,7 @@ func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, a
 		if err != nil {
 			return false, err
 		}
-		return ready && verifyCRD(existing, v1beta2.ResourceReservationCustomResourceDefinitionBase()), nil
+		return ready && verifyCRD(existing, v1beta2.ResourceReservationCustomResourceDefinition(webhookClientConfig, v1beta1.ResourceReservationCustomResourceDefinitionVersion())), nil
 	})
 
 	if err != nil {

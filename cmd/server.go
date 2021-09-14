@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/conversionwebhook"
 	"time"
 
 	clientset "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned"
@@ -90,7 +91,12 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		svc1log.FromContext(ctx).Error("Error building api extensions clientset: %s", svc1log.Stacktrace(err))
 		return nil, err
 	}
-	err = crd.EnsureResourceReservationsCRD(apiExtensionsClient, install.ResourceReservationCRDAnnotations)
+	webhookClientConfig, err := conversionwebhook.InitializeCRDConversionWebhook(ctx, info.Router, install.Server)
+	if err != nil {
+		svc1log.FromContext(ctx).Error("Error instantiating CRD conversion webhook: %s", svc1log.Stacktrace(err))
+		return nil, err
+	}
+	err = crd.EnsureResourceReservationsCRD(webhookClientConfig, apiExtensionsClient, install.ResourceReservationCRDAnnotations)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error ensuring resource reservations CRD exists: %s", svc1log.Stacktrace(err))
 		return nil, err
