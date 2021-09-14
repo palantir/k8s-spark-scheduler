@@ -28,6 +28,7 @@ require (
 	k8s.io/client-go v0.18.8
 	k8s.io/kube-scheduler v0.0.0
 	k8s.io/kubernetes v1.18.8
+	sigs.k8s.io/controller-runtime v0.6.4
 )
 
 // k8s.io/kubernetes sets these to v0.0.0, replace them with the current
