@@ -108,7 +108,7 @@ func ResourceReservationCustomResourceDefinition() *v1.CustomResourceDefinition 
 	return resourceReservationDefinition.DeepCopy()
 }
 
-// ResourceReservationCustomResourceDefinitionVersion returns the CustomResourceDefinitionVersion for the demand resource
+// ResourceReservationCustomResourceDefinitionVersion returns the CustomResourceDefinitionVersion for resource reservations
 func ResourceReservationCustomResourceDefinitionVersion() v1.CustomResourceDefinitionVersion {
 	return v1beta1VersionDefinition
 }

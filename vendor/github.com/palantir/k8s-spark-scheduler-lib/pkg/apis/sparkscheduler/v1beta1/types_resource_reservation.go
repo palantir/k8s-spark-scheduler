@@ -15,6 +15,8 @@
 package v1beta1
 
 import (
+	"encoding/json"
+
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -61,6 +63,18 @@ type Reservation struct {
 	CPU       resource.Quantity `json:"cpu"`
 	Memory    resource.Quantity `json:"memory"`
 	NvidiaGPU resource.Quantity `json:"nvidia.com/gpu,omitempty"`
+}
+
+// UnmarshalJSON is a custom unmarshal function which makes sure that the NvidiaGPU resource is set correctly.
+// It will set the correct format for the resource even if it is omitted from the json.
+func (in *Reservation) UnmarshalJSON(data []byte) error {
+	// This type is so that we can use the default unmarshalling for all fields apart from NvidiaGPU
+	type InnerReservation Reservation
+	if err := json.Unmarshal(data, &*(*InnerReservation)(in)); err != nil {
+		return err
+	}
+	in.NvidiaGPU = *resource.NewQuantity(in.NvidiaGPU.Value(), resource.DecimalSI)
+	return nil
 }
 
 // ResourceReservationStatus shows which reservations are bound to which pod names

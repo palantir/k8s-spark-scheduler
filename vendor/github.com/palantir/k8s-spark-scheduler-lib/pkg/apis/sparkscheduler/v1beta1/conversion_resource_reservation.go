@@ -19,6 +19,7 @@ import (
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	werror "github.com/palantir/witchcraft-go-error"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
@@ -41,10 +42,12 @@ func (rr *ResourceReservation) ConvertTo(dstRaw conversion.Hub) error {
 	dst.Spec.Reservations = make(map[string]v1beta2.Reservation, len(rr.Spec.Reservations))
 	for key, value := range rr.Spec.Reservations {
 		dst.Spec.Reservations[key] = v1beta2.Reservation{
-			Node:      value.Node,
-			CPU:       value.CPU,
-			Memory:    value.Memory,
-			NvidiaGPU: value.NvidiaGPU,
+			Node:   value.Node,
+			CPU:    value.CPU,
+			Memory: value.Memory,
+			// In the event that NvidiaGPU is not explicitly set, we won't have a format, so we need to explicitly
+			// create a new quantity with the desired format
+			NvidiaGPU: *resource.NewQuantity(value.NvidiaGPU.Value(), resource.DecimalSI),
 		}
 	}
 	return nil
