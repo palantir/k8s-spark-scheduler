@@ -5,7 +5,6 @@ go 1.14
 replace github.com/palantir/k8s-spark-scheduler-lib v0.2.15 => /Volumes/git/programming/go/src/github.com/palantir/k8s-spark-scheduler-lib
 
 require (
-	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/golang/groupcache v0.0.0-20191227052852-215e87163ea7 // indirect
 	github.com/palantir/go-metrics v1.1.0
 	github.com/palantir/k8s-spark-scheduler-lib v0.2.15
@@ -21,7 +20,6 @@ require (
 	github.com/spf13/cobra v0.0.5
 	go.uber.org/atomic v1.6.0
 	google.golang.org/genproto v0.0.0-20200115191322-ca5a22157cba // indirect
-	google.golang.org/grpc v1.26.0 // indirect
 	k8s.io/api v0.18.8
 	k8s.io/apiextensions-apiserver v0.18.8
 	k8s.io/apimachinery v0.18.8

@@ -16,21 +16,20 @@ package extender
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
-	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
-
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
 )
 
 const (
@@ -164,6 +163,6 @@ func (u *UnschedulablePodMarker) markPodClusterCapacityStatus(ctx context.Contex
 		return nil
 	}
 
-	_, err := u.coreClient.Pods(driver.Namespace).UpdateStatus(ctx, driver, v12.UpdateOptions{})
+	_, err := u.coreClient.Pods(driver.Namespace).UpdateStatus(ctx, driver, metav1.UpdateOptions{})
 	return err
 }
