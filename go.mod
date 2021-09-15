@@ -1,6 +1,6 @@
 module github.com/palantir/k8s-spark-scheduler
 
-go 1.14
+go 1.16
 
 require (
 	github.com/gogo/protobuf v1.3.1 // indirect
