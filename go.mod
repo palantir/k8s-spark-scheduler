@@ -3,32 +3,24 @@ module github.com/palantir/k8s-spark-scheduler
 go 1.14
 
 require (
-	github.com/gogo/protobuf v1.3.1 // indirect
-	github.com/golang/groupcache v0.0.0-20191227052852-215e87163ea7 // indirect
-	github.com/imdario/mergo v0.3.6 // indirect
-	github.com/palantir/go-metrics v1.1.0
-	github.com/palantir/k8s-spark-scheduler-lib v0.2.9
+	github.com/palantir/go-metrics v1.1.1
+	github.com/palantir/k8s-spark-scheduler-lib v0.2.15
 	github.com/palantir/pkg/cobracli v1.0.1
-	github.com/palantir/pkg/metrics v1.0.1
+	github.com/palantir/pkg/metrics v1.2.0
 	github.com/palantir/pkg/retry v1.1.1
 	github.com/palantir/pkg/signals v1.0.1
-	github.com/palantir/witchcraft-go-error v1.3.0
-	github.com/palantir/witchcraft-go-logging v1.7.0
-	github.com/palantir/witchcraft-go-server v1.27.0
+	github.com/palantir/witchcraft-go-error v1.5.0
+	github.com/palantir/witchcraft-go-logging v1.16.0
+	github.com/palantir/witchcraft-go-server v1.30.0
 	github.com/prometheus/client_golang v1.1.0 // indirect
-	github.com/prometheus/client_model v0.1.0 // indirect
 	github.com/prometheus/common v0.8.0 // indirect
-	github.com/prometheus/procfs v0.0.8 // indirect
-	github.com/spf13/cobra v0.0.5
-	go.uber.org/atomic v1.6.0
-	google.golang.org/genproto v0.0.0-20200115191322-ca5a22157cba // indirect
-	google.golang.org/grpc v1.26.0 // indirect
-	k8s.io/api v0.17.6
-	k8s.io/apiextensions-apiserver v0.17.6
-	k8s.io/apimachinery v0.17.6
-	k8s.io/client-go v0.17.6
+	github.com/spf13/cobra v1.2.1
+	go.uber.org/atomic v1.7.0
+	k8s.io/api v0.20.9
+	k8s.io/apiextensions-apiserver v0.20.9
+	k8s.io/apimachinery v0.20.9
+	k8s.io/client-go v0.20.9
 	k8s.io/kubernetes v1.17.6
-	k8s.io/utils v0.0.0-20200109141947-94aeca20bf09 // indirect
 )
 
 // k8s.io/kubernetes sets these to v0.0.0, replace them with the current

@@ -1,0 +1,19 @@
+go mod operation failed. This may mean that there are legitimate dependency issues with the "go.mod" definition in the repository and the updates performed by the gomod check. This branch can be cloned locally to debug the issue.
+
+Command that caused error:
+./godelw mod
+
+Output:
+go: finding module for package google.golang.org/grpc/examples/helloworld/helloworld
+go: finding module for package google.golang.org/grpc/naming
+go: found google.golang.org/grpc/examples/helloworld/helloworld in google.golang.org/grpc/examples v0.0.0-20210915223801-7cf9689be2d2
+go: finding module for package google.golang.org/grpc/naming
+github.com/palantir/k8s-spark-scheduler/internal/extender imports
+	k8s.io/kubernetes/pkg/scheduler/algorithm/predicates imports
+	k8s.io/kubernetes/pkg/scheduler/volumebinder imports
+	k8s.io/kubernetes/pkg/controller/volume/scheduling imports
+	k8s.io/apiserver/pkg/storage/etcd3 tested by
+	k8s.io/apiserver/pkg/storage/etcd3.test imports
+	go.etcd.io/etcd/integration imports
+	go.etcd.io/etcd/proxy/grpcproxy imports
+	google.golang.org/grpc/naming: module google.golang.org/grpc@latest found (v1.40.0), but does not contain package google.golang.org/grpc/naming
