@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package v1beta1
+package v1beta2
 
 import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler"
@@ -22,7 +22,7 @@ import (
 )
 
 // SchemeGroupVersion represents the kubernetes GroupVersion
-var SchemeGroupVersion = schema.GroupVersion{Group: sparkscheduler.GroupName, Version: "v1beta1"}
+var SchemeGroupVersion = schema.GroupVersion{Group: sparkscheduler.GroupName, Version: "v1beta2"}
 
 // Resource returns the GroupResource for a given resource
 func Resource(resource string) schema.GroupResource {
@@ -30,7 +30,7 @@ func Resource(resource string) schema.GroupResource {
 }
 
 var (
-	// SchemeBuilder is the SchemeBuilder instance for the v1beta1 group
+	// SchemeBuilder is the SchemeBuilder instance for the v1beta2 group
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 	// AddToScheme applies all the stored functions to the scheme. A non-nil error
 	// indicates that one function failed and the attempt was abandoned.

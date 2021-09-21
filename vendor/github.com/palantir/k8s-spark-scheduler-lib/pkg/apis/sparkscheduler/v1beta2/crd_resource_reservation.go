@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package v1beta1
+package v1beta2
 
 import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler"
@@ -20,8 +20,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var v1beta1VersionDefinition = v1.CustomResourceDefinitionVersion{
-	Name:    "v1beta1",
+var v1beta2VersionDefinition = v1.CustomResourceDefinitionVersion{
+	Name:    "v1beta2",
 	Served:  true,
 	Storage: true,
 	AdditionalPrinterColumns: []v1.CustomResourceColumnDefinition{{
@@ -58,16 +58,25 @@ var v1beta1VersionDefinition = v1.CustomResourceDefinitionVersion{
 							AdditionalProperties: &v1.JSONSchemaPropsOrBool{
 								Schema: &v1.JSONSchemaProps{
 									Type:     "object",
-									Required: []string{"node", "cpu", "memory"},
+									Required: []string{"node", "resources"},
 									Properties: map[string]v1.JSONSchemaProps{
 										"node": {
 											Type: "string",
 										},
-										"cpu": {
-											Type: "string",
-										},
-										"memory": {
-											Type: "string",
+										"resources": {
+											Type:     "object",
+											Required: []string{string(ResourceCPU), string(ResourceMemory)},
+											Properties: map[string]v1.JSONSchemaProps{
+												string(ResourceCPU): {
+													Type: "string",
+												},
+												string(ResourceMemory): {
+													Type: "string",
+												},
+											},
+											AdditionalProperties: &v1.JSONSchemaPropsOrBool{
+												Schema: &v1.JSONSchemaProps{Type: "string"},
+											},
 										},
 									},
 								},
@@ -87,7 +96,7 @@ var resourceReservationDefinition = &v1.CustomResourceDefinition{
 	Spec: v1.CustomResourceDefinitionSpec{
 		Group: sparkscheduler.GroupName,
 		Versions: []v1.CustomResourceDefinitionVersion{
-			v1beta1VersionDefinition,
+			v1beta2VersionDefinition,
 		},
 		Scope: v1.NamespaceScoped,
 		Names: v1.CustomResourceDefinitionNames{
@@ -96,15 +105,23 @@ var resourceReservationDefinition = &v1.CustomResourceDefinition{
 			ShortNames: []string{"rr"},
 			Categories: []string{"all"},
 		},
+		Conversion: &v1.CustomResourceConversion{
+			Strategy: v1.WebhookConverter,
+			Webhook: &v1.WebhookConversion{
+				ConversionReviewVersions: []string{"v1", "v1beta1"},
+				ClientConfig:             nil,
+			},
+		},
 	},
 }
 
 // ResourceReservationCustomResourceDefinition returns the CRD definition for resource reservations
-func ResourceReservationCustomResourceDefinition() *v1.CustomResourceDefinition {
-	return resourceReservationDefinition.DeepCopy()
-}
-
-// ResourceReservationCustomResourceDefinitionVersion returns the CustomResourceDefinitionVersion for resource reservations
-func ResourceReservationCustomResourceDefinitionVersion() v1.CustomResourceDefinitionVersion {
-	return v1beta1VersionDefinition
+func ResourceReservationCustomResourceDefinition(webhook *v1.WebhookClientConfig, supportedVersions ...v1.CustomResourceDefinitionVersion) *v1.CustomResourceDefinition {
+	resourceReservation := resourceReservationDefinition.DeepCopy()
+	resourceReservation.Spec.Conversion.Webhook.ClientConfig = webhook
+	for i := range supportedVersions {
+		supportedVersions[i].Storage = false
+	}
+	resourceReservation.Spec.Versions = append(resourceReservation.Spec.Versions, supportedVersions...)
+	return resourceReservation
 }
