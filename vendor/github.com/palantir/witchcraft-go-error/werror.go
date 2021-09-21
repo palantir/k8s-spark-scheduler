@@ -8,11 +8,13 @@ import (
 	wparams "github.com/palantir/witchcraft-go-params"
 )
 
+var _ Werror = (*werror)(nil)
+
 // Error is identical to calling ErrorWithContext with a context that does not have any wparams parameters.
 // DEPRECATED: Please use ErrorWithContextParams instead to ensure that all the wparams parameters that are set on the
 // context are included in the error.
 func Error(msg string, params ...Param) error {
-	return ErrorWithContextParams(context.Background(), msg, params...)
+	return newWerror(msg, nil, params...)
 }
 
 // ErrorWithContextParams returns a new error with the provided message and parameters. The returned error also includes any
@@ -42,7 +44,10 @@ func ErrorWithContextParams(ctx context.Context, msg string, params ...Param) er
 // DEPRECATED: Please use WrapWithContextParams instead to ensure that all the wparams parameters that are set on the
 // context are included in the error.
 func Wrap(err error, msg string, params ...Param) error {
-	return WrapWithContextParams(context.Background(), err, msg, params...)
+	if err == nil {
+		return nil
+	}
+	return newWerror(msg, err, params...)
 }
 
 // WrapWithContextParams returns a new error with the provided message and stores the provided error as its cause.
@@ -88,7 +93,7 @@ func Convert(err error) error {
 		return err
 	}
 	switch err.(type) {
-	case *werror:
+	case Werror:
 		return err
 	default:
 		return newWerror("", err)
@@ -100,7 +105,7 @@ func Convert(err error) error {
 // Traverses the cause hierarchy until it reaches an error which has no cause and returns that error.
 func RootCause(err error) error {
 	for {
-		causer, ok := err.(causer)
+		causer, ok := err.(Causer)
 		if !ok {
 			return err
 		}
@@ -114,7 +119,7 @@ func RootCause(err error) error {
 
 // ParamsFromError returns all of the safe and unsafe parameters stored in the provided error.
 //
-// If the error implements the causer interface, then the returned parameters will include all of the parameters stored
+// If the error implements the Causer interface, then the returned parameters will include all of the parameters stored
 // in the causes as well.
 //
 // All of the keys and parameters of the map are flattened.
@@ -125,13 +130,15 @@ func RootCause(err error) error {
 func ParamsFromError(err error) (safeParams map[string]interface{}, unsafeParams map[string]interface{}) {
 	safeParams = make(map[string]interface{})
 	unsafeParams = make(map[string]interface{})
-	visitErrorParams(err, func(k string, v interface{}, safe bool) {
-		if safe {
-			safeParams[k] = v
-		} else {
-			unsafeParams[k] = v
-		}
-	})
+	if err != nil {
+		visitErrorParams(err, func(k string, v interface{}, safe bool) {
+			if safe {
+				safeParams[k] = v
+			} else {
+				unsafeParams[k] = v
+			}
+		})
+	}
 	return safeParams, unsafeParams
 }
 
@@ -155,7 +162,7 @@ func ParamFromError(err error, key string) (value interface{}, safe bool) {
 func visitErrorParams(err error, visitor func(k string, v interface{}, safe bool)) {
 	allErrs := []error{err}
 	for currErr := err; ; {
-		causer, ok := currErr.(causer)
+		causer, ok := currErr.(Causer)
 		if !ok || causer.Cause() == nil {
 			// current error does not have a cause
 			break
@@ -164,31 +171,34 @@ func visitErrorParams(err error, visitor func(k string, v interface{}, safe bool
 		currErr = causer.Cause()
 	}
 	for _, currErr := range allErrs {
-		we, ok := currErr.(*werror)
-		if !ok {
-			// if error is not a *werror but is a ParamStorer, then use the SafeParams() and UnsafeParams() functions to
-			// extract parameters. Need to handle the *werror case separately to prevent infinite recursion.
-			if ps, ok := currErr.(wparams.ParamStorer); ok {
-				for k, v := range ps.SafeParams() {
-					visitor(k, v, true)
-				}
-				for k, v := range ps.UnsafeParams() {
-					visitor(k, v, false)
-				}
+		if ps, ok := currErr.(wparams.ParamStorer); ok {
+			for k, v := range ps.SafeParams() {
+				visitor(k, v, true)
 			}
-			continue
-		}
-		for k, v := range we.params {
-			visitor(k, v.value, v.safe)
+			for k, v := range ps.UnsafeParams() {
+				visitor(k, v, false)
+			}
 		}
 	}
+}
+
+// Werror is an error type consisting of an underlying error, stacktrace, underlying causes, and safe and unsafe
+// params associated with that error.
+type Werror interface {
+	error
+	fmt.Formatter
+	Causer
+	StackTracer
+	wparams.ParamStorer
+
+	Message() string
 }
 
 // werror is an error type consisting of an underlying error and safe and unsafe params associated with that error.
 type werror struct {
 	message string
 	cause   error
-	stack   *stack
+	stack   StackTrace
 	params  map[string]paramValue
 }
 
@@ -197,8 +207,8 @@ type paramValue struct {
 	value interface{}
 }
 
-// causer interface is compatible with the interface used by pkg/errors.
-type causer interface {
+// Causer interface is compatible with the interface used by pkg/errors.
+type Causer interface {
 	Cause() error
 }
 
@@ -206,7 +216,7 @@ func newWerror(message string, cause error, params ...Param) error {
 	we := &werror{
 		message: message,
 		cause:   cause,
-		stack:   callers(),
+		stack:   NewStackTraceWithSkip(1),
 		params:  make(map[string]paramValue),
 	}
 	for _, p := range params {
@@ -232,90 +242,125 @@ func (e *werror) Cause() error {
 	return e.cause
 }
 
+// StackTrace returns the Stacktracer for this error or nil if there is none.
+func (e *werror) StackTrace() StackTrace {
+	return e.stack
+}
+
+// Message returns the message string for this error.
+func (e *werror) Message() string {
+	return e.message
+}
+
+// SafeParams returns params from this error and any underlying causes. If the error and its causes
+// contain multiple values for the same key, the most specific (deepest) value will be returned.
 func (e *werror) SafeParams() map[string]interface{} {
-	safe, _ := ParamsFromError(e)
+	safe, _ := ParamsFromError(e.cause)
+	for k, v := range e.params {
+		if v.safe {
+			if _, exists := safe[k]; !exists {
+				safe[k] = v.value
+			}
+		}
+	}
 	return safe
 }
 
+// UnsafeParams returns params from this error and any underlying causes. If the error and its causes
+// contain multiple values for the same key, the most specific (deepest) value will be returned.
 func (e *werror) UnsafeParams() map[string]interface{} {
-	_, unsafe := ParamsFromError(e)
+	_, unsafe := ParamsFromError(e.cause)
+	for k, v := range e.params {
+		if !v.safe {
+			if _, exists := unsafe[k]; !exists {
+				unsafe[k] = v.value
+			}
+		}
+	}
 	return unsafe
 }
 
 // Format formats the error using the provided format state. Delegates to stored error.
 func (e *werror) Format(state fmt.State, verb rune) {
-	if verb == 'v' && state.Flag('+') {
-		// Multi-line extra verbose format starts with cause first followed up by current error metadata.
-		e.formatCause(state, verb)
-		e.formatMessage(state, verb)
-		e.formatParameters(state, verb)
-		e.formatStack(state, verb)
-	} else {
-		e.formatMessage(state, verb)
-		e.formatParameters(state, verb)
-		e.formatStack(state, verb)
-		e.formatCause(state, verb)
-	}
-}
-
-func (e *werror) formatMessage(state fmt.State, verb rune) {
-	if e.message == "" {
-		return
-	}
-	switch verb {
-	case 's', 'q', 'v':
-		_, _ = fmt.Fprint(state, e.message)
-	}
-}
-
-func (e *werror) formatParameters(state fmt.State, verb rune) {
-	safe := make(map[string]interface{}, len(e.params))
+	safe := make(map[string]interface{})
 	for k, v := range e.params {
 		if v.safe {
 			safe[k] = v.value
 		}
 	}
-	if len(safe) == 0 {
+	Format(e, safe, state, verb)
+}
+
+// Format formats a Werror using the provided format state. This is a utility method that can
+// be used by other implementations of Werror. The safeParams argument is expected to include
+// safe params for this error only, not for any underlying causes.
+func Format(err Werror, safeParams map[string]interface{}, state fmt.State, verb rune) {
+	if verb == 'v' && state.Flag('+') {
+		// Multi-line extra verbose format starts with cause first followed up by current error metadata.
+		formatCause(err, state, verb)
+		formatMessage(err, state, verb)
+		formatParameters(err, safeParams, state, verb)
+		formatStack(err, state, verb)
+	} else {
+		formatMessage(err, state, verb)
+		formatParameters(err, safeParams, state, verb)
+		formatStack(err, state, verb)
+		formatCause(err, state, verb)
+	}
+}
+
+func formatMessage(err Werror, state fmt.State, verb rune) {
+	if err.Message() == "" {
+		return
+	}
+	switch verb {
+	case 's', 'q', 'v':
+		_, _ = fmt.Fprint(state, err.Message())
+	}
+}
+
+func formatParameters(err Werror, safeParams map[string]interface{}, state fmt.State, verb rune) {
+	if len(safeParams) == 0 {
 		return
 	}
 	if verb != 'v' {
 		return
 	}
-	if e.message != "" {
+	if err.Message() != "" {
 		// Whitespace before the message.
 		_, _ = fmt.Fprint(state, " ")
 	}
-	_, _ = fmt.Fprintf(state, "%+v", safe)
+	_, _ = fmt.Fprintf(state, "%+v", safeParams)
 }
 
-func (e *werror) formatStack(state fmt.State, verb rune) {
-	if e.stack == nil {
+func formatStack(err Werror, state fmt.State, verb rune) {
+	if err.StackTrace() == nil {
 		return
 	}
 	if verb != 'v' || !state.Flag('+') {
 		return
 	}
-	e.stack.Format(state, verb)
+	err.StackTrace().Format(state, verb)
 }
 
-func (e *werror) formatCause(state fmt.State, verb rune) {
-	if e.cause == nil {
+func formatCause(err Werror, state fmt.State, verb rune) {
+	if err.Cause() == nil {
 		return
 	}
 	var prefix string
-	if e.message != "" || (verb == 'v' && len(e.params) > 0) {
+	if err.Message() != "" || (verb == 'v' && len(err.SafeParams()) > 0) {
 		prefix = ": "
 	}
 	switch verb {
 	case 'v':
 		if state.Flag('+') {
-			_, _ = fmt.Fprintf(state, "%+v\n", e.cause)
+			_, _ = fmt.Fprintf(state, "%+v\n", err.Cause())
 		} else {
-			_, _ = fmt.Fprintf(state, "%s%v", prefix, e.cause)
+			_, _ = fmt.Fprintf(state, "%s%v", prefix, err.Cause())
 		}
 	case 's':
-		_, _ = fmt.Fprintf(state, "%s%s", prefix, e.cause)
+		_, _ = fmt.Fprintf(state, "%s%s", prefix, err.Cause())
 	case 'q':
-		_, _ = fmt.Fprintf(state, "%s%q", prefix, e.cause)
+		_, _ = fmt.Fprintf(state, "%s%q", prefix, err.Cause())
 	}
 }

@@ -44,12 +44,12 @@ var (
 )
 
 // TODO: should patch instead of put to avoid conflicts
-func (s *SparkSchedulerExtender) updatePodStatus(ctx context.Context, pod *v1.Pod, condition *v1.PodCondition) {
+func (s *SparkSchedulerExtender) updatePodStatus(ctx context.Context, pod *v1.Pod, _ *v1.PodCondition) {
 	if !podutil.UpdatePodCondition(&pod.Status, demandCreatedCondition) {
 		svc1log.FromContext(ctx).Info("pod condition for demand creation already exist")
 		return
 	}
-	_, err := s.coreClient.Pods(pod.Namespace).UpdateStatus(pod)
+	_, err := s.coreClient.Pods(pod.Namespace).UpdateStatus(ctx, pod, metav1.UpdateOptions{})
 	if err != nil {
 		svc1log.FromContext(ctx).Warn("pod condition update failed", svc1log.SafeParam("reason", err.Error()))
 	}

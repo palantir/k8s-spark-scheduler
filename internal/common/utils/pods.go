@@ -20,6 +20,8 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	corelisters "k8s.io/client-go/listers/core/v1"
 	clientcache "k8s.io/client-go/tools/cache"
 )
 
@@ -98,4 +100,25 @@ func isPodScheduled(pod *v1.Pod) bool {
 		}
 	}
 	return false
+}
+
+// NodeConditionPredicate is a function that indicates whether the given node's conditions meet
+// some set of criteria defined by the function.
+type NodeConditionPredicate func(node *v1.Node) bool
+
+// ListWithPredicate gets nodes that matches predicate function.
+func ListWithPredicate(nodeLister corelisters.NodeLister, predicate NodeConditionPredicate) ([]*v1.Node, error) {
+	nodes, err := nodeLister.List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	var filtered []*v1.Node
+	for i := range nodes {
+		if predicate(nodes[i]) {
+			filtered = append(filtered, nodes[i])
+		}
+	}
+
+	return filtered, nil
 }

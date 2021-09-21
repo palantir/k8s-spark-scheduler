@@ -15,6 +15,7 @@
 package crd
 
 import (
+	"context"
 	"reflect"
 	"time"
 
@@ -28,8 +29,8 @@ import (
 )
 
 // CheckCRDExists checks if the given crd exists and is established
-func CheckCRDExists(crdName string, clientset apiextensionsclientset.Interface) (*apiextensionsv1beta1.CustomResourceDefinition, bool, error) {
-	crd, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
+func CheckCRDExists(ctx context.Context, crdName string, clientset apiextensionsclientset.Interface) (*apiextensionsv1beta1.CustomResourceDefinition, bool, error) {
+	crd, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil, false, nil
@@ -59,7 +60,7 @@ func verifyCRD(existing, desired *apiextensionsv1beta1.CustomResourceDefinition)
 
 // EnsureResourceReservationsCRD is responsible for creating and ensuring the ResourceReservation CRD
 // is created
-func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, annotations map[string]string) error {
+func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsclientset.Interface, annotations map[string]string) error {
 	crd := v1beta1.ResourceReservationCustomResourceDefinition()
 	if crd.Annotations == nil {
 		crd.Annotations = make(map[string]string)
@@ -67,23 +68,23 @@ func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, a
 	for k, v := range annotations {
 		crd.Annotations[k] = v
 	}
-	existing, ready, err := CheckCRDExists(crd.Name, clientset)
+	existing, ready, err := CheckCRDExists(ctx, crd.Name, clientset)
 	if err != nil {
 		return werror.Wrap(err, "Failed to get CRD")
 	}
 	if ready && verifyCRD(existing, crd) {
 		return nil
 	}
-	_, err = clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
+	_, err = clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(context.Background(), crd, metav1.CreateOptions{})
 	if err != nil {
 		if errors.IsAlreadyExists(err) {
-			existing, getErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Get(crd.Name, metav1.GetOptions{})
+			existing, getErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.Background(), crd.Name, metav1.GetOptions{})
 			if getErr != nil {
 				return werror.Wrap(getErr, "Failed to get existing CRD")
 			}
 			copyCrd := crd.DeepCopy()
 			copyCrd.ResourceVersion = existing.ResourceVersion
-			_, updateErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Update(copyCrd)
+			_, updateErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Update(context.Background(), copyCrd, metav1.UpdateOptions{})
 			if updateErr != nil {
 				return werror.Wrap(updateErr, "Failed to update CRD")
 			}
@@ -93,7 +94,7 @@ func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, a
 	}
 
 	err = wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
-		existing, ready, err := CheckCRDExists(crd.Name, clientset)
+		existing, ready, err := CheckCRDExists(ctx, crd.Name, clientset)
 		if err != nil {
 			return false, err
 		}
@@ -101,7 +102,7 @@ func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, a
 	})
 
 	if err != nil {
-		deleteErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Delete(crd.Name, nil)
+		deleteErr := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Delete(context.Background(), crd.Name, metav1.DeleteOptions{})
 		if deleteErr != nil {
 			return werror.Wrap(deleteErr, err.Error())
 		}

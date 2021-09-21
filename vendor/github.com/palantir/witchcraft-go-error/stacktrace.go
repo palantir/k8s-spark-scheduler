@@ -7,12 +7,30 @@ import (
 	"github.com/palantir/witchcraft-go-error/internal/errors"
 )
 
-func callers() *stack {
+var _ StackTrace = (*stack)(nil)
+
+// StackTrace provides formatting for an underlying stack trace.
+type StackTrace interface {
+	fmt.Formatter
+}
+
+// StackTracer provides the behavior necessary to retrieve a StackTrace formatter.
+type StackTracer interface {
+	StackTrace() StackTrace
+}
+
+// NewStackTrace creates a new StackTrace, constructed by collecting program counters from runtime callers.
+func NewStackTrace() StackTrace {
+	return NewStackTraceWithSkip(1)
+}
+
+// NewStackTraceWithSkip creates a new StackTrace that skips an additional `skip` stack frames.
+func NewStackTraceWithSkip(skip int) StackTrace {
 	const depth = 32
 	var pcs [depth]uintptr
-	// only modification is changing "3" to "4" here. Because the stack trace is always taken by the werror package,
-	// omit one extra frame (caller should not see werror package as part of the output stack).
-	n := runtime.Callers(4, pcs[:])
+	// Changing this back to "3" by default. Most callers have only a single level of indirection. For newWerror
+	// specifically, which is always called indirectly, we now call this with skip of "1".
+	n := runtime.Callers(skip+3, pcs[:])
 	var st stack = pcs[0:n]
 	return &st
 }

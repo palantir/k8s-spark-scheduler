@@ -14,7 +14,7 @@ import (
 // If the error implements the fmt.Formatter interface, then it will be printed verbosely
 // Otherwise, the error's underlying Error() function will be called and returned
 func GenerateErrorString(err error, outputEveryCallingStack bool) string {
-	if werror, ok := err.(*werror); ok {
+	if werror, ok := err.(Werror); ok {
 		return generateWerrorString(werror, outputEveryCallingStack)
 	}
 	if fancy, ok := err.(fmt.Formatter); ok {
@@ -24,7 +24,7 @@ func GenerateErrorString(err error, outputEveryCallingStack bool) string {
 	return err.Error()
 }
 
-func generateWerrorString(err *werror, outputEveryCallingStack bool) string {
+func generateWerrorString(err Werror, outputEveryCallingStack bool) string {
 	var buffer bytes.Buffer
 	writeMessage(err, &buffer)
 	writeParams(err, &buffer)
@@ -33,22 +33,22 @@ func generateWerrorString(err *werror, outputEveryCallingStack bool) string {
 	return buffer.String()
 }
 
-func writeMessage(err *werror, buffer *bytes.Buffer) {
-	if err.message == "" {
+func writeMessage(err Werror, buffer *bytes.Buffer) {
+	if err.Message() == "" {
 		return
 	}
-	buffer.WriteString(err.message)
+	buffer.WriteString(err.Message())
 }
 
-func writeParams(err *werror, buffer *bytes.Buffer) {
+func writeParams(err Werror, buffer *bytes.Buffer) {
 	safeParams := getSafeParamsAtCurrentLevel(err)
 	var safeKeys []string
 	for k := range safeParams {
 		safeKeys = append(safeKeys, k)
 	}
 	sort.Strings(safeKeys)
-	messageAndParams := err.message != "" && len(safeParams) != 0
-	messageOrParams := err.message != "" || len(safeParams) != 0
+	messageAndParams := err.Message() != "" && len(safeParams) != 0
+	messageOrParams := err.Message() != "" || len(safeParams) != 0
 	if messageAndParams {
 		buffer.WriteString(" ")
 	}
@@ -64,7 +64,7 @@ func writeParams(err *werror, buffer *bytes.Buffer) {
 	}
 }
 
-func getSafeParamsAtCurrentLevel(err *werror) map[string]interface{} {
+func getSafeParamsAtCurrentLevel(err Werror) map[string]interface{} {
 	safeParamsAtThisLevel := make(map[string]interface{}, 0)
 	childSafeParams := getChildSafeParams(err)
 	for k, v := range err.SafeParams() {
@@ -77,28 +77,28 @@ func getSafeParamsAtCurrentLevel(err *werror) map[string]interface{} {
 	return safeParamsAtThisLevel
 }
 
-func getChildSafeParams(err *werror) map[string]interface{} {
-	if err.cause == nil {
+func getChildSafeParams(err Werror) map[string]interface{} {
+	if err.Cause() == nil {
 		return make(map[string]interface{}, 0)
 	}
-	causeAsWerror, ok := err.cause.(*werror)
+	causeAsWerror, ok := err.Cause().(Werror)
 	if !ok {
 		return make(map[string]interface{}, 0)
 	}
 	return causeAsWerror.SafeParams()
 }
 
-func writeCause(err *werror, buffer *bytes.Buffer, outputEveryCallingStack bool) {
-	if err.cause != nil {
-		buffer.WriteString(GenerateErrorString(err.cause, outputEveryCallingStack))
+func writeCause(err Werror, buffer *bytes.Buffer, outputEveryCallingStack bool) {
+	if err.Cause() != nil {
+		buffer.WriteString(GenerateErrorString(err.Cause(), outputEveryCallingStack))
 	}
 }
 
-func writeStack(err *werror, buffer *bytes.Buffer, outputEveryCallingStack bool) {
-	if _, ok := err.cause.(*werror); ok {
+func writeStack(err Werror, buffer *bytes.Buffer, outputEveryCallingStack bool) {
+	if _, ok := err.Cause().(Werror); ok {
 		if !outputEveryCallingStack {
 			return
 		}
 	}
-	buffer.WriteString(fmt.Sprintf("%+v", err.stack))
+	buffer.WriteString(fmt.Sprintf("%+v", err.StackTrace()))
 }
