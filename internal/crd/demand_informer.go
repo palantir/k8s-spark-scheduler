@@ -97,7 +97,7 @@ func (ldi *LazyDemandInformer) doStart(ctx context.Context) error {
 }
 
 func (ldi *LazyDemandInformer) initializeInformer(ctx context.Context) bool {
-	_, ready, err := CheckCRDExists(demandapi.DemandCustomResourceDefinitionName(), ldi.apiExtensionsClient)
+	_, ready, err := CheckCRDExists(ctx, demandapi.DemandCustomResourceDefinitionName(), ldi.apiExtensionsClient)
 	if err != nil {
 		svc1log.FromContext(ctx).Info("failed to determine if demand CRD exists", svc1log.Stacktrace(err))
 		return false

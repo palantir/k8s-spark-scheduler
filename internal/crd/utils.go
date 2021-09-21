@@ -29,8 +29,8 @@ import (
 )
 
 // CheckCRDExists checks if the given crd exists and is established
-func CheckCRDExists(crdName string, clientset apiextensionsclientset.Interface) (*apiextensionsv1beta1.CustomResourceDefinition, bool, error) {
-	crd, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Get(context.Background(), crdName, metav1.GetOptions{})
+func CheckCRDExists(ctx context.Context, crdName string, clientset apiextensionsclientset.Interface) (*apiextensionsv1beta1.CustomResourceDefinition, bool, error) {
+	crd, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil, false, nil
@@ -60,7 +60,7 @@ func verifyCRD(existing, desired *apiextensionsv1beta1.CustomResourceDefinition)
 
 // EnsureResourceReservationsCRD is responsible for creating and ensuring the ResourceReservation CRD
 // is created
-func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, annotations map[string]string) error {
+func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsclientset.Interface, annotations map[string]string) error {
 	crd := v1beta1.ResourceReservationCustomResourceDefinition()
 	if crd.Annotations == nil {
 		crd.Annotations = make(map[string]string)
@@ -68,7 +68,7 @@ func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, a
 	for k, v := range annotations {
 		crd.Annotations[k] = v
 	}
-	existing, ready, err := CheckCRDExists(crd.Name, clientset)
+	existing, ready, err := CheckCRDExists(ctx, crd.Name, clientset)
 	if err != nil {
 		return werror.Wrap(err, "Failed to get CRD")
 	}
@@ -94,7 +94,7 @@ func EnsureResourceReservationsCRD(clientset apiextensionsclientset.Interface, a
 	}
 
 	err = wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
-		existing, ready, err := CheckCRDExists(crd.Name, clientset)
+		existing, ready, err := CheckCRDExists(ctx, crd.Name, clientset)
 		if err != nil {
 			return false, err
 		}
