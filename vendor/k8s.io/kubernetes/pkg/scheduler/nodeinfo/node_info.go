@@ -49,9 +49,10 @@ type NodeInfo struct {
 	// Overall node information.
 	node *v1.Node
 
-	pods             []*v1.Pod
-	podsWithAffinity []*v1.Pod
-	usedPorts        HostPortInfo
+	pods                         []*v1.Pod
+	podsWithAffinity             []*v1.Pod
+	podsWithRequiredAntiAffinity []*v1.Pod
+	usedPorts                    HostPortInfo
 
 	// Total requested resources of all pods on this node. This includes assumed
 	// pods, which scheduler has sent for binding, but may not be scheduled yet.
@@ -251,8 +252,10 @@ func (r *Resource) SetMaxResource(rl v1.ResourceList) {
 				r.MilliCPU = cpu
 			}
 		case v1.ResourceEphemeralStorage:
-			if ephemeralStorage := rQuantity.Value(); ephemeralStorage > r.EphemeralStorage {
-				r.EphemeralStorage = ephemeralStorage
+			if utilfeature.DefaultFeatureGate.Enabled(features.LocalStorageCapacityIsolation) {
+				if ephemeralStorage := rQuantity.Value(); ephemeralStorage > r.EphemeralStorage {
+					r.EphemeralStorage = ephemeralStorage
+				}
 			}
 		default:
 			if v1helper.IsScalarResourceName(rName) {
@@ -337,6 +340,14 @@ func (n *NodeInfo) PodsWithAffinity() []*v1.Pod {
 		return nil
 	}
 	return n.podsWithAffinity
+}
+
+// PodsWithRequiredAntiAffinity return all pods with required anti-affinity constraints on this node.
+func (n *NodeInfo) PodsWithRequiredAntiAffinity() []*v1.Pod {
+	if n == nil {
+		return nil
+	}
+	return n.podsWithRequiredAntiAffinity
 }
 
 // AllowedPodNumber returns the number of the allowed pods on this node.
@@ -445,6 +456,9 @@ func (n *NodeInfo) Clone() *NodeInfo {
 	if len(n.podsWithAffinity) > 0 {
 		clone.podsWithAffinity = append([]*v1.Pod(nil), n.podsWithAffinity...)
 	}
+	if len(n.podsWithRequiredAntiAffinity) > 0 {
+		clone.podsWithRequiredAntiAffinity = append([]*v1.Pod(nil), n.podsWithRequiredAntiAffinity...)
+	}
 	if len(n.taints) > 0 {
 		clone.taints = append([]v1.Taint(nil), n.taints...)
 	}
@@ -477,6 +491,11 @@ func hasPodAffinityConstraints(pod *v1.Pod) bool {
 	return affinity != nil && (affinity.PodAffinity != nil || affinity.PodAntiAffinity != nil)
 }
 
+func hasRequiredPodAntiAffinityConstraints(pod *v1.Pod) bool {
+	affinity := pod.Spec.Affinity
+	return affinity != nil && affinity.PodAntiAffinity != nil && len(affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution) != 0
+}
+
 // AddPod adds pod information to this NodeInfo.
 func (n *NodeInfo) AddPod(pod *v1.Pod) {
 	res, non0CPU, non0Mem := calculateResource(pod)
@@ -495,6 +514,9 @@ func (n *NodeInfo) AddPod(pod *v1.Pod) {
 	if hasPodAffinityConstraints(pod) {
 		n.podsWithAffinity = append(n.podsWithAffinity, pod)
 	}
+	if hasRequiredPodAntiAffinityConstraints(pod) {
+		n.podsWithRequiredAntiAffinity = append(n.podsWithRequiredAntiAffinity, pod)
+	}
 
 	// Consume ports when pods added.
 	n.UpdateUsedPorts(pod, true)
@@ -502,33 +524,45 @@ func (n *NodeInfo) AddPod(pod *v1.Pod) {
 	n.generation = nextGeneration()
 }
 
-// RemovePod subtracts pod information from this NodeInfo.
-func (n *NodeInfo) RemovePod(pod *v1.Pod) error {
-	k1, err := GetPodKey(pod)
-	if err != nil {
-		return err
-	}
-
-	for i := range n.podsWithAffinity {
-		k2, err := GetPodKey(n.podsWithAffinity[i])
+func removeFromSlice(s []*v1.Pod, k string) []*v1.Pod {
+	for i := range s {
+		k2, err := GetPodKey(s[i])
 		if err != nil {
 			klog.Errorf("Cannot get pod key, err: %v", err)
 			continue
 		}
-		if k1 == k2 {
+		if k == k2 {
 			// delete the element
-			n.podsWithAffinity[i] = n.podsWithAffinity[len(n.podsWithAffinity)-1]
-			n.podsWithAffinity = n.podsWithAffinity[:len(n.podsWithAffinity)-1]
+			s[i] = s[len(s)-1]
+			s = s[:len(s)-1]
 			break
 		}
 	}
+	return s
+
+}
+
+// RemovePod subtracts pod information from this NodeInfo.
+func (n *NodeInfo) RemovePod(pod *v1.Pod) error {
+	k, err := GetPodKey(pod)
+	if err != nil {
+		return err
+	}
+
+	if hasPodAffinityConstraints(pod) {
+		n.podsWithAffinity = removeFromSlice(n.podsWithAffinity, k)
+	}
+	if hasRequiredPodAntiAffinityConstraints(pod) {
+		n.podsWithRequiredAntiAffinity = removeFromSlice(n.podsWithRequiredAntiAffinity, k)
+	}
+
 	for i := range n.pods {
 		k2, err := GetPodKey(n.pods[i])
 		if err != nil {
 			klog.Errorf("Cannot get pod key, err: %v", err)
 			continue
 		}
-		if k1 == k2 {
+		if k == k2 {
 			// delete the element
 			n.pods[i] = n.pods[len(n.pods)-1]
 			n.pods = n.pods[:len(n.pods)-1]
@@ -562,6 +596,9 @@ func (n *NodeInfo) RemovePod(pod *v1.Pod) error {
 func (n *NodeInfo) resetSlicesIfEmpty() {
 	if len(n.podsWithAffinity) == 0 {
 		n.podsWithAffinity = nil
+	}
+	if len(n.podsWithRequiredAntiAffinity) == 0 {
+		n.podsWithRequiredAntiAffinity = nil
 	}
 	if len(n.pods) == 0 {
 		n.pods = nil
@@ -644,6 +681,12 @@ func (n *NodeInfo) SetNode(node *v1.Node) error {
 	n.TransientInfo = NewTransientSchedulerInfo()
 	n.generation = nextGeneration()
 	return nil
+}
+
+// RemoveNode removes the node object, leaving all other tracking information.
+func (n *NodeInfo) RemoveNode() {
+	n.node = nil
+	n.generation = nextGeneration()
 }
 
 // FilterOutPods receives a list of pods and filters out those whose node names
