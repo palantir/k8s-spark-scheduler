@@ -65,15 +65,6 @@ var v1beta2VersionDefinition = v1.CustomResourceDefinitionVersion{
 										},
 										"resources": {
 											Type:     "object",
-											Required: []string{string(ResourceCPU), string(ResourceMemory)},
-											Properties: map[string]v1.JSONSchemaProps{
-												string(ResourceCPU): {
-													Type: "string",
-												},
-												string(ResourceMemory): {
-													Type: "string",
-												},
-											},
 											AdditionalProperties: &v1.JSONSchemaPropsOrBool{
 												Schema: &v1.JSONSchemaProps{Type: "string"},
 											},
@@ -105,13 +96,6 @@ var resourceReservationDefinition = &v1.CustomResourceDefinition{
 			ShortNames: []string{"rr"},
 			Categories: []string{"all"},
 		},
-		Conversion: &v1.CustomResourceConversion{
-			Strategy: v1.WebhookConverter,
-			Webhook: &v1.WebhookConversion{
-				ConversionReviewVersions: []string{"v1", "v1beta1"},
-				ClientConfig:             nil,
-			},
-		},
 	},
 }
 
@@ -123,5 +107,12 @@ func ResourceReservationCustomResourceDefinition(webhook *v1.WebhookClientConfig
 		supportedVersions[i].Storage = false
 	}
 	resourceReservation.Spec.Versions = append(resourceReservation.Spec.Versions, supportedVersions...)
+	return resourceReservation
+}
+
+// ResourceReservationCustomResourceDefinitionNoWebhook returns the CRD definition for resource reservations
+func ResourceReservationCustomResourceDefinitionNoWebhook() *v1.CustomResourceDefinition {
+	resourceReservation := resourceReservationDefinition.DeepCopy()
+	resourceReservation.Spec.Versions = append(resourceReservation.Spec.Versions)
 	return resourceReservation
 }
