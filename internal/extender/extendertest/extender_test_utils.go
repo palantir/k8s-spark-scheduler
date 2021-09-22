@@ -77,7 +77,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	podLister := podInformerInterface.Lister()
 
 	sparkSchedulerInformerFactory := ssinformers.NewSharedInformerFactory(fakeSchedulerClient, 0)
-	resourceReservationInformerInterface := sparkSchedulerInformerFactory.Sparkscheduler().V1beta1().ResourceReservations()
+	resourceReservationInformerInterface := sparkSchedulerInformerFactory.Sparkscheduler().V1beta2().ResourceReservations()
 	resourceReservationInformer := resourceReservationInformerInterface.Informer()
 
 	instanceGroupLabel := "resource_channel"
@@ -98,7 +98,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	resourceReservationCache, err := sscache.NewResourceReservationCache(
 		ctx,
 		resourceReservationInformerInterface,
-		fakeSchedulerClient.SparkschedulerV1beta1(),
+		fakeSchedulerClient.SparkschedulerV1beta2(),
 		installConfig.AsyncClientConfig,
 	)
 	if err != nil {

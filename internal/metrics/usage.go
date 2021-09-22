@@ -18,7 +18,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/pkg/metrics"
@@ -82,8 +82,8 @@ func (r *ResourceUsageReporter) doStart(ctx context.Context) error {
 	}
 }
 
-func (r *ResourceUsageReporter) report(ctx context.Context, nodes []*v1.Node, rrs []*v1beta1.ResourceReservation) {
-	resourceUsages := resources.UsageForNodes(rrs)
+func (r *ResourceUsageReporter) report(ctx context.Context, nodes []*v1.Node, rrs []*v1beta2.ResourceReservation) {
+	resourceUsages := resources.UsageForNodesV1Beta2(rrs)
 
 	tagsToDelete := make([]metrics.Tags, 0, len(resourceUsages))
 	metrics.FromContext(ctx).Each(func(name string, tags metrics.Tags, value metrics.MetricVal) {

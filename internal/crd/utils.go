@@ -19,7 +19,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	werror "github.com/palantir/witchcraft-go-error"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -61,7 +61,8 @@ func verifyCRD(existing, desired *v1.CustomResourceDefinition) bool {
 // EnsureResourceReservationsCRD is responsible for creating and ensuring the ResourceReservation CRD
 // is created
 func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsclientset.Interface, annotations map[string]string) error {
-	crd := v1beta1.ResourceReservationCustomResourceDefinition()
+	// TODO(cbattarbee) REPLACE WITH WEBHOOK
+	crd := v1beta2.ResourceReservationCustomResourceDefinitionNoWebhook()
 	if crd.Annotations == nil {
 		crd.Annotations = make(map[string]string)
 	}
@@ -98,7 +99,8 @@ func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsc
 		if err != nil {
 			return false, err
 		}
-		return ready && verifyCRD(existing, v1beta1.ResourceReservationCustomResourceDefinition()), nil
+		// TODO(cbattarbee) REPLACE WITH WEBHOOK
+		return ready && verifyCRD(existing, v1beta2.ResourceReservationCustomResourceDefinitionNoWebhook()), nil
 	})
 
 	if err != nil {

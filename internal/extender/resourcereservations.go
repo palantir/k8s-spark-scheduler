@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/logging"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
@@ -76,7 +77,7 @@ func NewResourceReservationManager(
 }
 
 // GetResourceReservation returns the resource reservation for the passed pod, if any.
-func (rrm *ResourceReservationManager) GetResourceReservation(appID string, namespace string) (*v1beta1.ResourceReservation, bool) {
+func (rrm *ResourceReservationManager) GetResourceReservation(appID string, namespace string) (*v1beta2.ResourceReservation, bool) {
 	return rrm.resourceReservations.Get(namespace, appID)
 }
 
@@ -107,11 +108,11 @@ func (rrm *ResourceReservationManager) CreateReservations(
 	driver *v1.Pod,
 	applicationResources *sparkApplicationResources,
 	driverNode string,
-	executorNodes []string) (*v1beta1.ResourceReservation, error) {
+	executorNodes []string) (*v1beta2.ResourceReservation, error) {
 	rr, ok := rrm.GetResourceReservation(driver.Labels[common.SparkAppIDLabel], driver.Namespace)
 	if !ok {
 		rr = newResourceReservation(driverNode, executorNodes, driver, applicationResources.driverResources, applicationResources.executorResources)
-		svc1log.FromContext(ctx).Debug("creating executor resource reservations", svc1log.SafeParams(logging.RRSafeParam(rr)))
+		svc1log.FromContext(ctx).Debug("creating executor resource reservations", svc1log.SafeParams(logging.RRSafeParamV1Beta2(rr)))
 		err := rrm.resourceReservations.Create(rr)
 		if err != nil {
 			return nil, werror.WrapWithContextParams(ctx, err, "failed to create resource reservation", werror.SafeParam("reservationName", rr.Name))
@@ -226,7 +227,7 @@ func (rrm *ResourceReservationManager) ReserveForExecutorOnRescheduledNode(ctx c
 // GetReservedResources returns the resources per node that are reserved for executors.
 func (rrm *ResourceReservationManager) GetReservedResources() resources.NodeGroupResources {
 	resourceReservations := rrm.resourceReservations.List()
-	usage := resources.UsageForNodes(resourceReservations)
+	usage := resources.UsageForNodesV1Beta2(resourceReservations)
 	usage.Add(rrm.softReservationStore.UsedSoftReservationResources())
 	return usage
 }
@@ -341,10 +342,12 @@ func (rrm *ResourceReservationManager) bindExecutorToSoftReservation(ctx context
 	if err != nil {
 		return err
 	}
-	softReservation := v1beta1.Reservation{
-		Node:   node,
-		CPU:    sparkResources.executorResources.CPU,
-		Memory: sparkResources.executorResources.Memory,
+	softReservation := v1beta2.Reservation{
+		Node: node,
+		Resources: v1beta2.ResourceList{
+			string(v1beta2.ResourceCPU):    &sparkResources.executorResources.CPU,
+			string(v1beta2.ResourceMemory): &sparkResources.executorResources.Memory,
+		},
 	}
 	return rrm.softReservationStore.AddReservationForPod(ctx, driver.Labels[common.SparkAppIDLabel], executor.Name, softReservation)
 }
@@ -429,21 +432,25 @@ func (rrm *ResourceReservationManager) addPodForDynamicAllocationCompaction(pod 
 }
 
 // newResourceReservation builds a reservation object with the pods and resources passed and returns it.
-func newResourceReservation(driverNode string, executorNodes []string, driver *v1.Pod, driverResources, executorResources *resources.Resources) *v1beta1.ResourceReservation {
-	reservations := make(map[string]v1beta1.Reservation, len(executorNodes)+1)
-	reservations["driver"] = v1beta1.Reservation{
-		Node:   driverNode,
-		CPU:    driverResources.CPU,
-		Memory: driverResources.Memory,
+func newResourceReservation(driverNode string, executorNodes []string, driver *v1.Pod, driverResources, executorResources *resources.Resources) *v1beta2.ResourceReservation {
+	reservations := make(map[string]v1beta2.Reservation, len(executorNodes)+1)
+	reservations["driver"] = v1beta2.Reservation{
+		Node: driverNode,
+		Resources: v1beta2.ResourceList{
+			string(v1beta2.ResourceCPU):    &driverResources.CPU,
+			string(v1beta2.ResourceMemory): &driverResources.Memory,
+		},
 	}
 	for idx, nodeName := range executorNodes {
-		reservations[executorReservationName(idx)] = v1beta1.Reservation{
-			Node:   nodeName,
-			CPU:    executorResources.CPU,
-			Memory: executorResources.Memory,
+		reservations[executorReservationName(idx)] = v1beta2.Reservation{
+			Node: nodeName,
+			Resources: v1beta2.ResourceList{
+				string(v1beta2.ResourceCPU):    &executorResources.CPU,
+				string(v1beta2.ResourceMemory): &executorResources.Memory,
+			},
 		}
 	}
-	return &v1beta1.ResourceReservation{
+	return &v1beta2.ResourceReservation{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            driver.Labels[common.SparkAppIDLabel],
 			Namespace:       driver.Namespace,
@@ -452,10 +459,10 @@ func newResourceReservation(driverNode string, executorNodes []string, driver *v
 				v1beta1.AppIDLabel: driver.Labels[common.SparkAppIDLabel],
 			},
 		},
-		Spec: v1beta1.ResourceReservationSpec{
+		Spec: v1beta2.ResourceReservationSpec{
 			Reservations: reservations,
 		},
-		Status: v1beta1.ResourceReservationStatus{
+		Status: v1beta2.ResourceReservationStatus{
 			Pods: map[string]string{"driver": driver.Name},
 		},
 	}
