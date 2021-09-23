@@ -64,16 +64,7 @@ var v1beta2VersionDefinition = v1.CustomResourceDefinitionVersion{
 											Type: "string",
 										},
 										"resources": {
-											Type:     "object",
-											Required: []string{string(ResourceCPU), string(ResourceMemory)},
-											Properties: map[string]v1.JSONSchemaProps{
-												string(ResourceCPU): {
-													Type: "string",
-												},
-												string(ResourceMemory): {
-													Type: "string",
-												},
-											},
+											Type: "object",
 											AdditionalProperties: &v1.JSONSchemaPropsOrBool{
 												Schema: &v1.JSONSchemaProps{Type: "string"},
 											},
