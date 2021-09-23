@@ -15,19 +15,14 @@
 package v1beta1
 
 import (
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// ResourceReservationPlural defines how to refer to multiple resource reservations
-const ResourceReservationPlural = "resourcereservations"
-
-// GroupName defines the kubernetes group name for resource reservations
-const GroupName = "sparkscheduler.palantir.com"
-
 // SchemeGroupVersion represents the kubernetes GroupVersion
-var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: "v1beta1"}
+var SchemeGroupVersion = schema.GroupVersion{Group: sparkscheduler.GroupName, Version: "v1beta1"}
 
 // Resource returns the GroupResource for a given resource
 func Resource(resource string) schema.GroupResource {

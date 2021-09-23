@@ -10,6 +10,8 @@ import (
 	fakescalerv1alpha2 "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/scaler/v1alpha2/fake"
 	sparkschedulerv1beta1 "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1"
 	fakesparkschedulerv1beta1 "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta1/fake"
+	sparkschedulerv1beta2 "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta2"
+	fakesparkschedulerv1beta2 "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta2/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -77,4 +79,9 @@ func (c *Clientset) ScalerV1alpha2() scalerv1alpha2.ScalerV1alpha2Interface {
 // SparkschedulerV1beta1 retrieves the SparkschedulerV1beta1Client
 func (c *Clientset) SparkschedulerV1beta1() sparkschedulerv1beta1.SparkschedulerV1beta1Interface {
 	return &fakesparkschedulerv1beta1.FakeSparkschedulerV1beta1{Fake: &c.Fake}
+}
+
+// SparkschedulerV1beta2 retrieves the SparkschedulerV1beta2Client
+func (c *Clientset) SparkschedulerV1beta2() sparkschedulerv1beta2.SparkschedulerV1beta2Interface {
+	return &fakesparkschedulerv1beta2.FakeSparkschedulerV1beta2{Fake: &c.Fake}
 }

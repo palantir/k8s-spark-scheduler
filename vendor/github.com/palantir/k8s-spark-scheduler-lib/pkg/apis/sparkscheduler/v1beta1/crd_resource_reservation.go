@@ -15,43 +15,96 @@
 package v1beta1
 
 import (
-	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const resourceReservationCRDName = ResourceReservationPlural + "." + GroupName
-
-var resourceReservationDefinition = &apiextensionsv1beta1.CustomResourceDefinition{
-	ObjectMeta: metav1.ObjectMeta{
-		Name: resourceReservationCRDName,
-	},
-	Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
-		Group:   GroupName,
-		Version: "v1beta1",
-		Versions: []apiextensionsv1beta1.CustomResourceDefinitionVersion{
-			{
-				Name:    "v1beta1",
-				Served:  true,
-				Storage: true,
+var v1beta1VersionDefinition = v1.CustomResourceDefinitionVersion{
+	Name:    "v1beta1",
+	Served:  true,
+	Storage: true,
+	AdditionalPrinterColumns: []v1.CustomResourceColumnDefinition{{
+		Name:        "driver",
+		Type:        "string",
+		JSONPath:    ".status.pods.driver",
+		Description: "Pod name of the driver",
+	}},
+	Schema: &v1.CustomResourceValidation{
+		OpenAPIV3Schema: &v1.JSONSchemaProps{
+			Type:     "object",
+			Required: []string{"spec", "metadata"},
+			Properties: map[string]v1.JSONSchemaProps{
+				"status": {
+					Type:     "object",
+					Required: []string{"pods"},
+					Properties: map[string]v1.JSONSchemaProps{
+						"pods": {
+							Type: "object",
+							AdditionalProperties: &v1.JSONSchemaPropsOrBool{
+								Schema: &v1.JSONSchemaProps{
+									Type: "string",
+								},
+							},
+						},
+					},
+				},
+				"spec": {
+					Type:     "object",
+					Required: []string{"reservations"},
+					Properties: map[string]v1.JSONSchemaProps{
+						"reservations": {
+							Type: "object",
+							AdditionalProperties: &v1.JSONSchemaPropsOrBool{
+								Schema: &v1.JSONSchemaProps{
+									Type:     "object",
+									Required: []string{"node", "cpu", "memory"},
+									Properties: map[string]v1.JSONSchemaProps{
+										"node": {
+											Type: "string",
+										},
+										"cpu": {
+											Type: "string",
+										},
+										"memory": {
+											Type: "string",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
-		Scope: apiextensionsv1beta1.NamespaceScoped,
-		Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
-			Plural:     ResourceReservationPlural,
+	},
+}
+
+var resourceReservationDefinition = &v1.CustomResourceDefinition{
+	ObjectMeta: metav1.ObjectMeta{
+		Name: sparkscheduler.ResourceReservationCRDName,
+	},
+	Spec: v1.CustomResourceDefinitionSpec{
+		Group: sparkscheduler.GroupName,
+		Versions: []v1.CustomResourceDefinitionVersion{
+			v1beta1VersionDefinition,
+		},
+		Scope: v1.NamespaceScoped,
+		Names: v1.CustomResourceDefinitionNames{
+			Plural:     sparkscheduler.ResourceReservationPlural,
 			Kind:       "ResourceReservation",
 			ShortNames: []string{"rr"},
 			Categories: []string{"all"},
 		},
-		AdditionalPrinterColumns: []apiextensionsv1beta1.CustomResourceColumnDefinition{{
-			Name:        "driver",
-			Type:        "string",
-			JSONPath:    ".status.driverPod",
-			Description: "Pod name of the driver",
-		}},
 	},
 }
 
 // ResourceReservationCustomResourceDefinition returns the CRD definition for resource reservations
-func ResourceReservationCustomResourceDefinition() *apiextensionsv1beta1.CustomResourceDefinition {
+func ResourceReservationCustomResourceDefinition() *v1.CustomResourceDefinition {
 	return resourceReservationDefinition.DeepCopy()
+}
+
+// ResourceReservationCustomResourceDefinitionVersion returns the CustomResourceDefinitionVersion for resource reservations
+func ResourceReservationCustomResourceDefinitionVersion() v1.CustomResourceDefinitionVersion {
+	return v1beta1VersionDefinition
 }

@@ -16,10 +16,28 @@ package logging
 
 import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 )
 
 // RRSafeParam gets the safe params for a list of resource reservations
 func RRSafeParam(resourceReservation *v1beta1.ResourceReservation) map[string]interface{} {
+	names := make([]string, 0, len(resourceReservation.Spec.Reservations))
+	pods := make([]string, 0, len(resourceReservation.Spec.Reservations))
+	nodes := make([]string, 0, len(resourceReservation.Spec.Reservations))
+	for name, reservation := range resourceReservation.Spec.Reservations {
+		names = append(names, name)
+		pods = append(pods, resourceReservation.Status.Pods[name])
+		nodes = append(nodes, reservation.Node)
+	}
+	return map[string]interface{}{
+		"resourceReservationNames": names,
+		"resourceReservationPods":  pods,
+		"resourceReservationNodes": nodes,
+	}
+}
+
+// RRSafeParamV1Beta2 gets the safe params for a list of resource reservations
+func RRSafeParamV1Beta2(resourceReservation *v1beta2.ResourceReservation) map[string]interface{} {
 	names := make([]string, 0, len(resourceReservation.Spec.Reservations))
 	pods := make([]string, 0, len(resourceReservation.Spec.Reservations))
 	nodes := make([]string, 0, len(resourceReservation.Spec.Reservations))
