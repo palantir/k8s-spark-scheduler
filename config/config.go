@@ -40,6 +40,9 @@ type Install struct {
 	ExecutorPrioritizedNodeLabel *LabelPriorityOrder `yaml:"executor-prioritized-node-label,omitempty"`
 
 	ResourceReservationCRDAnnotations map[string]string `yaml:"resource-reservation-crd-annotations,omitempty"`
+
+	SchedulerNamespace   string `yaml:"scheduler-namespace"`
+	SchedulerServiceName string `yaml:"scheduler-service-name"`
 }
 
 // FifoConfig enables the fine-tuning of FIFO enforcement
