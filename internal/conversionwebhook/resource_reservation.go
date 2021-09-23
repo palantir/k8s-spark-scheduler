@@ -16,14 +16,15 @@ package conversionwebhook
 
 import (
 	"context"
+	"path/filepath"
+
 	sparkscheme "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/scheme"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-server/config"
 	"github.com/palantir/witchcraft-go-server/wrouter"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 )
 
@@ -47,7 +48,7 @@ func InitializeCRDConversionWebhook(
 	server config.Server,
 	schedulerNamespace string,
 	schedulerServiceName string,
-) (*apiextensionsv1.WebhookClientConfig, error) {
+) (*v1.WebhookClientConfig, error) {
 	err := addConversionWebhookRoute(ctx, router)
 	if err != nil {
 		return nil, err
@@ -56,8 +57,8 @@ func InitializeCRDConversionWebhook(
 	path := filepath.Join(server.ContextPath, webhookPath)
 	port := int32(server.Port)
 
-	return &apiextensionsv1.WebhookClientConfig{
-		Service: &apiextensionsv1.ServiceReference{
+	return &v1.WebhookClientConfig{
+		Service: &v1.ServiceReference{
 			Namespace: schedulerNamespace,
 			Name:      schedulerServiceName,
 			Path:      &path,
