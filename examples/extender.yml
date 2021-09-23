@@ -73,6 +73,8 @@ data:
     logging:
       level: debug
       output: STDOUT
+    scheduler-namespace: spark
+    scheduler-service-name: scheduler-service
 ---
 apiVersion: apps/v1
 kind: Deployment

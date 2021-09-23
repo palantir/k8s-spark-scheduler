@@ -20,7 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var v1beta2VersionDefinition = v1.CustomResourceDefinitionVersion{
+var V1beta2VersionDefinition = v1.CustomResourceDefinitionVersion{
 	Name:    "v1beta2",
 	Served:  true,
 	Storage: true,
@@ -87,7 +87,7 @@ var resourceReservationDefinition = &v1.CustomResourceDefinition{
 	Spec: v1.CustomResourceDefinitionSpec{
 		Group: sparkscheduler.GroupName,
 		Versions: []v1.CustomResourceDefinitionVersion{
-			v1beta2VersionDefinition,
+			V1beta2VersionDefinition,
 		},
 		Scope: v1.NamespaceScoped,
 		Names: v1.CustomResourceDefinitionNames{

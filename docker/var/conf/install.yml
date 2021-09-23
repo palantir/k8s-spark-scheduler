@@ -6,3 +6,5 @@ fifo: true
 logging:
   level: info
   output: STDOUT
+scheduler-namespace: spark
+scheduler-service-name: scheduler-service
