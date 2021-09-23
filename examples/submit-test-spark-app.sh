@@ -43,6 +43,8 @@ spec:
         cpu: "$DRIVER_CPU"
         memory: "$DRIVER_MEM"
         nvidia.com/gpu: "$DRIVER_NVIDIA_GPUS"
+      limits:
+        nvidia.com/gpu: "$DRIVER_NVIDIA_GPUS"
 EOF)
 
 # wait for driver to be running
@@ -77,6 +79,8 @@ spec:
       requests:
         cpu: "$EXECUTOR_CPU"
         memory: "$EXECUTOR_MEM"
+        nvidia.com/gpu: "$EXECUTOR_NVIDIA_GPUS"
+      limits:
         nvidia.com/gpu: "$EXECUTOR_NVIDIA_GPUS"
 EOF)
 done
