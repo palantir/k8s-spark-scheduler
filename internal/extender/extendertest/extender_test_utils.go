@@ -17,6 +17,7 @@ package extendertest
 import (
 	"context"
 	"fmt"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	"os"
 	"testing"
 
@@ -237,8 +238,9 @@ func NewNode(name string) v1.Node {
 		},
 		Status: v1.NodeStatus{
 			Allocatable: v1.ResourceList{
-				v1.ResourceCPU:    *resource.NewQuantity(8, resource.DecimalSI),
-				v1.ResourceMemory: *resource.NewQuantity(8*1024*1024*1024, resource.BinarySI),
+				v1.ResourceCPU:            *resource.NewQuantity(8, resource.DecimalSI),
+				v1.ResourceMemory:         *resource.NewQuantity(8*1024*1024*1024, resource.BinarySI),
+				v1beta2.ResourceNvidiaGPU: *resource.NewQuantity(1, resource.DecimalSI),
 			},
 			Conditions: []v1.NodeCondition{
 				{
@@ -254,11 +256,27 @@ func NewNode(name string) v1.Node {
 // with the proper static allocation annotations set
 func StaticAllocationSparkPods(sparkApplicationID string, numExecutors int) []v1.Pod {
 	driverAnnotations := map[string]string{
-		"spark-driver-cpu":     "1",
-		"spark-driver-mem":     "1",
-		"spark-executor-cpu":   "1",
-		"spark-executor-mem":   "1",
-		"spark-executor-count": fmt.Sprintf("%d", numExecutors),
+		"spark-driver-cpu":            "1",
+		"spark-driver-mem":            "1",
+		"spark-driver-nvidia.com/gpu": "1",
+		"spark-executor-cpu":          "1",
+		"spark-executor-mem":          "1",
+		"spark-executor-count":        fmt.Sprintf("%d", numExecutors),
+	}
+	return sparkApplicationPods(sparkApplicationID, driverAnnotations, numExecutors)
+}
+
+// StaticAllocationSparkPodsWithExecutorGPUs returns a list of pods corresponding to a Spark Application with 1 driver and numExecutors executors
+// with the proper static allocation annotations set, executors also request one gpu
+func StaticAllocationSparkPodsWithExecutorGPUs(sparkApplicationID string, numExecutors int) []v1.Pod {
+	driverAnnotations := map[string]string{
+		"spark-driver-cpu":              "1",
+		"spark-driver-mem":              "1",
+		"spark-driver-nvidia.com/gpu":   "1",
+		"spark-executor-cpu":            "1",
+		"spark-executor-mem":            "1",
+		"spark-executor-nvidia.com/gpu": "1",
+		"spark-executor-count":          fmt.Sprintf("%d", numExecutors),
 	}
 	return sparkApplicationPods(sparkApplicationID, driverAnnotations, numExecutors)
 }
@@ -269,6 +287,7 @@ func DynamicAllocationSparkPods(sparkApplicationID string, minExecutors int, max
 	driverAnnotations := map[string]string{
 		"spark-driver-cpu":                            "1",
 		"spark-driver-mem":                            "1",
+		"spark-driver-nvidia.com/gpu":                 "1",
 		"spark-executor-cpu":                          "1",
 		"spark-executor-mem":                          "1",
 		"spark-dynamic-allocation-enabled":            "true",
