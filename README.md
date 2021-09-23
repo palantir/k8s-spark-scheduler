@@ -76,7 +76,7 @@ If dynamic allocation is enabled, `k8s-spark-scheduler-extender` will guarantee 
 
 Use `./godelw docker build` to build an image using the [Dockerfile template](docker/Dockerfile). Built image will use the [default configuration](docker/var/conf/install.yml). Deployment created by `kubectl apply -f examples/extender.yml` can be used to iterate locally.
 
-Use `./examples/submit-test-spark-app.sh <id> <executor-count> <driver-cpu> <driver-mem> <executor-cpu> <executor-mem>` to mock a spark application launch. Created pods will have a node selector for `instance-group: main`, so desired nodes in the cluster should be modified to have this label set.
+Use `./examples/submit-test-spark-app.sh <id> <executor-count> <driver-cpu> <driver-mem> <driver-nvidia-gpus> <executor-cpu> <executor-mem> <executor-nvidia-gpus>` to mock a spark application launch. Created pods will have a node selector for `instance-group: main`, so desired nodes in the cluster should be modified to have this label set.
 
 Use `./godelw verify` to run tests and style checks
 
