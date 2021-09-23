@@ -188,8 +188,9 @@ func (r *reconciler) syncSoftReservations(ctx context.Context, extraExecutorsByA
 			err := r.softReservations.AddReservationForPod(ctx, appID, extraExecutor.Name, v1beta2.Reservation{
 				Node: extraExecutor.Spec.NodeName,
 				Resources: v1beta2.ResourceList{
-					string(v1beta2.ResourceCPU):    &applicationResources.executorResources.CPU,
-					string(v1beta2.ResourceMemory): &applicationResources.executorResources.Memory,
+					string(v1beta2.ResourceCPU):       &applicationResources.executorResources.CPU,
+					string(v1beta2.ResourceMemory):    &applicationResources.executorResources.Memory,
+					string(v1beta2.ResourceNvidiaGPU): &applicationResources.executorResources.NvidiaGPU,
 				},
 			})
 			if err != nil {

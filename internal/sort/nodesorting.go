@@ -69,6 +69,7 @@ type scheduleContext struct {
 	nodeResources *resources.Resources
 }
 
+// TODO(cbattarbee): GPUS??
 // Sort by available resources ascending, with RAM usage more important.
 func resourcesLessThan(left *resources.Resources, right *resources.Resources) bool {
 	var memoryCompared = left.Memory.Cmp(right.Memory)
