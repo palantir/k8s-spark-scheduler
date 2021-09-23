@@ -91,6 +91,9 @@ func sparkResources(ctx context.Context, pod *v1.Pod) (*sparkApplicationResource
 		value, ok := pod.Annotations[a]
 		if !ok {
 			switch {
+			case a == common.DriverNvidiaGPUs || a == common.ExecutorNvidiaGPUs:
+				// These are optional annotations, you dont need GPUs
+				continue
 			case dynamicAllocationEnabled == false && a == common.ExecutorCount:
 				return nil, fmt.Errorf("annotation ExecutorCount is required when DynamicAllocationEnabled is false")
 			case dynamicAllocationEnabled == true && (a == common.DAMinExecutorCount || a == common.DAMaxExecutorCount):
