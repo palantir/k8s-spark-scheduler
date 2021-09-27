@@ -16,8 +16,6 @@ package v1beta1
 
 import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler"
-
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -25,7 +23,7 @@ import (
 var v1beta1VersionDefinition = v1.CustomResourceDefinitionVersion{
 	Name:    "v1beta1",
 	Served:  true,
-	Storage: false,
+	Storage: true,
 	AdditionalPrinterColumns: []v1.CustomResourceColumnDefinition{{
 		Name:        "driver",
 		Type:        "string",
@@ -90,7 +88,6 @@ var resourceReservationDefinition = &v1.CustomResourceDefinition{
 		Group: sparkscheduler.GroupName,
 		Versions: []v1.CustomResourceDefinitionVersion{
 			v1beta1VersionDefinition,
-			v1beta2.V1beta2VersionDefinition,
 		},
 		Scope: v1.NamespaceScoped,
 		Names: v1.CustomResourceDefinitionNames{
