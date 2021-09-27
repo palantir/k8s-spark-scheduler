@@ -2,10 +2,6 @@ server:
   port: 8483
   management-port: 8484
   context-path: /spark-scheduler
-  cert-file: /opt/palantir/services/spark-scheduler/var/keys/localcluster.crt
-  key-file: /opt/palantir/services/spark-scheduler/var/keys/localcluster.key
-  client-ca-files:
-    - /opt/palantir/services/spark-scheduler/var/keys/rootCACert.pem
 fifo: true
 logging:
   level: info

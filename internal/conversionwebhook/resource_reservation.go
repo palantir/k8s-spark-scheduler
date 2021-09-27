@@ -58,9 +58,18 @@ func InitializeCRDConversionWebhook(
 	path := filepath.Join(server.ContextPath, webhookPath)
 	port := int32(server.Port)
 
+	if len(server.ClientCAFiles) == 0 {
+		return nil, werror.WrapWithContextParams(ctx, err, "No client CA bundle provided, can not generate conversion webhook client config")
+	}
+
+	if len(server.ClientCAFiles) > 1 {
+		svc1log.FromContext(ctx).Warn("More than one client ca bundle provided, using the first one to generate " +
+			"the conversion webhook client config, it is likely that this scheduler is misconfigured.")
+	}
+
 	caBundle, err := ioutil.ReadFile(server.ClientCAFiles[0])
 	if err != nil {
-		return nil, werror.WrapWithContextParams(ctx, err, "failed to read CA bundle from file")
+		return nil, werror.WrapWithContextParams(ctx, err, "Failed to read CA bundle from file, can not generate conversion webhook client config")
 	}
 
 	return &v1.WebhookClientConfig{
