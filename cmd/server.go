@@ -258,7 +258,6 @@ func New() *witchcraft.Server {
 		WithInstallConfigFromFile("var/conf/install.yml").
 		// We do this in order to get witchcraft to honor the logging config, which it expects to be in runtime
 		WithRuntimeConfigFromFile("var/conf/install.yml").
-		WithSelfSignedCertificate().
 		WithECVKeyProvider(witchcraft.ECVKeyNoOp()).
 		WithInitFunc(initServer).
 		WithOrigin(svc1log.CallerPkg(0, 1))
