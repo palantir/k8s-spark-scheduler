@@ -6,9 +6,7 @@ metadata:
 spec:
   selector:
     app: spark-scheduler
-    namespace: spark
-    container: spark-scheduler-extender
   ports:
     - protocol: TCP
-      port: 80
+      port: 8483
       targetPort: 8483
