@@ -23,7 +23,7 @@ import (
 var v1beta2VersionDefinition = v1.CustomResourceDefinitionVersion{
 	Name:    "v1beta2",
 	Served:  true,
-	Storage: true,
+	Storage: false,
 	AdditionalPrinterColumns: []v1.CustomResourceColumnDefinition{{
 		Name:        "driver",
 		Type:        "string",
