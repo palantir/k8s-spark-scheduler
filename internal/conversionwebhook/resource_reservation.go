@@ -49,6 +49,7 @@ func InitializeCRDConversionWebhook(
 	server config.Server,
 	schedulerNamespace string,
 	schedulerServiceName string,
+	schedulerServicePort int32,
 ) (*v1.WebhookClientConfig, error) {
 	err := addConversionWebhookRoute(ctx, router)
 	if err != nil {
@@ -56,7 +57,6 @@ func InitializeCRDConversionWebhook(
 	}
 
 	path := filepath.Join(server.ContextPath, webhookPath)
-	port := int32(server.Port)
 
 	if len(server.ClientCAFiles) == 0 {
 		return nil, werror.WrapWithContextParams(ctx, err, "No client CA bundle provided, can not generate conversion webhook client config")
@@ -77,7 +77,7 @@ func InitializeCRDConversionWebhook(
 			Namespace: schedulerNamespace,
 			Name:      schedulerServiceName,
 			Path:      &path,
-			Port:      &port,
+			Port:      &schedulerServicePort,
 		},
 		CABundle: caBundle,
 	}, nil

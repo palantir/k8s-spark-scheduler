@@ -43,6 +43,7 @@ type Install struct {
 
 	SchedulerNamespace   string `yaml:"scheduler-namespace"`
 	SchedulerServiceName string `yaml:"scheduler-service-name"`
+	SchedulerServicePort int32  `yaml:"scheduler-service-port"`
 }
 
 // FifoConfig enables the fine-tuning of FIFO enforcement
