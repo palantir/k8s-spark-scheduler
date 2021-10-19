@@ -57,12 +57,9 @@ func verifyCRD(existing, desired *v1.CustomResourceDefinition) bool {
 	return getStorageVersion(existing) == getStorageVersion(desired) && reflect.DeepEqual(existing.Annotations, desired.Annotations)
 }
 
-type crdSupplierFunc func() *v1.CustomResourceDefinition
-
 // EnsureResourceReservationsCRD is responsible for creating and ensuring the ResourceReservation CRD
 // is created, it ensures that both v1beta1 and v1beta2 exist.
-func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsclientset.Interface, annotations map[string]string, crdSupplier crdSupplierFunc) error {
-	crd := crdSupplier()
+func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsclientset.Interface, annotations map[string]string, crd *v1.CustomResourceDefinition) error {
 	if crd.Annotations == nil {
 		crd.Annotations = make(map[string]string)
 	}
@@ -99,7 +96,7 @@ func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsc
 		if err != nil {
 			return false, err
 		}
-		return ready && verifyCRD(existing, crdSupplier()), nil
+		return ready && verifyCRD(existing, crd), nil
 	})
 
 	if err != nil {
