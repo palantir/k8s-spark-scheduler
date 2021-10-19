@@ -18,7 +18,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
@@ -26,7 +26,7 @@ import (
 
 // IsSparkSchedulerDemand returns whether the passed object is a demand created by the spark scheduler extender
 func IsSparkSchedulerDemand(obj interface{}) bool {
-	if demand, ok := obj.(*v1alpha1.Demand); ok {
+	if demand, ok := obj.(*v1alpha2.Demand); ok {
 		_, labelFound := demand.Labels[common.SparkAppIDLabel]
 		return labelFound
 	}
@@ -34,14 +34,14 @@ func IsSparkSchedulerDemand(obj interface{}) bool {
 }
 
 // OnDemandFulfilled returns a function that calls the wrapped function if the demand object is fulfilled
-func OnDemandFulfilled(ctx context.Context, fn func(*v1alpha1.Demand)) func(interface{}, interface{}) {
+func OnDemandFulfilled(ctx context.Context, fn func(*v1alpha2.Demand)) func(interface{}, interface{}) {
 	return func(oldObj interface{}, newObj interface{}) {
-		oldDemand, ok := oldObj.(*v1alpha1.Demand)
+		oldDemand, ok := oldObj.(*v1alpha2.Demand)
 		if !ok {
 			svc1log.FromContext(ctx).Error("failed to parse oldObj as demand")
 			return
 		}
-		newDemand, ok := newObj.(*v1alpha1.Demand)
+		newDemand, ok := newObj.(*v1alpha2.Demand)
 		if !ok {
 			svc1log.FromContext(ctx).Error("failed to parse newObj as demand")
 		}
@@ -52,8 +52,8 @@ func OnDemandFulfilled(ctx context.Context, fn func(*v1alpha1.Demand)) func(inte
 
 }
 
-func isDemandFulfilled(demand *v1alpha1.Demand) bool {
-	return demand.Status.Phase == v1alpha1.DemandPhaseFulfilled
+func isDemandFulfilled(demand *v1alpha2.Demand) bool {
+	return demand.Status.Phase == v1alpha2.DemandPhaseFulfilled
 }
 
 // DemandName returns a demand name from a pod name
@@ -62,6 +62,6 @@ func DemandName(pod *v1.Pod) string {
 }
 
 // PodName returns a pod name from a demand name
-func PodName(demand *v1alpha1.Demand) string {
+func PodName(demand *v1alpha2.Demand) string {
 	return strings.TrimPrefix(demand.Name, "demand-")
 }
