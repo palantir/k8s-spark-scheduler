@@ -41,9 +41,15 @@ type Install struct {
 
 	ResourceReservationCRDAnnotations map[string]string `yaml:"resource-reservation-crd-annotations,omitempty"`
 
-	SchedulerNamespace   string `yaml:"scheduler-namespace"`
-	SchedulerServiceName string `yaml:"scheduler-service-name"`
-	SchedulerServicePort int32  `yaml:"scheduler-service-port"`
+	WebhookServiceConfig `yaml:"webhook_service_config"`
+}
+
+// WebhookServiceConfig specifies the k8s service which the api server will call to convert between different versions
+// of the ResourceReservation CRD
+type WebhookServiceConfig struct {
+	Namespace   string `yaml:"namespace"`
+	ServiceName string `yaml:"service-name"`
+	ServicePort int32  `yaml:"service-port"`
 }
 
 // FifoConfig enables the fine-tuning of FIFO enforcement

@@ -95,7 +95,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		return nil, err
 	}
 	webhookClientConfig, err := conversionwebhook.InitializeCRDConversionWebhook(ctx, info.Router, install.Server,
-		install.SchedulerNamespace, install.SchedulerServiceName, install.SchedulerServicePort)
+		install.WebhookServiceConfig.Namespace, install.WebhookServiceConfig.ServiceName, install.WebhookServiceConfig.ServicePort)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error instantiating CRD conversion webhook: %s", svc1log.Stacktrace(err))
 		return nil, err
