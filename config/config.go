@@ -41,7 +41,7 @@ type Install struct {
 
 	ResourceReservationCRDAnnotations map[string]string `yaml:"resource-reservation-crd-annotations,omitempty"`
 
-	WebhookServiceConfig `yaml:"webhook_service_config"`
+	WebhookServiceConfig `yaml:"webhook-service-config"`
 }
 
 // WebhookServiceConfig specifies the k8s service which the api server will call to convert between different versions
