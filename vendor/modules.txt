@@ -75,7 +75,7 @@ github.com/palantir/go-encrypted-config-value/encryption
 # github.com/palantir/go-metrics v1.1.0
 ## explicit
 github.com/palantir/go-metrics
-# github.com/palantir/k8s-spark-scheduler-lib v0.2.17
+# github.com/palantir/k8s-spark-scheduler-lib v0.2.18
 ## explicit
 github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1
 github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2
