@@ -9,4 +9,4 @@ logging:
 webhook-service-config:
   namespace: spark
   service-name: scheduler-service
-  service-port: 8483
+  service-port: 443

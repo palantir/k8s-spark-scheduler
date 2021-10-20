@@ -28,7 +28,7 @@ metadata:
       app: spark-scheduler
     ports:
       - protocol: TCP
-        port: 8483
+        port: 443
         targetPort: 8483
 ---
 apiVersion: v1
@@ -85,8 +85,10 @@ data:
     logging:
       level: debug
       output: STDOUT
-    scheduler-namespace: spark
-    scheduler-service-name: scheduler-service
+    webhook-service-config:
+      namespace: spark
+      service-name: scheduler-service
+      service-port: 443
 ---
 apiVersion: apps/v1
 kind: Deployment

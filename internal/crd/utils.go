@@ -53,8 +53,15 @@ func getStorageVersion(crd *v1.CustomResourceDefinition) string {
 	return crd.Spec.Versions[0].Name
 }
 
+func emptyIfNil(x map[string]string) map[string]string {
+	if x == nil {
+		return map[string]string{}
+	}
+	return x
+}
+
 func verifyCRD(existing, desired *v1.CustomResourceDefinition) bool {
-	return getStorageVersion(existing) == getStorageVersion(desired) && reflect.DeepEqual(existing.Annotations, desired.Annotations)
+	return getStorageVersion(existing) == getStorageVersion(desired) && reflect.DeepEqual(emptyIfNil(existing.Annotations), emptyIfNil(desired.Annotations))
 }
 
 // EnsureResourceReservationsCRD is responsible for creating and ensuring the ResourceReservation CRD
