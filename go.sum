@@ -460,8 +460,6 @@ github.com/palantir/go-encrypted-config-value v1.1.0 h1:GwyTWSEthp3dRII2AL+lgdM5
 github.com/palantir/go-encrypted-config-value v1.1.0/go.mod h1:6c5zDN0XqZLxJiV3yLZmoEkUpaB4W3xJdKY6UPn24qI=
 github.com/palantir/go-metrics v1.1.0 h1:gf6W9EBvzREheH/3wNLPmJD8pe+xtag3TjePZe4hUTQ=
 github.com/palantir/go-metrics v1.1.0/go.mod h1:fRkuipBnsI4nD8Vd9UNcrUJvD8Y0wOJMSbicygcBrGs=
-github.com/palantir/k8s-spark-scheduler-lib v0.2.17 h1:lHDLj026Tg/z3ZXH3izs4I2THV6eo11RUcdjgVtXZlw=
-github.com/palantir/k8s-spark-scheduler-lib v0.2.17/go.mod h1:NfFt8Ct/Hb9uhsas1xvFSTWPR2Q/viCW209M/izsinY=
 github.com/palantir/k8s-spark-scheduler-lib v0.2.18 h1:mALYb0y5CE66Fvyfl4+v722SBtR7fdeszu9/UAxeyb4=
 github.com/palantir/k8s-spark-scheduler-lib v0.2.18/go.mod h1:NfFt8Ct/Hb9uhsas1xvFSTWPR2Q/viCW209M/izsinY=
 github.com/palantir/pkg v1.0.1 h1:ZbGUcc14N7xcZSY9cehQoiHHTm/BAZO5RJdlsNEtSbk=
