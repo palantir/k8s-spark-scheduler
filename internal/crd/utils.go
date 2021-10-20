@@ -16,7 +16,6 @@ package crd
 
 import (
 	"context"
-	stdliberrors "errors"
 	"reflect"
 	"time"
 
@@ -45,28 +44,17 @@ func CheckCRDExists(ctx context.Context, crdName string, clientset apiextensions
 	return crd, false, nil
 }
 
-func getStorageVersion(crd *v1.CustomResourceDefinition) (string, error) {
+func getStorageVersion(crd *v1.CustomResourceDefinition) string {
 	for _, crdVersion := range crd.Spec.Versions {
 		if crdVersion.Storage {
-			return crdVersion.Name, nil
+			return crdVersion.Name
 		}
 	}
-	if len(crd.Spec.Versions) == 0 {
-		return "", stdliberrors.New("crd has no versions")
-	}
-	return crd.Spec.Versions[0].Name, nil
+	return crd.Spec.Versions[0].Name
 }
 
-func verifyCRD(existing, desired *v1.CustomResourceDefinition) (bool, error) {
-	existingVersion, err := getStorageVersion(existing)
-	if err != nil {
-		return false, err
-	}
-	desiredVersion, err := getStorageVersion(desired)
-	if err != nil {
-		return false, err
-	}
-	return existingVersion == desiredVersion && reflect.DeepEqual(existing.Annotations, desired.Annotations), nil
+func verifyCRD(existing, desired *v1.CustomResourceDefinition) bool {
+	return getStorageVersion(existing) == getStorageVersion(desired) && reflect.DeepEqual(existing.Annotations, desired.Annotations)
 }
 
 // EnsureResourceReservationsCRD is responsible for creating and ensuring the ResourceReservation CRD
@@ -82,11 +70,7 @@ func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsc
 	if err != nil {
 		return werror.Wrap(err, "Failed to get CRD")
 	}
-	verified, err := verifyCRD(existing, crd)
-	if err != nil {
-		return werror.Wrap(err, "Failed to verify CRD")
-	}
-	if ready && verified {
+	if ready && verifyCRD(existing, crd) {
 		return nil
 	}
 	_, err = clientset.ApiextensionsV1().CustomResourceDefinitions().Create(context.Background(), crd, metav1.CreateOptions{})
@@ -112,11 +96,7 @@ func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsc
 		if err != nil {
 			return false, err
 		}
-		verified, err := verifyCRD(existing, crd)
-		if err != nil {
-			return false, werror.Wrap(err, "Failed to verify CRD")
-		}
-		return ready && verified, nil
+		return ready && verifyCRD(existing, crd), nil
 	})
 
 	if err != nil {
