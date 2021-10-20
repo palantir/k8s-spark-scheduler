@@ -40,6 +40,16 @@ type Install struct {
 	ExecutorPrioritizedNodeLabel *LabelPriorityOrder `yaml:"executor-prioritized-node-label,omitempty"`
 
 	ResourceReservationCRDAnnotations map[string]string `yaml:"resource-reservation-crd-annotations,omitempty"`
+
+	WebhookServiceConfig `yaml:"webhook-service-config"`
+}
+
+// WebhookServiceConfig specifies the k8s service which the api server will call to convert between different versions
+// of the ResourceReservation CRD
+type WebhookServiceConfig struct {
+	Namespace   string `yaml:"namespace"`
+	ServiceName string `yaml:"service-name"`
+	ServicePort int32  `yaml:"service-port"`
 }
 
 // FifoConfig enables the fine-tuning of FIFO enforcement

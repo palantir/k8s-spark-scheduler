@@ -19,7 +19,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	werror "github.com/palantir/witchcraft-go-error"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -54,14 +53,20 @@ func getStorageVersion(crd *v1.CustomResourceDefinition) string {
 	return crd.Spec.Versions[0].Name
 }
 
+func emptyIfNil(x map[string]string) map[string]string {
+	if x == nil {
+		return map[string]string{}
+	}
+	return x
+}
+
 func verifyCRD(existing, desired *v1.CustomResourceDefinition) bool {
-	return getStorageVersion(existing) == getStorageVersion(desired) && reflect.DeepEqual(existing.Annotations, desired.Annotations)
+	return getStorageVersion(existing) == getStorageVersion(desired) && reflect.DeepEqual(emptyIfNil(existing.Annotations), emptyIfNil(desired.Annotations))
 }
 
 // EnsureResourceReservationsCRD is responsible for creating and ensuring the ResourceReservation CRD
-// is created
-func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsclientset.Interface, annotations map[string]string) error {
-	crd := v1beta1.ResourceReservationCustomResourceDefinition()
+// is created, it ensures that both v1beta1 and v1beta2 exist.
+func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsclientset.Interface, annotations map[string]string, crd *v1.CustomResourceDefinition) error {
 	if crd.Annotations == nil {
 		crd.Annotations = make(map[string]string)
 	}
@@ -98,7 +103,7 @@ func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsc
 		if err != nil {
 			return false, err
 		}
-		return ready && verifyCRD(existing, v1beta1.ResourceReservationCustomResourceDefinition()), nil
+		return ready && verifyCRD(existing, crd), nil
 	})
 
 	if err != nil {

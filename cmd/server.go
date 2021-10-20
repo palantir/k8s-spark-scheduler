@@ -18,10 +18,13 @@ import (
 	"context"
 	"time"
 
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	clientset "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
+	"github.com/palantir/k8s-spark-scheduler/internal/conversionwebhook"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
@@ -91,9 +94,17 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		svc1log.FromContext(ctx).Error("Error building api extensions clientset: %s", svc1log.Stacktrace(err))
 		return nil, err
 	}
-	err = crd.EnsureResourceReservationsCRD(ctx, apiExtensionsClient, install.ResourceReservationCRDAnnotations)
+	webhookClientConfig, err := conversionwebhook.InitializeCRDConversionWebhook(ctx, info.Router, install.Server,
+		install.WebhookServiceConfig.Namespace, install.WebhookServiceConfig.ServiceName, install.WebhookServiceConfig.ServicePort)
 	if err != nil {
-		svc1log.FromContext(ctx).Error("Error ensuring resource reservations CRD exists: %s", svc1log.Stacktrace(err))
+		svc1log.FromContext(ctx).Error("Error instantiating CRD conversion webhook: %s", svc1log.Stacktrace(err))
+		return nil, err
+	}
+	err = crd.EnsureResourceReservationsCRD(ctx, apiExtensionsClient, install.ResourceReservationCRDAnnotations,
+		v1beta2.ResourceReservationCustomResourceDefinition(webhookClientConfig, v1beta1.ResourceReservationCustomResourceDefinitionVersion()),
+	)
+	if err != nil {
+		svc1log.FromContext(ctx).Error("Error ensuring resource reservations v1beta2 CRD exists: %s", svc1log.Stacktrace(err))
 		return nil, err
 	}
 
@@ -247,7 +258,6 @@ func New() *witchcraft.Server {
 		WithInstallConfigFromFile("var/conf/install.yml").
 		// We do this in order to get witchcraft to honor the logging config, which it expects to be in runtime
 		WithRuntimeConfigFromFile("var/conf/install.yml").
-		WithSelfSignedCertificate().
 		WithECVKeyProvider(witchcraft.ECVKeyNoOp()).
 		WithInitFunc(initServer).
 		WithOrigin(svc1log.CallerPkg(0, 1))

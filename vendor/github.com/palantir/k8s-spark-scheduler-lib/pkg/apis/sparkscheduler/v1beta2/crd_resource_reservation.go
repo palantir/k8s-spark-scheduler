@@ -110,9 +110,6 @@ var resourceReservationDefinition = &v1.CustomResourceDefinition{
 func ResourceReservationCustomResourceDefinition(webhook *v1.WebhookClientConfig, supportedVersions ...v1.CustomResourceDefinitionVersion) *v1.CustomResourceDefinition {
 	resourceReservation := resourceReservationDefinition.DeepCopy()
 	resourceReservation.Spec.Conversion.Webhook.ClientConfig = webhook
-	for i := range supportedVersions {
-		supportedVersions[i].Storage = false
-	}
 	resourceReservation.Spec.Versions = append(resourceReservation.Spec.Versions, supportedVersions...)
 	return resourceReservation
 }
