@@ -111,7 +111,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	)
 	demandCache := sscache.NewSafeDemandCache(
 		lazyDemandInformer,
-		fakeSchedulerClient.ScalerV1alpha1(),
+		fakeSchedulerClient.ScalerV1alpha2(),
 		installConfig.AsyncClientConfig,
 	)
 	softReservationStore := sscache.NewSoftReservationStore(ctx, podInformerInterface)

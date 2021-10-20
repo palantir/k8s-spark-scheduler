@@ -18,9 +18,9 @@ import (
 	"context"
 	"time"
 
-	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
+	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/scaler/v1alpha1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions/scaler/v1alpha2"
 	"github.com/palantir/pkg/retry"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -41,7 +41,7 @@ type LazyDemandInformer struct {
 	informerFactory     ssinformers.SharedInformerFactory
 	apiExtensionsClient apiextensionsclientset.Interface
 	ready               chan struct{}
-	informer            v1alpha1.DemandInformer
+	informer            v1alpha2.DemandInformer
 }
 
 // NewLazyDemandInformer constructs a new LazyDemandInformer instance
@@ -56,7 +56,7 @@ func NewLazyDemandInformer(
 }
 
 // Informer returns the informer instance if it is initialized, returns false otherwise
-func (ldi *LazyDemandInformer) Informer() (v1alpha1.DemandInformer, bool) {
+func (ldi *LazyDemandInformer) Informer() (v1alpha2.DemandInformer, bool) {
 	select {
 	case <-ldi.Ready():
 		return ldi.informer, true
@@ -117,8 +117,8 @@ func (ldi *LazyDemandInformer) initializeInformer(ctx context.Context) bool {
 	return ready
 }
 
-func (ldi *LazyDemandInformer) createInformer(ctx context.Context) (v1alpha1.DemandInformer, error) {
-	informerInterface := ldi.informerFactory.Scaler().V1alpha1().Demands()
+func (ldi *LazyDemandInformer) createInformer(ctx context.Context) (v1alpha2.DemandInformer, error) {
+	informerInterface := ldi.informerFactory.Scaler().V1alpha2().Demands()
 	informer := informerInterface.Informer()
 	ldi.informerFactory.Start(ctx.Done())
 

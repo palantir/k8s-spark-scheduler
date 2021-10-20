@@ -165,7 +165,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	demandCache := cache.NewSafeDemandCache(
 		lazyDemandInformer,
-		sparkSchedulerClient.ScalerV1alpha1(),
+		sparkSchedulerClient.ScalerV1alpha2(),
 		install.AsyncClientConfig,
 	)
 
