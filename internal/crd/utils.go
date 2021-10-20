@@ -16,13 +16,14 @@ package crd
 
 import (
 	"context"
+	stdliberrors "errors"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"reflect"
 	"time"
 
 	werror "github.com/palantir/witchcraft-go-error"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
@@ -44,17 +45,28 @@ func CheckCRDExists(ctx context.Context, crdName string, clientset apiextensions
 	return crd, false, nil
 }
 
-func getStorageVersion(crd *v1.CustomResourceDefinition) string {
+func getStorageVersion(crd *v1.CustomResourceDefinition) (string, error) {
 	for _, crdVersion := range crd.Spec.Versions {
 		if crdVersion.Storage {
-			return crdVersion.Name
+			return crdVersion.Name, nil
 		}
 	}
-	return crd.Spec.Versions[0].Name
+	if len(crd.Spec.Versions) == 0 {
+		return "", stdliberrors.New("crd has no versions")
+	}
+	return crd.Spec.Versions[0].Name, nil
 }
 
-func verifyCRD(existing, desired *v1.CustomResourceDefinition) bool {
-	return getStorageVersion(existing) == getStorageVersion(desired) && reflect.DeepEqual(existing.Annotations, desired.Annotations)
+func verifyCRD(existing, desired *v1.CustomResourceDefinition) (bool, error) {
+	existingVersion, err := getStorageVersion(existing)
+	if err != nil {
+		return false, err
+	}
+	desiredVersion, err := getStorageVersion(desired)
+	if err != nil {
+		return false, err
+	}
+	return existingVersion == desiredVersion && reflect.DeepEqual(existing.Annotations, desired.Annotations), nil
 }
 
 // EnsureResourceReservationsCRD is responsible for creating and ensuring the ResourceReservation CRD
@@ -70,7 +82,11 @@ func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsc
 	if err != nil {
 		return werror.Wrap(err, "Failed to get CRD")
 	}
-	if ready && verifyCRD(existing, crd) {
+	verified, err := verifyCRD(existing, crd)
+	if err != nil {
+		return werror.Wrap(err, "Failed to verify CRD")
+	}
+	if ready && verified {
 		return nil
 	}
 	_, err = clientset.ApiextensionsV1().CustomResourceDefinitions().Create(context.Background(), crd, metav1.CreateOptions{})
@@ -96,7 +112,11 @@ func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsc
 		if err != nil {
 			return false, err
 		}
-		return ready && verifyCRD(existing, crd), nil
+		verified, err := verifyCRD(existing, crd)
+		if err != nil {
+			return false, werror.Wrap(err, "Failed to verify CRD")
+		}
+		return ready && verified, nil
 	})
 
 	if err != nil {
