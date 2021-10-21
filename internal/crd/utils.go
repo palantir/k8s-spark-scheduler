@@ -20,6 +20,7 @@ import (
 	"time"
 
 	werror "github.com/palantir/witchcraft-go-error"
+	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -52,7 +53,36 @@ func emptyIfNil(x map[string]string) map[string]string {
 }
 
 func verifyCRD(existing, desired *v1.CustomResourceDefinition) bool {
-	return reflect.DeepEqual(existing.Spec.Versions, desired.Spec.Versions) && reflect.DeepEqual(emptyIfNil(existing.Annotations), emptyIfNil(desired.Annotations))
+	return versionsAreEqual(existing.Spec.Versions, desired.Spec.Versions) && reflect.DeepEqual(emptyIfNil(existing.Annotations), emptyIfNil(desired.Annotations))
+}
+
+// getVersionWithName returns the CustomResourceDefinitionVersion with the specified name true if it is found
+func getVersionWithName(name string, versions []v1.CustomResourceDefinitionVersion) (v1.CustomResourceDefinitionVersion, bool) {
+	for _, version := range versions {
+		if version.Name == name {
+			return version, true
+		}
+	}
+	return v1.CustomResourceDefinitionVersion{}, false
+}
+
+func versionsAreEqual(existingVersions []v1.CustomResourceDefinitionVersion, desiredVersions []v1.CustomResourceDefinitionVersion) bool {
+	if len(existingVersions) != len(desiredVersions) {
+		return false
+	}
+	for _, existingVersion := range existingVersions {
+		desiredVersion, found := getVersionWithName(existingVersion.Name, desiredVersions)
+		if !found {
+			return false
+		}
+
+		if existingVersion.Name != desiredVersion.Name ||
+			existingVersion.Storage != desiredVersion.Storage ||
+			existingVersion.Served != desiredVersion.Served {
+			return false
+		}
+	}
+	return true
 }
 
 // EnsureResourceReservationsCRD is responsible for creating and ensuring the ResourceReservation CRD
@@ -74,21 +104,25 @@ func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsc
 	_, err = clientset.ApiextensionsV1().CustomResourceDefinitions().Create(context.Background(), crd, metav1.CreateOptions{})
 	if err != nil {
 		if errors.IsAlreadyExists(err) {
+			svc1log.FromContext(ctx).Info("CRD already exists")
 			existing, getErr := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(context.Background(), crd.Name, metav1.GetOptions{})
 			if getErr != nil {
 				return werror.Wrap(getErr, "Failed to get existing CRD")
 			}
 			copyCrd := crd.DeepCopy()
 			copyCrd.ResourceVersion = existing.ResourceVersion
+			svc1log.FromContext(ctx).Info("Upgrading CRD")
 			_, updateErr := clientset.ApiextensionsV1().CustomResourceDefinitions().Update(context.Background(), copyCrd, metav1.UpdateOptions{})
 			if updateErr != nil {
 				return werror.Wrap(updateErr, "Failed to update CRD")
 			}
+			svc1log.FromContext(ctx).Info("Upgraded CRD")
 		} else {
 			return werror.Wrap(err, "Failed to create CRD")
 		}
 	}
 
+	svc1log.FromContext(ctx).Info("Verifying upgraded CRD has applied.")
 	err = wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
 		existing, ready, err := CheckCRDExists(ctx, crd.Name, clientset)
 		if err != nil {
@@ -96,6 +130,7 @@ func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsc
 		}
 		return ready && verifyCRD(existing, crd), nil
 	})
+	svc1log.FromContext(ctx).Info("Verified upgraded CRD has applied.")
 
 	if err != nil {
 		deleteErr := clientset.ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), crd.Name, metav1.DeleteOptions{})
