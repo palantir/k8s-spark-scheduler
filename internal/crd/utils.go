@@ -76,8 +76,7 @@ func versionsAreEqual(existingVersions []v1.CustomResourceDefinitionVersion, des
 			return false
 		}
 
-		if existingVersion.Name != desiredVersion.Name ||
-			existingVersion.Storage != desiredVersion.Storage ||
+		if existingVersion.Storage != desiredVersion.Storage ||
 			existingVersion.Served != desiredVersion.Served {
 			return false
 		}
