@@ -56,7 +56,7 @@ func verifyCRD(existing, desired *v1.CustomResourceDefinition) bool {
 	return versionsAreEqual(existing.Spec.Versions, desired.Spec.Versions) && reflect.DeepEqual(emptyIfNil(existing.Annotations), emptyIfNil(desired.Annotations))
 }
 
-// getVersionWithName returns the CustomResourceDefinitionVersion with the specified name true if it is found
+// getVersionWithName returns the CustomResourceDefinitionVersion with the specified name if it is found
 func getVersionWithName(name string, versions []v1.CustomResourceDefinitionVersion) (v1.CustomResourceDefinitionVersion, bool) {
 	for _, version := range versions {
 		if version.Name == name {
