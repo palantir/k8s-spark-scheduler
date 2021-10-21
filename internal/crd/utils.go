@@ -52,8 +52,12 @@ func emptyIfNil(x map[string]string) map[string]string {
 	return x
 }
 
+func annotationsAreEqual(existingAnnotations, desiredAnnotations map[string]string) bool {
+	return reflect.DeepEqual(emptyIfNil(existingAnnotations), emptyIfNil(desiredAnnotations))
+}
+
 func verifyCRD(existing, desired *v1.CustomResourceDefinition) bool {
-	return versionsAreEqual(existing.Spec.Versions, desired.Spec.Versions) && reflect.DeepEqual(emptyIfNil(existing.Annotations), emptyIfNil(desired.Annotations))
+	return versionsAreEqual(existing.Spec.Versions, desired.Spec.Versions) && annotationsAreEqual(existing.Annotations, desired.Annotations)
 }
 
 // getVersionWithName returns the CustomResourceDefinitionVersion with the specified name if it is found
@@ -66,6 +70,7 @@ func getVersionWithName(name string, versions []v1.CustomResourceDefinitionVersi
 	return v1.CustomResourceDefinitionVersion{}, false
 }
 
+// TODO(cbattarbee): Convert to map comparison
 func versionsAreEqual(existingVersions []v1.CustomResourceDefinitionVersion, desiredVersions []v1.CustomResourceDefinitionVersion) bool {
 	if len(existingVersions) != len(desiredVersions) {
 		return false
