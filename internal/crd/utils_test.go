@@ -17,7 +17,6 @@ func Test_verifyCRD(t *testing.T) {
 		args args
 		want bool
 	}{
-		// TODO: Add test cases.
 		{
 			name: "Identical CRDs verify successfully.",
 			args: args{
