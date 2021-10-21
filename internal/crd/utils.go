@@ -44,15 +44,6 @@ func CheckCRDExists(ctx context.Context, crdName string, clientset apiextensions
 	return crd, false, nil
 }
 
-func getStorageVersion(crd *v1.CustomResourceDefinition) string {
-	for _, crdVersion := range crd.Spec.Versions {
-		if crdVersion.Storage {
-			return crdVersion.Name
-		}
-	}
-	return crd.Spec.Versions[0].Name
-}
-
 func emptyIfNil(x map[string]string) map[string]string {
 	if x == nil {
 		return map[string]string{}
