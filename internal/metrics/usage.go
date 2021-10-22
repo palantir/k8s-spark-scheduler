@@ -83,7 +83,7 @@ func (r *ResourceUsageReporter) doStart(ctx context.Context) error {
 }
 
 func (r *ResourceUsageReporter) report(ctx context.Context, nodes []*v1.Node, rrs []*v1beta2.ResourceReservation) {
-	resourceUsages := resources.UsageForNodesV1Beta2(rrs)
+	resourceUsages := resources.UsageForNodes(rrs)
 
 	tagsToDelete := make([]metrics.Tags, 0, len(resourceUsages))
 	metrics.FromContext(ctx).Each(func(name string, tags metrics.Tags, value metrics.MetricVal) {

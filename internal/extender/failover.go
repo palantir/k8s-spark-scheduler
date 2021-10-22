@@ -301,7 +301,7 @@ func availableResourcesPerInstanceGroup(
 		instanceGroup := instanceGroup(n.Labels[instanceGroupLabel])
 		schedulableNodes[instanceGroup] = append(schedulableNodes[instanceGroup], n)
 	}
-	usages := resources.UsageForNodesV1Beta2(rrs)
+	usages := resources.UsageForNodes(rrs)
 	usages.Add(overhead)
 	usages.Add(softReservationOverhead)
 	availableResources := make(map[instanceGroup]resources.NodeGroupResources)
