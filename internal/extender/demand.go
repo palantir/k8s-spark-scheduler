@@ -63,8 +63,9 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 		{
 			Count: 1,
 			Resources: demandapi.ResourceList{
-				demandapi.ResourceCPU:    executorResources.CPU,
-				demandapi.ResourceMemory: executorResources.Memory,
+				demandapi.ResourceCPU:       executorResources.CPU,
+				demandapi.ResourceMemory:    executorResources.Memory,
+				demandapi.ResourceNvidiaGPU: executorResources.NvidiaGPU,
 			},
 		},
 	}
@@ -164,8 +165,9 @@ func demandResources(applicationResources *sparkApplicationResources) []demandap
 		{
 			Count: 1,
 			Resources: demandapi.ResourceList{
-				demandapi.ResourceCPU:    applicationResources.driverResources.CPU,
-				demandapi.ResourceMemory: applicationResources.driverResources.Memory,
+				demandapi.ResourceCPU:       applicationResources.driverResources.CPU,
+				demandapi.ResourceMemory:    applicationResources.driverResources.Memory,
+				demandapi.ResourceNvidiaGPU: applicationResources.driverResources.NvidiaGPU,
 			},
 		},
 	}
@@ -173,8 +175,9 @@ func demandResources(applicationResources *sparkApplicationResources) []demandap
 		demandUnits = append(demandUnits, demandapi.DemandUnit{
 			Count: applicationResources.minExecutorCount,
 			Resources: demandapi.ResourceList{
-				demandapi.ResourceCPU:    applicationResources.executorResources.CPU,
-				demandapi.ResourceMemory: applicationResources.executorResources.Memory,
+				demandapi.ResourceCPU:       applicationResources.executorResources.CPU,
+				demandapi.ResourceMemory:    applicationResources.executorResources.Memory,
+				demandapi.ResourceNvidiaGPU: applicationResources.executorResources.NvidiaGPU,
 			},
 		})
 	}

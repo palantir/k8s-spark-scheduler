@@ -17,7 +17,7 @@ package resources
 import (
 	"time"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -27,7 +27,7 @@ const (
 )
 
 // UsageForNodes tallies resource usages per node from the given list of resource reservations
-func UsageForNodes(resourceReservations []*v1beta1.ResourceReservation) NodeGroupResources {
+func UsageForNodes(resourceReservations []*v1beta2.ResourceReservation) NodeGroupResources {
 	res := NodeGroupResources(map[string]*Resources{})
 	for _, rr := range resourceReservations {
 		for _, reservation := range rr.Spec.Reservations {
@@ -123,17 +123,21 @@ func (nodesSchedulingMetadata NodeGroupSchedulingMetadata) SubtractUsageIfExists
 func subtractFromResourceList(resourceList corev1.ResourceList, resources *Resources) *Resources {
 	// (a - b) == -(b - a)
 	copyResources := resources.Copy()
-	copyResources.CPU.Sub(resourceList[corev1.ResourceCPU])
+	resourcesToSubtractFrom := getResourcesFromResourceList(resourceList)
+	copyResources.CPU.Sub(resourcesToSubtractFrom.CPU)
 	copyResources.CPU.Neg()
-	copyResources.Memory.Sub(resourceList[corev1.ResourceMemory])
+	copyResources.Memory.Sub(resourcesToSubtractFrom.Memory)
 	copyResources.Memory.Neg()
+	copyResources.NvidiaGPU.Sub(resourcesToSubtractFrom.NvidiaGPU)
+	copyResources.NvidiaGPU.Neg()
 	return copyResources
 }
 
 // Resources represents the CPU and Memory resource quantities
 type Resources struct {
-	CPU    resource.Quantity
-	Memory resource.Quantity
+	CPU       resource.Quantity
+	Memory    resource.Quantity
+	NvidiaGPU resource.Quantity
 }
 
 // NodeSchedulingMetadata represents various parameters of a node that are considered in scheduling decisions
@@ -146,25 +150,36 @@ type NodeSchedulingMetadata struct {
 	Ready              bool
 }
 
+func getResourcesFromResourceList(resourceList corev1.ResourceList) Resources {
+	return Resources{
+		CPU:       resourceList[corev1.ResourceCPU],
+		Memory:    resourceList[corev1.ResourceMemory],
+		NvidiaGPU: resourceList[v1beta2.ResourceNvidiaGPU],
+	}
+}
+
 // Zero returns a Resources object with quantities of zero
 func Zero() *Resources {
 	return &Resources{
-		CPU:    *resource.NewQuantity(0, resource.DecimalSI),
-		Memory: *resource.NewQuantity(0, resource.BinarySI),
+		CPU:       *resource.NewQuantity(0, resource.DecimalSI),
+		Memory:    *resource.NewQuantity(0, resource.BinarySI),
+		NvidiaGPU: *resource.NewQuantity(0, resource.DecimalSI),
 	}
 }
 
 //AddFromReservation modifies the receiver in place.
-func (r *Resources) AddFromReservation(reservation *v1beta1.Reservation) {
-	r.CPU.Add(reservation.CPU)
-	r.Memory.Add(reservation.Memory)
+func (r *Resources) AddFromReservation(reservation *v1beta2.Reservation) {
+	r.CPU.Add(*reservation.Resources.CPU())
+	r.Memory.Add(*reservation.Resources.Memory())
+	r.NvidiaGPU.Add(*reservation.Resources.NvidiaGPU())
 }
 
 // Copy returns a clone of the Resources object
 func (r *Resources) Copy() *Resources {
 	return &Resources{
-		CPU:    r.CPU.DeepCopy(),
-		Memory: r.Memory.DeepCopy(),
+		CPU:       r.CPU.DeepCopy(),
+		Memory:    r.Memory.DeepCopy(),
+		NvidiaGPU: r.NvidiaGPU.DeepCopy(),
 	}
 }
 
@@ -172,39 +187,45 @@ func (r *Resources) Copy() *Resources {
 func (r *Resources) Add(other *Resources) {
 	r.CPU.Add(other.CPU)
 	r.Memory.Add(other.Memory)
+	r.NvidiaGPU.Add(other.NvidiaGPU)
 }
 
 //Sub modifies the receiver in place
 func (r *Resources) Sub(other *Resources) {
 	r.CPU.Sub(other.CPU)
 	r.Memory.Sub(other.Memory)
+	r.NvidiaGPU.Sub(other.NvidiaGPU)
 }
 
 // AddFromResourceList modified the receiver in place
 func (r *Resources) AddFromResourceList(resourceList corev1.ResourceList) {
-	r.CPU.Add(resourceList[corev1.ResourceCPU])
-	r.Memory.Add(resourceList[corev1.ResourceMemory])
+	otherResources := getResourcesFromResourceList(resourceList)
+	r.CPU.Add(otherResources.CPU)
+	r.Memory.Add(otherResources.Memory)
+	r.NvidiaGPU.Add(otherResources.NvidiaGPU)
 }
 
 // SetMaxResource modifies the receiver in place to set each resource to the greater value of itself or the corresponding resource in resourceList
 func (r *Resources) SetMaxResource(resourceList corev1.ResourceList) {
-	cpuResource := resourceList[corev1.ResourceCPU]
-	memResource := resourceList[corev1.ResourceMemory]
-	if cpuResource.Cmp(r.CPU) > 0 {
-		r.CPU = cpuResource.DeepCopy()
+	otherResources := getResourcesFromResourceList(resourceList)
+	if otherResources.CPU.Cmp(r.CPU) > 0 {
+		r.CPU = otherResources.CPU.DeepCopy()
 	}
-	if memResource.Cmp(r.Memory) > 0 {
-		r.Memory = memResource.DeepCopy()
+	if otherResources.Memory.Cmp(r.Memory) > 0 {
+		r.Memory = otherResources.Memory.DeepCopy()
+	}
+	if otherResources.NvidiaGPU.Cmp(r.NvidiaGPU) > 0 {
+		r.NvidiaGPU = otherResources.NvidiaGPU.DeepCopy()
 	}
 }
 
-// GreaterThan returns true if either the CPU or Memory quantities of this object are greater than those
+// GreaterThan returns true if any of CPU, Memory or NvidiaGPU quantities of this object are greater than those
 // of other
 func (r *Resources) GreaterThan(other *Resources) bool {
-	return r.CPU.Cmp(other.CPU) > 0 || r.Memory.Cmp(other.Memory) > 0
+	return r.CPU.Cmp(other.CPU) > 0 || r.Memory.Cmp(other.Memory) > 0 || r.NvidiaGPU.Cmp(other.NvidiaGPU) > 0
 }
 
-// Eq returns true if both CPU and Memory quantities are equal between this Resources object and other
+// Eq returns true if all of CPU, Memory and NvidiaGPU quantities are equal between this Resources object and other
 func (r *Resources) Eq(other *Resources) bool {
-	return r.CPU.Cmp(other.CPU) == 0 && r.Memory.Cmp(other.Memory) == 0
+	return r.CPU.Cmp(other.CPU) == 0 && r.Memory.Cmp(other.Memory) == 0 && r.NvidiaGPU.Cmp(other.NvidiaGPU) == 0
 }

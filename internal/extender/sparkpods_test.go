@@ -88,6 +88,10 @@ func TestSparkResources(t *testing.T) {
 			if err != nil {
 				t.Fatalf("error: %v", err)
 			}
+			cacheQuantities(applicationResources.driverResources)
+			cacheQuantities(test.expectedApplicationResources.driverResources)
+			cacheQuantities(applicationResources.executorResources)
+			cacheQuantities(test.expectedApplicationResources.executorResources)
 			if !applicationResources.driverResources.Eq(test.expectedApplicationResources.driverResources) {
 				t.Fatalf("driverResources are not equal, expected: %v, got: %v",
 					test.expectedApplicationResources.driverResources, applicationResources.driverResources)
@@ -106,6 +110,12 @@ func TestSparkResources(t *testing.T) {
 			}
 		})
 	}
+}
+
+func cacheQuantities(resources *resources.Resources) {
+	_ = resources.CPU.String()
+	_ = resources.Memory.String()
+	_ = resources.NvidiaGPU.String()
 }
 
 func createPod(seconds int64, uid, instanceGroupLabel, instanceGroup string) *v1.Pod {
