@@ -6,3 +6,7 @@ fifo: true
 logging:
   level: info
   output: STDOUT
+webhook-service-config:
+  namespace: spark
+  service-name: scheduler-service
+  service-port: 443

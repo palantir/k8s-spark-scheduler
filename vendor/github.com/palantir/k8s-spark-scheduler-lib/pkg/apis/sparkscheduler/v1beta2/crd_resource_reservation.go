@@ -23,7 +23,7 @@ import (
 var v1beta2VersionDefinition = v1.CustomResourceDefinitionVersion{
 	Name:    "v1beta2",
 	Served:  true,
-	Storage: true,
+	Storage: false,
 	AdditionalPrinterColumns: []v1.CustomResourceColumnDefinition{{
 		Name:        "driver",
 		Type:        "string",
@@ -64,7 +64,7 @@ var v1beta2VersionDefinition = v1.CustomResourceDefinitionVersion{
 											Type: "string",
 										},
 										"resources": {
-											Type:     "object",
+											Type: "object",
 											AdditionalProperties: &v1.JSONSchemaPropsOrBool{
 												Schema: &v1.JSONSchemaProps{Type: "string"},
 											},
@@ -96,6 +96,13 @@ var resourceReservationDefinition = &v1.CustomResourceDefinition{
 			ShortNames: []string{"rr"},
 			Categories: []string{"all"},
 		},
+		Conversion: &v1.CustomResourceConversion{
+			Strategy: v1.WebhookConverter,
+			Webhook: &v1.WebhookConversion{
+				ConversionReviewVersions: []string{"v1", "v1beta1"},
+				ClientConfig:             nil,
+			},
+		},
 	},
 }
 
@@ -103,16 +110,6 @@ var resourceReservationDefinition = &v1.CustomResourceDefinition{
 func ResourceReservationCustomResourceDefinition(webhook *v1.WebhookClientConfig, supportedVersions ...v1.CustomResourceDefinitionVersion) *v1.CustomResourceDefinition {
 	resourceReservation := resourceReservationDefinition.DeepCopy()
 	resourceReservation.Spec.Conversion.Webhook.ClientConfig = webhook
-	for i := range supportedVersions {
-		supportedVersions[i].Storage = false
-	}
 	resourceReservation.Spec.Versions = append(resourceReservation.Spec.Versions, supportedVersions...)
-	return resourceReservation
-}
-
-// ResourceReservationCustomResourceDefinitionNoWebhook returns the CRD definition for resource reservations
-func ResourceReservationCustomResourceDefinitionNoWebhook() *v1.CustomResourceDefinition {
-	resourceReservation := resourceReservationDefinition.DeepCopy()
-	resourceReservation.Spec.Versions = append(resourceReservation.Spec.Versions)
 	return resourceReservation
 }

@@ -227,7 +227,7 @@ func (rrm *ResourceReservationManager) ReserveForExecutorOnRescheduledNode(ctx c
 // GetReservedResources returns the resources per node that are reserved for executors.
 func (rrm *ResourceReservationManager) GetReservedResources() resources.NodeGroupResources {
 	resourceReservations := rrm.resourceReservations.List()
-	usage := resources.UsageForNodesV1Beta2(resourceReservations)
+	usage := resources.UsageForNodes(resourceReservations)
 	usage.Add(rrm.softReservationStore.UsedSoftReservationResources())
 	return usage
 }

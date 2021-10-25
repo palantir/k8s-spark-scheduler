@@ -17,7 +17,6 @@ package resources
 import (
 	"time"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -28,7 +27,7 @@ const (
 )
 
 // UsageForNodes tallies resource usages per node from the given list of resource reservations
-func UsageForNodes(resourceReservations []*v1beta1.ResourceReservation) NodeGroupResources {
+func UsageForNodes(resourceReservations []*v1beta2.ResourceReservation) NodeGroupResources {
 	res := NodeGroupResources(map[string]*Resources{})
 	for _, rr := range resourceReservations {
 		for _, reservation := range rr.Spec.Reservations {
@@ -37,21 +36,6 @@ func UsageForNodes(resourceReservations []*v1beta1.ResourceReservation) NodeGrou
 				res[node] = Zero()
 			}
 			res[node].AddFromReservation(&reservation)
-		}
-	}
-	return res
-}
-
-// UsageForNodesV1Beta2 tallies resource usages per node from the given list of resource reservations
-func UsageForNodesV1Beta2(resourceReservations []*v1beta2.ResourceReservation) NodeGroupResources {
-	res := NodeGroupResources(map[string]*Resources{})
-	for _, rr := range resourceReservations {
-		for _, reservation := range rr.Spec.Reservations {
-			node := reservation.Node
-			if res[node] == nil {
-				res[node] = Zero()
-			}
-			res[node].AddFromReservationV1Beta2(&reservation)
 		}
 	}
 	return res
@@ -184,13 +168,7 @@ func Zero() *Resources {
 }
 
 //AddFromReservation modifies the receiver in place.
-func (r *Resources) AddFromReservation(reservation *v1beta1.Reservation) {
-	r.CPU.Add(reservation.CPU)
-	r.Memory.Add(reservation.Memory)
-}
-
-//AddFromReservationV1Beta2 modifies the receiver in place.
-func (r *Resources) AddFromReservationV1Beta2(reservation *v1beta2.Reservation) {
+func (r *Resources) AddFromReservation(reservation *v1beta2.Reservation) {
 	r.CPU.Add(*reservation.Resources.CPU())
 	r.Memory.Add(*reservation.Resources.Memory())
 	r.NvidiaGPU.Add(*reservation.Resources.NvidiaGPU())
