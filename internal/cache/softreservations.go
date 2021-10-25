@@ -163,7 +163,7 @@ func (s *SoftReservationStore) UsedSoftReservationResources() resources.NodeGrou
 			if res[node] == nil {
 				res[node] = resources.Zero()
 			}
-			res[node].AddFromReservationV1Beta2(&reservationObject)
+			res[node].AddFromReservation(&reservationObject)
 		}
 	}
 	return res
