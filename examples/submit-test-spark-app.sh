@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 
-# submit-test-spark-app <app-id> <executor-count> <driver-cpu> <driver-mem> <executor-cpu> <executor-mem>
 set -o errexit
 set -o nounset
 set -o pipefail
+
+if [ "$#" -ne 8 ]; then
+    echo "Illegal number of parameters. Correct usage: submit-test-spark-app <app-id> <executor-count> <driver-cpu> <driver-mem> <executor-cpu> <executor-mem>"
+fi
 
 APP_ID=$1
 EXECUTOR_COUNT=$2
