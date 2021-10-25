@@ -75,11 +75,7 @@ func resourcesLessThan(left *resources.Resources, right *resources.Resources) bo
 	if memoryCompared != 0 {
 		return memoryCompared == -1
 	}
-	var cpuCompared = left.CPU.Cmp(right.CPU)
-	if cpuCompared != 0 {
-		return cpuCompared == -1
-	}
-	return left.NvidiaGPU.Cmp(right.NvidiaGPU) == -1
+	return left.CPU.Cmp(right.CPU) == -1
 }
 
 // Sort first by AZ priority and then by resources on the node
