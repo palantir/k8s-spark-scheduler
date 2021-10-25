@@ -69,14 +69,17 @@ type scheduleContext struct {
 	nodeResources *resources.Resources
 }
 
-// TODO(cbattarbee): GPUS??
-// Sort by available resources ascending, with RAM usage more important.
+// Sort by available resources ascending, with RAM usage more important than CPU and CPU being more important the GPUs.
 func resourcesLessThan(left *resources.Resources, right *resources.Resources) bool {
 	var memoryCompared = left.Memory.Cmp(right.Memory)
 	if memoryCompared != 0 {
 		return memoryCompared == -1
 	}
-	return left.CPU.Cmp(right.CPU) == -1
+	var cpuCompared = left.CPU.Cmp(right.CPU)
+	if cpuCompared != 0 {
+		return cpuCompared == -1
+	}
+	return left.NvidiaGPU.Cmp(right.NvidiaGPU) == -1
 }
 
 // Sort first by AZ priority and then by resources on the node
