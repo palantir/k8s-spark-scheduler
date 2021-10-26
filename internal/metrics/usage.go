@@ -98,6 +98,7 @@ func (r *ResourceUsageReporter) report(ctx context.Context, nodes []*v1.Node, rr
 	for _, tags := range tagsToDelete {
 		metrics.FromContext(ctx).Unregister(resourceUsageCPU, tags...)
 		metrics.FromContext(ctx).Unregister(resourceUsageMemory, tags...)
+		metrics.FromContext(ctx).Unregister(resourceUsageNvidiaGPUs, tags...)
 	}
 	for _, n := range nodes {
 		usage, ok := resourceUsages[n.Name]
@@ -108,5 +109,6 @@ func (r *ResourceUsageReporter) report(ctx context.Context, nodes []*v1.Node, rr
 		instanceGroupTag := InstanceGroupTag(ctx, n.Labels[r.instanceGroupTagLabel])
 		metrics.FromContext(ctx).Gauge(resourceUsageCPU, hostTag, instanceGroupTag).Update(usage.CPU.Value())
 		metrics.FromContext(ctx).Gauge(resourceUsageMemory, hostTag, instanceGroupTag).Update(usage.Memory.Value())
+		metrics.FromContext(ctx).Gauge(resourceUsageNvidiaGPUs, hostTag, instanceGroupTag).Update(usage.NvidiaGPU.Value())
 	}
 }

@@ -345,8 +345,9 @@ func (rrm *ResourceReservationManager) bindExecutorToSoftReservation(ctx context
 	softReservation := v1beta2.Reservation{
 		Node: node,
 		Resources: v1beta2.ResourceList{
-			string(v1beta2.ResourceCPU):    &sparkResources.executorResources.CPU,
-			string(v1beta2.ResourceMemory): &sparkResources.executorResources.Memory,
+			string(v1beta2.ResourceCPU):       &sparkResources.executorResources.CPU,
+			string(v1beta2.ResourceMemory):    &sparkResources.executorResources.Memory,
+			string(v1beta2.ResourceNvidiaGPU): &sparkResources.executorResources.NvidiaGPU,
 		},
 	}
 	return rrm.softReservationStore.AddReservationForPod(ctx, driver.Labels[common.SparkAppIDLabel], executor.Name, softReservation)
@@ -437,16 +438,18 @@ func newResourceReservation(driverNode string, executorNodes []string, driver *v
 	reservations["driver"] = v1beta2.Reservation{
 		Node: driverNode,
 		Resources: v1beta2.ResourceList{
-			string(v1beta2.ResourceCPU):    &driverResources.CPU,
-			string(v1beta2.ResourceMemory): &driverResources.Memory,
+			string(v1beta2.ResourceCPU):       &driverResources.CPU,
+			string(v1beta2.ResourceMemory):    &driverResources.Memory,
+			string(v1beta2.ResourceNvidiaGPU): &driverResources.NvidiaGPU,
 		},
 	}
 	for idx, nodeName := range executorNodes {
 		reservations[executorReservationName(idx)] = v1beta2.Reservation{
 			Node: nodeName,
 			Resources: v1beta2.ResourceList{
-				string(v1beta2.ResourceCPU):    &executorResources.CPU,
-				string(v1beta2.ResourceMemory): &executorResources.Memory,
+				string(v1beta2.ResourceCPU):       &executorResources.CPU,
+				string(v1beta2.ResourceMemory):    &executorResources.Memory,
+				string(v1beta2.ResourceNvidiaGPU): &executorResources.NvidiaGPU,
 			},
 		}
 	}

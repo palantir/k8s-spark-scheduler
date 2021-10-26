@@ -49,3 +49,29 @@ func TestUnschedulablePodMarker(t *testing.T) {
 		t.Error("The hundred executor application should not fit to the cluster")
 	}
 }
+
+func TestSchedulerFailsToScheduleWhenNotEnoughNvidiaGPUs(t *testing.T) {
+	node1 := extendertest.NewNode("node1")
+	node2 := extendertest.NewNode("node2")
+	nodeNames := []string{node1.Name, node2.Name}
+	podsToSchedule := extendertest.StaticAllocationSparkPodsWithExecutorGPUs("2-executor-app", 2)
+
+	testHarness, err := extendertest.NewTestExtender(
+		&node1,
+		&node2,
+		&podsToSchedule[0],
+		&podsToSchedule[1],
+		&podsToSchedule[2],
+	)
+	if err != nil {
+		t.Fatal("Could not setup test extender")
+	}
+
+	for _, pod := range podsToSchedule {
+		testHarness.AssertFailedSchedule(
+			t,
+			pod,
+			nodeNames,
+			"There should not be enough capacity to schedule the full application")
+	}
+}

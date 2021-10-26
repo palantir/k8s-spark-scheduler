@@ -32,10 +32,14 @@ const (
 	DriverCPU = "spark-driver-cpu"
 	// DriverMemory represents the key of an annotation that describes how much memory a spark driver requires
 	DriverMemory = "spark-driver-mem"
+	// DriverNvidiaGPUs represents the key of an annotation that describes how many nvidia gpus a spark driver requires
+	DriverNvidiaGPUs = "spark-driver-nvidia.com/gpu"
 	// ExecutorCPU represents the key of an annotation that describes how much cpu a spark executor requires
 	ExecutorCPU = "spark-executor-cpu"
 	// ExecutorMemory represents the key of an annotation that describes how much memory a spark executor requires
 	ExecutorMemory = "spark-executor-mem"
+	// ExecutorNvidiaGPUs represents the key of an annotation that describes how many nvidia gpus a spark executor requires
+	ExecutorNvidiaGPUs = "spark-executor-nvidia.com/gpu"
 	// DynamicAllocationEnabled sets whether dynamic allocation is enabled for this spark application (false by default)
 	DynamicAllocationEnabled = "spark-dynamic-allocation-enabled"
 	// ExecutorCount represents the key of an annotation that describes how many executors a spark application requires (required if DynamicAllocationEnabled is false)

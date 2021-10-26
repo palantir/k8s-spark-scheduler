@@ -43,14 +43,16 @@ func EmitApplicationScheduled(
 	maxExecutorCount int,
 ) {
 	evt2log.FromContext(ctx).Event(applicationScheduled, evt2log.Values(map[string]interface{}{
-		"instanceGroup":    instanceGroup,
-		"sparkAppID":       sparkAppID,
-		"driverCpu":        driverResources.CPU.Value(),
-		"driverMemory":     driverResources.Memory.Value(),
-		"executorCpu":      executorResources.CPU.Value(),
-		"executorMemory":   executorResources.Memory.Value(),
-		"minExecutorCount": minExecutorCount,
-		"maxExecutorCount": maxExecutorCount,
+		"instanceGroup":      instanceGroup,
+		"sparkAppID":         sparkAppID,
+		"driverCpu":          driverResources.CPU.Value(),
+		"driverMemory":       driverResources.Memory.Value(),
+		"driverNvidiaGpus":   driverResources.NvidiaGPU.Value(),
+		"executorCpu":        executorResources.CPU.Value(),
+		"executorMemory":     executorResources.Memory.Value(),
+		"executorNvidiaGpus": executorResources.NvidiaGPU.Value(),
+		"minExecutorCount":   minExecutorCount,
+		"maxExecutorCount":   maxExecutorCount,
 	}))
 }
 

@@ -34,6 +34,7 @@ const (
 	schedulingRetryTime             = "foundry.spark.scheduler.retry.time"
 	resourceUsageCPU                = "foundry.spark.scheduler.resource.usage.cpu"
 	resourceUsageMemory             = "foundry.spark.scheduler.resource.usage.memory"
+	resourceUsageNvidiaGPUs         = "foundry.spark.scheduler.resource.usage.nvidia.com/gpu"
 	lifecycleAgeMax                 = "foundry.spark.scheduler.pod.lifecycle.max"
 	lifecycleAgeP95                 = "foundry.spark.scheduler.pod.lifecycle.p95"
 	lifecycleAgeP50                 = "foundry.spark.scheduler.pod.lifecycle.p50"
