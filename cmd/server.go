@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal/resourcereservationmigrator"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
@@ -29,6 +28,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
+	"github.com/palantir/k8s-spark-scheduler/internal/resourcereservationmigrator"
 	"github.com/palantir/k8s-spark-scheduler/internal/sort"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
