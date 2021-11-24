@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/resourcereservationmigrator"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
@@ -100,9 +101,8 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		svc1log.FromContext(ctx).Error("Error instantiating CRD conversion webhook: %s", svc1log.Stacktrace(err))
 		return nil, err
 	}
-	err = crd.EnsureResourceReservationsCRD(ctx, apiExtensionsClient, install.ResourceReservationCRDAnnotations,
-		v1beta2.ResourceReservationCustomResourceDefinition(webhookClientConfig, v1beta1.ResourceReservationCustomResourceDefinitionVersion()),
-	)
+	resourceReservationV1Beta2CRD := v1beta2.ResourceReservationCustomResourceDefinition(webhookClientConfig, v1beta1.ResourceReservationCustomResourceDefinitionVersion())
+	err = crd.EnsureResourceReservationsCRD(ctx, apiExtensionsClient, install.ResourceReservationCRDAnnotations, resourceReservationV1Beta2CRD)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error ensuring resource reservations v1beta2 CRD exists: %s", svc1log.Stacktrace(err))
 		return nil, err
@@ -234,9 +234,16 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		binpacker,
 	)
 
+	resourceReservationMigrator := resourcereservationmigrator.New(
+		apiExtensionsClient,
+		sparkSchedulerClient.SparkschedulerV1beta2(),
+		*resourceReservationV1Beta2CRD,
+	)
+
 	resourceReservationCache.Run(ctx)
 	lazyDemandInformer.Run(ctx)
 	demandCache.Run(ctx)
+	resourceReservationMigrator.RunMigration(ctx)
 	wasteMetricsReporter.StartSchedulingOverheadMetrics(podInformerInterface, lazyDemandInformer)
 	go cacheReporter.StartReporting(ctx)
 	go resourceReporter.StartReportingResourceUsage(ctx)
