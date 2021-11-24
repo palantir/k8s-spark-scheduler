@@ -34,12 +34,14 @@ const (
 	migrationStatusFinished   = "FINISHED"
 )
 
+//ResourceReservationMigrator Manages the migration of Resource Reservation objects from storage version v1beta1 to v1beta2
 type ResourceReservationMigrator struct {
 	apiextensionsclientset        apiextensionsclientset.Interface
 	resourceReservationKubeClient sparkschedulerclient.SparkschedulerV1beta2Interface
 	crd                           v1.CustomResourceDefinition
 }
 
+//New Returns a new ResourceReservationMigrator
 func New(
 	apiextensionsclientset apiextensionsclientset.Interface,
 	resourceReservationKubeClient sparkschedulerclient.SparkschedulerV1beta2Interface,
