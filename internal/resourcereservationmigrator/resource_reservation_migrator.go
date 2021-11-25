@@ -60,7 +60,7 @@ func New(
 //The migration is performed by iterating through each of the Resource Reservations and updating them with the same content as per
 //https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#upgrade-existing-objects-to-a-new-stored-version
 //
-//We record that a migration has successfully completed by writing a `migrationStatus` field to the status subresource
+//We record that a migration has successfully completed by writing a `migrationStatus` field to the annotations of the CRD
 //of the v1beta2 ResourceReservation CRD. The field has the values `IN_PROGRESS` and `FINISHED`. We then use this field
 //to determine whether the migration should be ran again.
 func (rrm *ResourceReservationMigrator) RunMigration(ctx context.Context) {
@@ -123,7 +123,7 @@ func (rrm *ResourceReservationMigrator) migrateResourceReservation(ctx context.C
 }
 
 func (rrm *ResourceReservationMigrator) markMigrationAs(ctx context.Context, status string) error {
-	_, err := rrm.apiextensionsclientset.ApiextensionsV1().CustomResourceDefinitions().Patch(ctx, rrm.crd.Name, types.StrategicMergePatchType, generateMigrationStatusPatch(migrationStatusFinished), metav1.PatchOptions{})
+	_, err := rrm.apiextensionsclientset.ApiextensionsV1().CustomResourceDefinitions().Patch(ctx, rrm.crd.Name, types.StrategicMergePatchType, generateMigrationStatusPatch(status), metav1.PatchOptions{})
 	return err
 }
 
