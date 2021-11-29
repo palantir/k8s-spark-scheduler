@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"context"
+	v1 "k8s.io/client-go/informers/core/v1"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
@@ -45,7 +46,10 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "runs the spark scheduler extender server",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return New().Start()
+		extender, wc := New()
+		err := wc.Start()
+		extender.RunBackgroundTasks()
+		return err
 	},
 }
 
@@ -53,7 +57,34 @@ func init() {
 	rootCmd.AddCommand(serverCmd)
 }
 
-func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
+type Extender struct {
+	podInformer              *v1.PodInformer
+	resourceReservationCache *cache.ResourceReservationCache
+	lazyDemandInformer       *crd.LazyDemandInformer
+	demandCache              *cache.SafeDemandCache
+	wasteMetricsReporter     *metrics.WasteMetricsReporter
+	cacheReporter            *metrics.CacheMetrics
+	resourceReporter         *metrics.ResourceUsageReporter
+	queueReporter            *metrics.PendingPodQueueReporter
+	softReservationReporter  *metrics.SoftReservationMetrics
+	unschedulablePodMarker   *extender.UnschedulablePodMarker
+}
+
+func (ext *Extender) RunBackgroundTasks() {
+	ctx := context.Background()
+	ext.resourceReservationCache.Run(ctx)
+	ext.lazyDemandInformer.Run(ctx)
+	ext.demandCache.Run(ctx)
+	ext.wasteMetricsReporter.StartSchedulingOverheadMetrics(*ext.podInformer, ext.lazyDemandInformer)
+	extender.StartDemandGC(ctx, *ext.podInformer, ext.demandCache)
+	go ext.cacheReporter.StartReporting(ctx)
+	go ext.resourceReporter.StartReportingResourceUsage(ctx)
+	go ext.queueReporter.StartReportingQueues(ctx)
+	go ext.softReservationReporter.StartReporting(ctx)
+	go ext.unschedulablePodMarker.Start(ctx)
+}
+
+func (ext *Extender) initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	var kubeconfig *rest.Config
 	var err error
 
@@ -116,6 +147,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	nodeLister := nodeInformerInterface.Lister()
 
 	podInformerInterface := kubeInformerFactory.Core().V1().Pods()
+	ext.podInformer = &podInformerInterface
 	podInformer := podInformerInterface.Informer()
 	podLister := podInformerInterface.Lister()
 
@@ -152,6 +184,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		sparkSchedulerClient.SparkschedulerV1beta2(),
 		install.AsyncClientConfig,
 	)
+	ext.resourceReservationCache = resourceReservationCache
 
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error constructing resource reservation cache", svc1log.Stacktrace(err))
@@ -162,14 +195,14 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		sparkSchedulerInformerFactory,
 		apiExtensionsClient,
 	)
+	ext.lazyDemandInformer = lazyDemandInformer
 
 	demandCache := cache.NewSafeDemandCache(
 		lazyDemandInformer,
 		sparkSchedulerClient.ScalerV1alpha2(),
 		install.AsyncClientConfig,
 	)
-
-	extender.StartDemandGC(ctx, podInformerInterface, demandCache)
+	ext.demandCache = demandCache
 
 	softReservationStore := cache.NewSoftReservationStore(ctx, podInformerInterface)
 
@@ -213,6 +246,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		resourceReservationCache,
 		instanceGroupLabel,
 	)
+	ext.resourceReporter = resourceReporter
 
 	metrics.RegisterInformerDelayMetrics(ctx, podInformerInterface)
 
@@ -221,10 +255,13 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		resourceReservationCache,
 		demandCache,
 	)
+	ext.cacheReporter = cacheReporter
 
 	queueReporter := metrics.NewQueueReporter(podLister, instanceGroupLabel)
+	ext.queueReporter = queueReporter
 
 	softReservationReporter := metrics.NewSoftReservationMetrics(ctx, softReservationStore, podLister, resourceReservationCache)
+	ext.softReservationReporter = softReservationReporter
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(
 		nodeLister,
@@ -233,16 +270,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		overheadComputer,
 		binpacker,
 	)
-
-	resourceReservationCache.Run(ctx)
-	lazyDemandInformer.Run(ctx)
-	demandCache.Run(ctx)
-	wasteMetricsReporter.StartSchedulingOverheadMetrics(podInformerInterface, lazyDemandInformer)
-	go cacheReporter.StartReporting(ctx)
-	go resourceReporter.StartReportingResourceUsage(ctx)
-	go queueReporter.StartReportingQueues(ctx)
-	go softReservationReporter.StartReporting(ctx)
-	go unschedulablePodMarker.Start(ctx)
+	ext.unschedulablePodMarker = unschedulablePodMarker
 
 	if err := registerExtenderEndpoints(info.Router, sparkSchedulerExtender); err != nil {
 		return nil, err
@@ -252,13 +280,15 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 }
 
 // New creates and returns a witchcraft Server.
-func New() *witchcraft.Server {
-	return witchcraft.NewServer().
+func New() (*Extender, *witchcraft.Server) {
+	ext := Extender{}
+	wcServer := witchcraft.NewServer().
 		WithInstallConfigType(config.Install{}).
 		WithInstallConfigFromFile("var/conf/install.yml").
 		// We do this in order to get witchcraft to honor the logging config, which it expects to be in runtime
 		WithRuntimeConfigFromFile("var/conf/install.yml").
 		WithECVKeyProvider(witchcraft.ECVKeyNoOp()).
-		WithInitFunc(initServer).
+		WithInitFunc(ext.initServer).
 		WithOrigin(svc1log.CallerPkg(0, 1))
+	return &ext, wcServer
 }
