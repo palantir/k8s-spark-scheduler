@@ -46,7 +46,7 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "runs the spark scheduler extender server",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		extender, wc := newWitchcraftServer()
+		extender, wc := newExtender()
 		go extender.StartBackgroundTasksWhenReady()
 		err := wc.Start()
 		return err
@@ -328,8 +328,8 @@ func (ext *extenderBackgroundTaskHandler) initServer(ctx context.Context, info w
 	return nil, nil
 }
 
-// newWitchcraftServer creates and returns a witchcraft Server.
-func newWitchcraftServer() (*extenderBackgroundTaskHandler, *witchcraft.Server) {
+// newExtender creates and returns the extender witchcraft Server with the associated extenderBackgroundTaskHandler
+func newExtender() (*extenderBackgroundTaskHandler, *witchcraft.Server) {
 	ext := extenderBackgroundTaskHandler{}
 	wcServer := witchcraft.NewServer().
 		WithInstallConfigType(config.Install{}).
