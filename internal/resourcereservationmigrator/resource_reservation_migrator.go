@@ -142,7 +142,7 @@ func (rrm *ResourceReservationMigrator) setMigrationAsStartedIfItHasNotBeenStart
 		if err != nil {
 			return err
 		}
-		if _, ok := crd.ObjectMeta.Annotations[migrationStatusFieldName]; ok {
+		if _, ok := crd.ObjectMeta.Annotations[migrationStatusFieldName]; !ok {
 			// We only want to modify the migration status if it has not been set
 			return rrm.updateMigration(ctx, crd, migrationStatusInProgress)
 		}
