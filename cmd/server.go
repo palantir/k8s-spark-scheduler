@@ -219,6 +219,7 @@ func (ext *Extender) initServer(ctx context.Context, info witchcraft.InitInfo) (
 	binpacker := extender.SelectBinpacker(install.BinpackAlgo)
 
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
+	ext.wasteMetricsReporter = wasteMetricsReporter
 
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeLister,
