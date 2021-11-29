@@ -136,6 +136,7 @@ func (ext *extenderBackgroundTaskHandler) StartBackgroundTasksWhenReady() {
 		(*ext.podInformer).Informer().HasSynced,
 		(*ext.resourceReservationInformer).HasSynced); !ok {
 		svc1log.FromContext(ctx).Error("Error waiting for cache to sync")
+		return
 	}
 
 	ext.resourceReservationCache.Run(ctx)
