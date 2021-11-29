@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"context"
-	v1 "k8s.io/client-go/informers/core/v1"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
@@ -36,6 +35,7 @@ import (
 	"github.com/spf13/cobra"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/informers"
+	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	clientcache "k8s.io/client-go/tools/cache"
@@ -46,7 +46,7 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "runs the spark scheduler extender server",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		extender, wc := New()
+		extender, wc := newWitchcraftServer()
 		go extender.StartBackgroundTasksWhenReady()
 		err := wc.Start()
 		return err
@@ -57,9 +57,9 @@ func init() {
 	rootCmd.AddCommand(serverCmd)
 }
 
-type Extender struct {
-	podInformer                   *v1.PodInformer
-	nodeInformer                  *v1.NodeInformer
+type extenderBackgroundTaskHandler struct {
+	podInformer                   *coreinformers.PodInformer
+	nodeInformer                  *coreinformers.NodeInformer
 	resourceReservationInformer   *clientcache.SharedIndexInformer
 	resourceReservationCache      *cache.ResourceReservationCache
 	lazyDemandInformer            *crd.LazyDemandInformer
@@ -75,9 +75,9 @@ type Extender struct {
 	isReady                       bool
 }
 
-func (ext *Extender) SetBackgroundClients(
-	podInformer *v1.PodInformer,
-	nodeInformer *v1.NodeInformer,
+func (ext *extenderBackgroundTaskHandler) SetBackgroundClients(
+	podInformer *coreinformers.PodInformer,
+	nodeInformer *coreinformers.NodeInformer,
 	resourceReservationInformer *clientcache.SharedIndexInformer,
 	resourceReservationCache *cache.ResourceReservationCache,
 	lazyDemandInformer *crd.LazyDemandInformer,
@@ -108,7 +108,7 @@ func (ext *Extender) SetBackgroundClients(
 	ext.isReady = true
 }
 
-func (ext *Extender) StartBackgroundTasksWhenReady() {
+func (ext *extenderBackgroundTaskHandler) StartBackgroundTasksWhenReady() {
 	for !ext.isReady {
 		time.Sleep(time.Second)
 		svc1log.FromContext(context.Background()).Info("Waiting for background initializing to be ready before starting tasks")
@@ -150,7 +150,7 @@ func (ext *Extender) StartBackgroundTasksWhenReady() {
 	go ext.unschedulablePodMarker.Start(ctx)
 }
 
-func (ext *Extender) initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
+func (ext *extenderBackgroundTaskHandler) initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	var kubeconfig *rest.Config
 	var err error
 
@@ -327,9 +327,9 @@ func (ext *Extender) initServer(ctx context.Context, info witchcraft.InitInfo) (
 	return nil, nil
 }
 
-// New creates and returns a witchcraft Server.
-func New() (*Extender, *witchcraft.Server) {
-	ext := Extender{}
+// newWitchcraftServer creates and returns a witchcraft Server.
+func newWitchcraftServer() (*extenderBackgroundTaskHandler, *witchcraft.Server) {
+	ext := extenderBackgroundTaskHandler{}
 	wcServer := witchcraft.NewServer().
 		WithInstallConfigType(config.Install{}).
 		WithInstallConfigFromFile("var/conf/install.yml").
