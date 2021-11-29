@@ -203,7 +203,6 @@ func (ext *Extender) initServer(ctx context.Context, info witchcraft.InitInfo) (
 		svc1log.FromContext(ctx).Error("Error ensuring resource reservations v1beta2 CRD exists: %s", svc1log.Stacktrace(err))
 		return nil, err
 	}
-	svc1log.FromContext(ctx).Info("Ensured CRD")
 
 	kubeInformerFactory := informers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	sparkSchedulerInformerFactory := ssinformers.NewSharedInformerFactory(sparkSchedulerClient, time.Second*30)
