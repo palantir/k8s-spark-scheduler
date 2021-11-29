@@ -47,7 +47,7 @@ var serverCmd = &cobra.Command{
 	Short: "runs the spark scheduler extender server",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		extender, wc := New()
-		go extender.RunBackgroundTasks()
+		go extender.StartBackgroundTasksWhenReady()
 		err := wc.Start()
 		return err
 	},
@@ -75,10 +75,44 @@ type Extender struct {
 	isReady                       bool
 }
 
-func (ext *Extender) RunBackgroundTasks() {
+func (ext *Extender) SetBackgroundClients(
+	podInformer *v1.PodInformer,
+	nodeInformer *v1.NodeInformer,
+	resourceReservationInformer *clientcache.SharedIndexInformer,
+	resourceReservationCache *cache.ResourceReservationCache,
+	lazyDemandInformer *crd.LazyDemandInformer,
+	demandCache *cache.SafeDemandCache,
+	wasteMetricsReporter *metrics.WasteMetricsReporter,
+	cacheReporter *metrics.CacheMetrics,
+	resourceReporter *metrics.ResourceUsageReporter,
+	queueReporter *metrics.PendingPodQueueReporter,
+	softReservationReporter *metrics.SoftReservationMetrics,
+	unschedulablePodMarker *extender.UnschedulablePodMarker,
+	kubeInformerFactory *informers.SharedInformerFactory,
+	sparkSchedulerInformerFactory *ssinformers.SharedInformerFactory,
+) {
+	ext.podInformer = podInformer
+	ext.nodeInformer = nodeInformer
+	ext.resourceReservationInformer = resourceReservationInformer
+	ext.resourceReservationCache = resourceReservationCache
+	ext.lazyDemandInformer = lazyDemandInformer
+	ext.demandCache = demandCache
+	ext.wasteMetricsReporter = wasteMetricsReporter
+	ext.cacheReporter = cacheReporter
+	ext.resourceReporter = resourceReporter
+	ext.queueReporter = queueReporter
+	ext.softReservationReporter = softReservationReporter
+	ext.unschedulablePodMarker = unschedulablePodMarker
+	ext.kubeInformerFactory = kubeInformerFactory
+	ext.sparkSchedulerInformerFactory = sparkSchedulerInformerFactory
+	ext.isReady = true
+}
+
+func (ext *Extender) StartBackgroundTasksWhenReady() {
 	for !ext.isReady {
 		time.Sleep(time.Second)
 	}
+
 	ctx := context.Background()
 
 	go func() {
@@ -172,21 +206,16 @@ func (ext *Extender) initServer(ctx context.Context, info witchcraft.InitInfo) (
 	svc1log.FromContext(ctx).Info("Ensured CRD")
 
 	kubeInformerFactory := informers.NewSharedInformerFactory(kubeClient, time.Second*30)
-	ext.kubeInformerFactory = &kubeInformerFactory
 	sparkSchedulerInformerFactory := ssinformers.NewSharedInformerFactory(sparkSchedulerClient, time.Second*30)
-	ext.sparkSchedulerInformerFactory = &sparkSchedulerInformerFactory
 
 	nodeInformerInterface := kubeInformerFactory.Core().V1().Nodes()
-	ext.nodeInformer = &nodeInformerInterface
 	nodeLister := nodeInformerInterface.Lister()
 
 	podInformerInterface := kubeInformerFactory.Core().V1().Pods()
-	ext.podInformer = &podInformerInterface
 	podLister := podInformerInterface.Lister()
 
 	resourceReservationInformerInterface := sparkSchedulerInformerFactory.Sparkscheduler().V1beta2().ResourceReservations()
 	resourceReservationInformer := resourceReservationInformerInterface.Informer()
-	ext.resourceReservationInformer = &resourceReservationInformer
 	resourceReservationLister := resourceReservationInformerInterface.Lister()
 
 	resourceReservationCache, err := cache.NewResourceReservationCache(
@@ -195,7 +224,6 @@ func (ext *Extender) initServer(ctx context.Context, info witchcraft.InitInfo) (
 		sparkSchedulerClient.SparkschedulerV1beta2(),
 		install.AsyncClientConfig,
 	)
-	ext.resourceReservationCache = resourceReservationCache
 
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error constructing resource reservation cache", svc1log.Stacktrace(err))
@@ -206,14 +234,12 @@ func (ext *Extender) initServer(ctx context.Context, info witchcraft.InitInfo) (
 		sparkSchedulerInformerFactory,
 		apiExtensionsClient,
 	)
-	ext.lazyDemandInformer = lazyDemandInformer
 
 	demandCache := cache.NewSafeDemandCache(
 		lazyDemandInformer,
 		sparkSchedulerClient.ScalerV1alpha2(),
 		install.AsyncClientConfig,
 	)
-	ext.demandCache = demandCache
 
 	softReservationStore := cache.NewSoftReservationStore(ctx, podInformerInterface)
 
@@ -230,7 +256,6 @@ func (ext *Extender) initServer(ctx context.Context, info witchcraft.InitInfo) (
 	binpacker := extender.SelectBinpacker(install.BinpackAlgo)
 
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
-	ext.wasteMetricsReporter = wasteMetricsReporter
 
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeLister,
@@ -258,7 +283,6 @@ func (ext *Extender) initServer(ctx context.Context, info witchcraft.InitInfo) (
 		resourceReservationCache,
 		instanceGroupLabel,
 	)
-	ext.resourceReporter = resourceReporter
 
 	metrics.RegisterInformerDelayMetrics(ctx, podInformerInterface)
 
@@ -267,13 +291,10 @@ func (ext *Extender) initServer(ctx context.Context, info witchcraft.InitInfo) (
 		resourceReservationCache,
 		demandCache,
 	)
-	ext.cacheReporter = cacheReporter
 
 	queueReporter := metrics.NewQueueReporter(podLister, instanceGroupLabel)
-	ext.queueReporter = queueReporter
 
 	softReservationReporter := metrics.NewSoftReservationMetrics(ctx, softReservationStore, podLister, resourceReservationCache)
-	ext.softReservationReporter = softReservationReporter
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(
 		nodeLister,
@@ -282,12 +303,26 @@ func (ext *Extender) initServer(ctx context.Context, info witchcraft.InitInfo) (
 		overheadComputer,
 		binpacker,
 	)
-	ext.unschedulablePodMarker = unschedulablePodMarker
 
 	if err := registerExtenderEndpoints(info.Router, sparkSchedulerExtender); err != nil {
 		return nil, err
 	}
-	ext.isReady = true
+	ext.SetBackgroundClients(
+		&podInformerInterface,
+		&nodeInformerInterface,
+		&resourceReservationInformer,
+		resourceReservationCache,
+		lazyDemandInformer,
+		demandCache,
+		wasteMetricsReporter,
+		cacheReporter,
+		resourceReporter,
+		queueReporter,
+		softReservationReporter,
+		unschedulablePodMarker,
+		&kubeInformerFactory,
+		&sparkSchedulerInformerFactory,
+	)
 
 	return nil, nil
 }
