@@ -47,8 +47,8 @@ var serverCmd = &cobra.Command{
 	Short: "runs the spark scheduler extender server",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		extender, wc := New()
+		go extender.RunBackgroundTasks()
 		err := wc.Start()
-		extender.RunBackgroundTasks()
 		return err
 	},
 }
@@ -58,20 +58,51 @@ func init() {
 }
 
 type Extender struct {
-	podInformer              *v1.PodInformer
-	resourceReservationCache *cache.ResourceReservationCache
-	lazyDemandInformer       *crd.LazyDemandInformer
-	demandCache              *cache.SafeDemandCache
-	wasteMetricsReporter     *metrics.WasteMetricsReporter
-	cacheReporter            *metrics.CacheMetrics
-	resourceReporter         *metrics.ResourceUsageReporter
-	queueReporter            *metrics.PendingPodQueueReporter
-	softReservationReporter  *metrics.SoftReservationMetrics
-	unschedulablePodMarker   *extender.UnschedulablePodMarker
+	podInformer                   *v1.PodInformer
+	nodeInformer                  *v1.NodeInformer
+	resourceReservationInformer   *clientcache.SharedIndexInformer
+	resourceReservationCache      *cache.ResourceReservationCache
+	lazyDemandInformer            *crd.LazyDemandInformer
+	demandCache                   *cache.SafeDemandCache
+	wasteMetricsReporter          *metrics.WasteMetricsReporter
+	cacheReporter                 *metrics.CacheMetrics
+	resourceReporter              *metrics.ResourceUsageReporter
+	queueReporter                 *metrics.PendingPodQueueReporter
+	softReservationReporter       *metrics.SoftReservationMetrics
+	unschedulablePodMarker        *extender.UnschedulablePodMarker
+	kubeInformerFactory           *informers.SharedInformerFactory
+	sparkSchedulerInformerFactory *ssinformers.SharedInformerFactory
+	isReady                       bool
 }
 
 func (ext *Extender) RunBackgroundTasks() {
+	for !ext.isReady {
+		time.Sleep(time.Second)
+	}
 	ctx := context.Background()
+
+	go func() {
+		_ = wapp.RunWithFatalLogging(ctx, func(ctx context.Context) error {
+			(*ext.kubeInformerFactory).Start(ctx.Done())
+			return nil
+		})
+	}()
+
+	go func() {
+		_ = wapp.RunWithFatalLogging(ctx, func(ctx context.Context) error {
+			(*ext.sparkSchedulerInformerFactory).Start(ctx.Done())
+			return nil
+		})
+	}()
+
+	if ok := clientcache.WaitForCacheSync(
+		ctx.Done(),
+		(*ext.nodeInformer).Informer().HasSynced,
+		(*ext.podInformer).Informer().HasSynced,
+		(*ext.resourceReservationInformer).HasSynced); !ok {
+		svc1log.FromContext(ctx).Error("Error waiting for cache to sync")
+	}
+
 	ext.resourceReservationCache.Run(ctx)
 	ext.lazyDemandInformer.Run(ctx)
 	ext.demandCache.Run(ctx)
@@ -138,45 +169,25 @@ func (ext *Extender) initServer(ctx context.Context, info witchcraft.InitInfo) (
 		svc1log.FromContext(ctx).Error("Error ensuring resource reservations v1beta2 CRD exists: %s", svc1log.Stacktrace(err))
 		return nil, err
 	}
+	svc1log.FromContext(ctx).Info("Ensured CRD")
 
 	kubeInformerFactory := informers.NewSharedInformerFactory(kubeClient, time.Second*30)
+	ext.kubeInformerFactory = &kubeInformerFactory
 	sparkSchedulerInformerFactory := ssinformers.NewSharedInformerFactory(sparkSchedulerClient, time.Second*30)
+	ext.sparkSchedulerInformerFactory = &sparkSchedulerInformerFactory
 
 	nodeInformerInterface := kubeInformerFactory.Core().V1().Nodes()
-	nodeInformer := nodeInformerInterface.Informer()
+	ext.nodeInformer = &nodeInformerInterface
 	nodeLister := nodeInformerInterface.Lister()
 
 	podInformerInterface := kubeInformerFactory.Core().V1().Pods()
 	ext.podInformer = &podInformerInterface
-	podInformer := podInformerInterface.Informer()
 	podLister := podInformerInterface.Lister()
 
 	resourceReservationInformerInterface := sparkSchedulerInformerFactory.Sparkscheduler().V1beta2().ResourceReservations()
 	resourceReservationInformer := resourceReservationInformerInterface.Informer()
+	ext.resourceReservationInformer = &resourceReservationInformer
 	resourceReservationLister := resourceReservationInformerInterface.Lister()
-
-	go func() {
-		_ = wapp.RunWithFatalLogging(ctx, func(ctx context.Context) error {
-			kubeInformerFactory.Start(ctx.Done())
-			return nil
-		})
-	}()
-
-	go func() {
-		_ = wapp.RunWithFatalLogging(ctx, func(ctx context.Context) error {
-			sparkSchedulerInformerFactory.Start(ctx.Done())
-			return nil
-		})
-	}()
-
-	if ok := clientcache.WaitForCacheSync(
-		ctx.Done(),
-		nodeInformer.HasSynced,
-		podInformer.HasSynced,
-		resourceReservationInformer.HasSynced); !ok {
-		svc1log.FromContext(ctx).Error("Error waiting for cache to sync")
-		return nil, nil
-	}
 
 	resourceReservationCache, err := cache.NewResourceReservationCache(
 		ctx,
@@ -276,6 +287,7 @@ func (ext *Extender) initServer(ctx context.Context, info witchcraft.InitInfo) (
 	if err := registerExtenderEndpoints(info.Router, sparkSchedulerExtender); err != nil {
 		return nil, err
 	}
+	ext.isReady = true
 
 	return nil, nil
 }
