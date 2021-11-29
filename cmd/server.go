@@ -111,6 +111,7 @@ func (ext *Extender) SetBackgroundClients(
 func (ext *Extender) StartBackgroundTasksWhenReady() {
 	for !ext.isReady {
 		time.Sleep(time.Second)
+		svc1log.FromContext(context.Background()).Info("Waiting for background initializing to be ready before starting tasks")
 	}
 
 	ctx := context.Background()
