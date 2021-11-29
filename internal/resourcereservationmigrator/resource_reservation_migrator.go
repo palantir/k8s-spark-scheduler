@@ -17,6 +17,7 @@ package resourcereservationmigrator
 import (
 	"context"
 	"fmt"
+	"github.com/palantir/pkg/retry"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	sparkschedulerclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta2"
@@ -38,20 +39,24 @@ const (
 type ResourceReservationMigrator struct {
 	apiextensionsclientset        apiextensionsclientset.Interface
 	resourceReservationKubeClient sparkschedulerclient.SparkschedulerV1beta2Interface
-	crd                           v1.CustomResourceDefinition
+	resourceReservationCRDName    string
 }
 
 //New Returns a new ResourceReservationMigrator
 func New(
 	apiextensionsclientset apiextensionsclientset.Interface,
 	resourceReservationKubeClient sparkschedulerclient.SparkschedulerV1beta2Interface,
-	crd v1.CustomResourceDefinition,
+	resourceReservationCRDName string,
 ) *ResourceReservationMigrator {
 	return &ResourceReservationMigrator{
 		apiextensionsclientset,
 		resourceReservationKubeClient,
-		crd,
+		resourceReservationCRDName,
 	}
+}
+
+func (rrm *ResourceReservationMigrator) getRRV1Beta2CRD(ctx context.Context) (*v1.CustomResourceDefinition, error) {
+	return rrm.apiextensionsclientset.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, rrm.resourceReservationCRDName, metav1.GetOptions{})
 }
 
 //RunMigration runs the migration of stored Resource Reservation objects from v1beta1 to v1beta2 if it has
@@ -62,7 +67,7 @@ func New(
 //
 //We record that a migration has successfully completed by writing a `migrationStatus` field to the annotations of the CRD
 //of the v1beta2 ResourceReservation CRD. The field has the values `IN_PROGRESS` and `FINISHED`. We then use this field
-//to determine whether the migration should be ran again.
+//to determine whether the migration should be run again.
 func (rrm *ResourceReservationMigrator) RunMigration(ctx context.Context) {
 	go func() {
 		// We explicitly do not want to stop scheduler from running if the migration fails
@@ -71,23 +76,32 @@ func (rrm *ResourceReservationMigrator) RunMigration(ctx context.Context) {
 }
 
 func (rrm *ResourceReservationMigrator) maybeRunMigration(ctx context.Context) error {
-	if rrm.hasMigrationAlreadyRan() {
+	ran, err := rrm.hasMigrationAlreadyRan(ctx)
+	if err != nil {
+		return err
+	}
+	if ran {
 		return nil
 	}
 	return rrm.runMigration(ctx)
 }
 
-func (rrm *ResourceReservationMigrator) hasMigrationAlreadyRan() bool {
-	// If the `migrationStatus` field does not exist then the migration has never been ran
+func (rrm *ResourceReservationMigrator) hasMigrationAlreadyRan(ctx context.Context) (bool, error) {
+	// If the `migrationStatus` field does not exist then the migration has never been run
 	// If the `migrationStatus` field is `IN_PROGRESS` another node may be running the migration or we may have been
 	// killed while we were processing the last migration. In either case we will run the migration again as it is safe
 	// to run the migration many times
-	if migrationStatus, ok := rrm.crd.ObjectMeta.Annotations[migrationStatusFieldName]; ok {
+	crd, err := rrm.getRRV1Beta2CRD(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	if migrationStatus, ok := crd.ObjectMeta.Annotations[migrationStatusFieldName]; ok {
 		if migrationStatus == migrationStatusFinished {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 func (rrm *ResourceReservationMigrator) runMigration(ctx context.Context) error {
@@ -97,18 +111,16 @@ func (rrm *ResourceReservationMigrator) runMigration(ctx context.Context) error 
 	if err != nil {
 		return werror.Wrap(err, "Failed to list all resource reservations")
 	}
-	if err = rrm.markMigrationAs(ctx, migrationStatusInProgress); err != nil {
+	if err = rrm.setMigrationAsStartedIfItHasNotBeenStartedBefore(ctx); err != nil {
 		return err
 	}
 
 	for _, resourceReservation := range resourceReservations.Items {
-		// Do we need retry logic in the case of collisions, what about if a resource reservation has been deleted
-		// TODO(cbattarbee): Resolve this before merge
 		if err = rrm.migrateResourceReservation(ctx, &resourceReservation); err != nil {
 			return err
 		}
 	}
-	return rrm.markMigrationAs(ctx, migrationStatusFinished)
+	return rrm.patchMigration(ctx, migrationStatusFinished)
 }
 
 func (rrm *ResourceReservationMigrator) migrateResourceReservation(ctx context.Context, resourceReservation *v1beta2.ResourceReservation) error {
@@ -118,12 +130,34 @@ func (rrm *ResourceReservationMigrator) migrateResourceReservation(ctx context.C
 	// 2. The scheduler code updates the reservation through normal operation
 	// 3. We update R1 with the resource reservation we got before the update, resulting in a collision or a dirty write
 	// By applying an empty patch we will never hit this scenario
-	_, err := rrm.resourceReservationKubeClient.ResourceReservations(resourceReservation.Namespace).Patch(ctx, resourceReservation.Name, types.StrategicMergePatchType, []byte(""), metav1.PatchOptions{})
+	return retry.Do(ctx, func() error {
+		_, err := rrm.resourceReservationKubeClient.ResourceReservations(resourceReservation.Namespace).Patch(ctx, resourceReservation.Name, types.StrategicMergePatchType, []byte(""), metav1.PatchOptions{})
+		return err
+	})
+}
+
+func (rrm *ResourceReservationMigrator) setMigrationAsStartedIfItHasNotBeenStartedBefore(ctx context.Context) error {
+	return retry.Do(ctx, func() error {
+		crd, err := rrm.getRRV1Beta2CRD(ctx)
+		if err != nil {
+			return err
+		}
+		if _, ok := crd.ObjectMeta.Annotations[migrationStatusFieldName]; ok {
+			// We only want to modify the migration status if it has not been set
+			return rrm.updateMigration(ctx, crd, migrationStatusInProgress)
+		}
+		return nil
+	})
+}
+
+func (rrm *ResourceReservationMigrator) updateMigration(ctx context.Context, crd *v1.CustomResourceDefinition, status string) error {
+	crd.ObjectMeta.Annotations[migrationStatusFieldName] = status
+	_, err := rrm.apiextensionsclientset.ApiextensionsV1().CustomResourceDefinitions().Update(ctx, crd, metav1.UpdateOptions{})
 	return err
 }
 
-func (rrm *ResourceReservationMigrator) markMigrationAs(ctx context.Context, status string) error {
-	_, err := rrm.apiextensionsclientset.ApiextensionsV1().CustomResourceDefinitions().Patch(ctx, rrm.crd.Name, types.StrategicMergePatchType, generateMigrationStatusPatch(status), metav1.PatchOptions{})
+func (rrm *ResourceReservationMigrator) patchMigration(ctx context.Context, status string) error {
+	_, err := rrm.apiextensionsclientset.ApiextensionsV1().CustomResourceDefinitions().Patch(ctx, rrm.resourceReservationCRDName, types.StrategicMergePatchType, generateMigrationStatusPatch(status), metav1.PatchOptions{})
 	return err
 }
 

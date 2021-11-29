@@ -237,7 +237,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	resourceReservationMigrator := resourcereservationmigrator.New(
 		apiExtensionsClient,
 		sparkSchedulerClient.SparkschedulerV1beta2(),
-		*resourceReservationV1Beta2CRD,
+		resourceReservationV1Beta2CRD.Name,
 	)
 
 	resourceReservationCache.Run(ctx)
