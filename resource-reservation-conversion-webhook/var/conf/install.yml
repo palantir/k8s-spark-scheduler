@@ -1,0 +1,7 @@
+server:
+  port: 8485
+  management-port: 8486
+  context-path: /resource-reservation-conversion-webhook
+logging:
+  level: info
+  output: STDOUT
