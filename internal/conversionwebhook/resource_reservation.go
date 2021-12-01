@@ -56,7 +56,7 @@ func InitializeCRDConversionWebhook(
 		return nil, err
 	}
 
-	path := filepath.Join("resource-reservation-conversion-webhook", webhookPath)
+	path := filepath.Join("/resource-reservation-conversion-webhook", webhookPath)
 
 	if len(server.ClientCAFiles) == 0 {
 		return nil, werror.WrapWithContextParams(ctx, err, "No client CA bundle provided, can not generate conversion webhook client config")
