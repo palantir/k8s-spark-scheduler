@@ -1,4 +1,23 @@
 products:
+  resource-reservation-conversion-webhook:
+    build:
+      main-pkg: resource-reservation-conversion-webhook
+      version-var: main.version
+      environment:
+        CGO_ENABLED: "0"
+      os-archs:
+        - os: linux
+          arch: amd64
+    docker:
+      docker-builders:
+        webhook:
+          type: default
+          context-dir: resource-reservation-conversion-webhook/docker
+          tag-templates:
+            release: "{{Repository}}palantirtechnologies/resource-reservation-conversion-webhook:{{Version}}"
+            latest: "{{Repository}}palantirtechnologies/resource-reservation-conversion-webhook:latest"
+    publish:
+      group-id: com.palantir.spark-scheduler
   spark-scheduler:
     build:
       main-pkg: .
