@@ -25,7 +25,7 @@ metadata:
   namespace: spark
 spec:
   selector:
-    app: spark-scheduler
+    app: resource-reservation-conversion-webhook
   ports:
     - protocol: TCP
       port: 443
@@ -157,27 +157,6 @@ spec:
               mountPath: /opt/palantir/services/spark-scheduler/var/conf
             - name: scheduler-extender-secrets-volume
               mountPath: /opt/palantir/services/spark-scheduler/var/secrets
-        - name: resource-reservation-conversion-webhook
-          image: palantirtechnologies/resource-reservation-conversion-webhook:latest
-          imagePullPolicy: IfNotPresent
-          livenessProbe:
-            httpGet:
-              scheme: HTTPS
-              path: /resource-reservation-conversion-webhook/status/liveness
-              port: 8486
-          readinessProbe:
-            httpGet:
-              scheme: HTTPS
-              path: /resource-reservation-conversion-webhook/status/readiness
-              port: 8486
-          ports:
-            - containerPort: 8486
-            - containerPort: 8485
-          volumeMounts:
-            - name: resource-reservation-conversion-webhook-config-volume
-              mountPath: /opt/palantir/services/resource-reservation-conversion-webhook/var/conf
-            - name: resource-reservation-conversion-webhook-secrets-volume
-              mountPath: /opt/palantir/services/resource-reservation-conversion-webhook/var/secrets
       volumes:
         - name: kube-scheduler-config-volume
           configMap:
@@ -201,6 +180,48 @@ spec:
             items:
               - key: spark-scheduler-extender-config
                 path: install.yml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resource-reservation-conversion-webhook
+  namespace: spark
+  labels:
+    app: resource-reservation-conversion-webhook
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: resource-reservation-conversion-webhook
+  template:
+    metadata:
+      labels:
+        app: resource-reservation-conversion-webhook
+    spec:
+      serviceAccountName: spark-scheduler
+      containers:
+        - name: resource-reservation-conversion-webhook
+          image: palantirtechnologies/resource-reservation-conversion-webhook:latest
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /resource-reservation-conversion-webhook/status/liveness
+              port: 8486
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /resource-reservation-conversion-webhook/status/readiness
+              port: 8486
+          ports:
+            - containerPort: 8486
+            - containerPort: 8485
+          volumeMounts:
+            - name: resource-reservation-conversion-webhook-config-volume
+              mountPath: /opt/palantir/services/resource-reservation-conversion-webhook/var/conf
+            - name: resource-reservation-conversion-webhook-secrets-volume
+              mountPath: /opt/palantir/services/resource-reservation-conversion-webhook/var/secrets
+      volumes:
         - name: resource-reservation-conversion-webhook-secrets-volume
           configMap:
             name: resource-reservation-conversion-webhook-secrets
