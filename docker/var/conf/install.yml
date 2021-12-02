@@ -8,6 +8,6 @@ logging:
   output: STDOUT
 webhook-service-config:
   namespace: spark
-  service-name: scheduler-service
+  service-name: resource-reservation-conversion-service
   service-port: 443
   context-path: /resource-reservation-conversion-webhook
