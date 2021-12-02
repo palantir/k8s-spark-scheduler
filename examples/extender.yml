@@ -89,6 +89,7 @@ data:
       namespace: spark
       service-name: scheduler-service
       service-port: 443
+      context-path: /resource-reservation-conversion-webhook
   resource-reservation-conversion-webhook-config: |
     server:
       port: 8485
