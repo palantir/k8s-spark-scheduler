@@ -21,15 +21,15 @@ roleRef:
 apiVersion: v1
 kind: Service
 metadata:
-  name: resource-reservation-conversion-service
+  name: scheduler-service
   namespace: spark
 spec:
   selector:
-    app: spark-scheduler-conversion-webhook
+    app: spark-scheduler
   ports:
     - protocol: TCP
       port: 443
-      targetPort: 8485
+      targetPort: 8484
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -92,9 +92,9 @@ data:
       context-path: /spark-scheduler-conversion-webhook
   spark-scheduler-conversion-webhook-config: |
     server:
-      port: 8485
-      management-port: 8486
-      context-path: /spark-scheduler-conversion-webhook
+      port: 8484
+      management-port: 8485
+      context-path: /spark-scheduler
       cert-file: /opt/palantir/services/spark-scheduler-conversion-webhook/var/secrets/spark-scheduler.crt
       key-file: /opt/palantir/services/spark-scheduler-conversion-webhook/var/secrets/spark-scheduler.key
       client-ca-files:
@@ -192,11 +192,11 @@ spec:
   replicas: 2
   selector:
     matchLabels:
-      app: spark-scheduler-conversion-webhook
+      app: spark-scheduler
   template:
     metadata:
       labels:
-        app: spark-scheduler-conversion-webhook
+        app: spark-scheduler
     spec:
       serviceAccountName: spark-scheduler
       containers:
@@ -206,15 +206,15 @@ spec:
           livenessProbe:
             httpGet:
               scheme: HTTPS
-              path: /spark-scheduler-conversion-webhook/status/liveness
-              port: 8486
+              path: /spark-scheduler/status/liveness
+              port: 8484
           readinessProbe:
             httpGet:
               scheme: HTTPS
-              path: /spark-scheduler-conversion-webhook/status/readiness
-              port: 8486
+              path: /spark-scheduler/status/readiness
+              port: 8485
           ports:
-            - containerPort: 8486
+            - containerPort: 8484
             - containerPort: 8485
           volumeMounts:
             - name: spark-scheduler-conversion-webhook-config-volume
