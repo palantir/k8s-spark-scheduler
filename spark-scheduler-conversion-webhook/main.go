@@ -17,7 +17,7 @@ package main
 import (
 	"os"
 
-	"github.com/palantir/k8s-spark-scheduler/resource-reservation-conversion-webhook/cmd"
+	"github.com/palantir/k8s-spark-scheduler/spark-scheduler-conversion-webhook/cmd"
 	"github.com/palantir/pkg/signals"
 )
 

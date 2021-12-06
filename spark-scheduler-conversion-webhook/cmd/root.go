@@ -24,7 +24,7 @@ var (
 	Version = "unspecified"
 
 	rootCmd = &cobra.Command{
-		Use:   "resource-reservation-conversion-webhook",
+		Use:   "spark-scheduler-conversion-webhook",
 		Short: "Conversion webhook to convert between different versions of the resource reservation CRD",
 	}
 )

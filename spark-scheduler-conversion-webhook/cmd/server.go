@@ -18,7 +18,7 @@ import (
 	"context"
 
 	"github.com/palantir/k8s-spark-scheduler/config"
-	"github.com/palantir/k8s-spark-scheduler/resource-reservation-conversion-webhook/internal/conversionwebhook"
+	"github.com/palantir/k8s-spark-scheduler/spark-scheduler-conversion-webhook/internal/conversionwebhook"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-server/witchcraft"
 	"github.com/spf13/cobra"

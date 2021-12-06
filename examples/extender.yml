@@ -25,7 +25,7 @@ metadata:
   namespace: spark
 spec:
   selector:
-    app: resource-reservation-conversion-webhook
+    app: spark-scheduler-conversion-webhook
   ports:
     - protocol: TCP
       port: 443
@@ -89,16 +89,16 @@ data:
       namespace: spark
       service-name: resource-reservation-conversion-service
       service-port: 443
-      context-path: /resource-reservation-conversion-webhook
-  resource-reservation-conversion-webhook-config: |
+      context-path: /spark-scheduler-conversion-webhook
+  spark-scheduler-conversion-webhook-config: |
     server:
       port: 8485
       management-port: 8486
-      context-path: /resource-reservation-conversion-webhook
-      cert-file: /opt/palantir/services/resource-reservation-conversion-webhook/var/secrets/spark-scheduler.crt
-      key-file: /opt/palantir/services/resource-reservation-conversion-webhook/var/secrets/spark-scheduler.key
+      context-path: /spark-scheduler-conversion-webhook
+      cert-file: /opt/palantir/services/spark-scheduler-conversion-webhook/var/secrets/spark-scheduler.crt
+      key-file: /opt/palantir/services/spark-scheduler-conversion-webhook/var/secrets/spark-scheduler.key
       client-ca-files:
-        - /opt/palantir/services/resource-reservation-conversion-webhook/var/secrets/rootCA.crt
+        - /opt/palantir/services/spark-scheduler-conversion-webhook/var/secrets/rootCA.crt
     logging:
       level: debug
       output: STDOUT
@@ -184,47 +184,47 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: resource-reservation-conversion-webhook
+  name: spark-scheduler-conversion-webhook
   namespace: spark
   labels:
-    app: resource-reservation-conversion-webhook
+    app: spark-scheduler-conversion-webhook
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: resource-reservation-conversion-webhook
+      app: spark-scheduler-conversion-webhook
   template:
     metadata:
       labels:
-        app: resource-reservation-conversion-webhook
+        app: spark-scheduler-conversion-webhook
     spec:
       serviceAccountName: spark-scheduler
       containers:
-        - name: resource-reservation-conversion-webhook
-          image: palantirtechnologies/resource-reservation-conversion-webhook:latest
+        - name: spark-scheduler-conversion-webhook
+          image: palantirtechnologies/spark-scheduler-conversion-webhook:latest
           imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:
               scheme: HTTPS
-              path: /resource-reservation-conversion-webhook/status/liveness
+              path: /spark-scheduler-conversion-webhook/status/liveness
               port: 8486
           readinessProbe:
             httpGet:
               scheme: HTTPS
-              path: /resource-reservation-conversion-webhook/status/readiness
+              path: /spark-scheduler-conversion-webhook/status/readiness
               port: 8486
           ports:
             - containerPort: 8486
             - containerPort: 8485
           volumeMounts:
-            - name: resource-reservation-conversion-webhook-config-volume
-              mountPath: /opt/palantir/services/resource-reservation-conversion-webhook/var/conf
-            - name: resource-reservation-conversion-webhook-secrets-volume
-              mountPath: /opt/palantir/services/resource-reservation-conversion-webhook/var/secrets
+            - name: spark-scheduler-conversion-webhook-config-volume
+              mountPath: /opt/palantir/services/spark-scheduler-conversion-webhook/var/conf
+            - name: spark-scheduler-conversion-webhook-secrets-volume
+              mountPath: /opt/palantir/services/spark-scheduler-conversion-webhook/var/secrets
       volumes:
-        - name: resource-reservation-conversion-webhook-secrets-volume
+        - name: spark-scheduler-conversion-webhook-secrets-volume
           configMap:
-            name: resource-reservation-conversion-webhook-secrets
+            name: spark-scheduler-conversion-webhook-secrets
             items:
               - key: rootCA.crt
                 path: rootCA.crt
@@ -232,9 +232,9 @@ spec:
                 path: spark-scheduler.crt
               - key: spark-scheduler.key
                 path: spark-scheduler.key
-        - name: resource-reservation-conversion-webhook-config-volume
+        - name: spark-scheduler-conversion-webhook-config-volume
           configMap:
             name: spark-scheduler
             items:
-              - key: resource-reservation-conversion-webhook-config
+              - key: spark-scheduler-conversion-webhook-config
                 path: install.yml
