@@ -1,7 +1,7 @@
 server:
-  port: 8485
-  management-port: 8486
-  context-path: /resource-reservation-conversion-webhook
+  port: 8484
+  management-port: 8485
+  context-path: /spark-scheduler
 logging:
   level: info
   output: STDOUT
