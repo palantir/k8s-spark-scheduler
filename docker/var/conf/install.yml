@@ -8,5 +8,5 @@ logging:
   output: STDOUT
 webhook-service-config:
   namespace: spark
-  service-name: schedler-service
+  service-name: scheduler-service
   service-port: 443
