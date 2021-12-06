@@ -50,7 +50,6 @@ type WebhookServiceConfig struct {
 	Namespace   string `yaml:"namespace"`
 	ServiceName string `yaml:"service-name"`
 	ServicePort int32  `yaml:"service-port"`
-	ContextPath string `yaml:"context-path"`
 }
 
 // FifoConfig enables the fine-tuning of FIFO enforcement
