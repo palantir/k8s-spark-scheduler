@@ -94,10 +94,10 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		svc1log.FromContext(ctx).Error("Error building api extensions clientset: %s", svc1log.Stacktrace(err))
 		return nil, err
 	}
-	webhookClientConfig, err := conversionwebhook.GetWebhookClientConfig(ctx, install.Server,
-		install.WebhookServiceConfig.Namespace, install.WebhookServiceConfig.ServiceName, install.WebhookServiceConfig.ServicePort, install.WebhookServiceConfig.ContextPath)
+	webhookClientConfig, err := conversionwebhook.InitializeCRDConversionWebhook(ctx, info.Router, install.Server,
+		install.WebhookServiceConfig.Namespace, install.WebhookServiceConfig.ServiceName, install.WebhookServiceConfig.ServicePort)
 	if err != nil {
-		svc1log.FromContext(ctx).Error("Error getting webhook client config: %s", svc1log.Stacktrace(err))
+		svc1log.FromContext(ctx).Error("Error instantiating CRD conversion webhook: %s", svc1log.Stacktrace(err))
 		return nil, err
 	}
 	err = crd.EnsureResourceReservationsCRD(ctx, apiExtensionsClient, install.ResourceReservationCRDAnnotations,
