@@ -13,9 +13,9 @@ COPY --chown=5001:5001 var/conf/install.yml $SERVICE_HOME/var/conf/install.yml
 COPY --chown=5001:5001 {{InputBuildArtifact Product "linux-amd64"}} $SERVICE_HOME/service/bin/spark-scheduler-conversion-webhook
 
 # Expose service port
-EXPOSE 8485
+EXPOSE 8483
 # Expose management port
-EXPOSE 8486
+EXPOSE 8484
 
 WORKDIR $SERVICE_HOME
 
