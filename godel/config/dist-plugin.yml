@@ -1,4 +1,23 @@
 products:
+  spark-scheduler-conversion-webhook:
+    build:
+      main-pkg: spark-scheduler-conversion-webhook
+      version-var: main.version
+      environment:
+        CGO_ENABLED: "0"
+      os-archs:
+        - os: linux
+          arch: amd64
+    docker:
+      docker-builders:
+        webhook:
+          type: default
+          context-dir: spark-scheduler-conversion-webhook/docker
+          tag-templates:
+            release: "{{Repository}}palantirtechnologies/spark-scheduler-conversion-webhook:{{Version}}"
+            latest: "{{Repository}}palantirtechnologies/spark-scheduler-conversion-webhook:latest"
+    publish:
+      group-id: com.palantir.spark-scheduler
   spark-scheduler:
     build:
       main-pkg: .

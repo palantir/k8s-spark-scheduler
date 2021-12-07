@@ -1,0 +1,12 @@
+apiVersion: sparkscheduler.palantir.com/v1beta2
+kind: ResourceReservation
+metadata:
+  name: spark
+  namespace: spark
+spec:
+  reservations:
+    test:
+      resources:
+        cpu: "1"
+        memory: "1"
+      node: test

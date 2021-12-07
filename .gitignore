@@ -5,6 +5,7 @@
 *.test
 
 /docker/*/build/
+/spark-scheduler-conversion-webhook/docker/*/build/
 /out/
 inputs/
 
