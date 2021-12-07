@@ -117,7 +117,7 @@ jobs:
       - run: ./godelw docker build --verbose
       - run: |
           mkdir -p /tmp/docker-cache
-          docker save -o /tmp/docker-cache/docker-images.tar $(./godelw artifacts docker | tr '\n' ' ')
+          docker save -o /tmp/docker-cache/docker-images.tar $(./godelw artifacts docker)
       - persist_to_workspace:
           root: /tmp/docker-cache/
           paths:
