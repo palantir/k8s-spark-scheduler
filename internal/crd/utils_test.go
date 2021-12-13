@@ -67,7 +67,7 @@ func Test_verifyCRD(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "CRDs with identical conversion strategies do not verify.",
+			name: "CRDs with identical conversion strategies do verify.",
 			args: args{
 				existing: v1beta2.ResourceReservationCustomResourceDefinition(&v1.WebhookClientConfig{
 					Service: &v1.ServiceReference{
