@@ -56,8 +56,12 @@ func annotationsAreEqual(existingAnnotations, desiredAnnotations map[string]stri
 	return reflect.DeepEqual(emptyIfNil(existingAnnotations), emptyIfNil(desiredAnnotations))
 }
 
+func conversionStrategiesAreEqual(existingConversion, desiredConversion *v1.CustomResourceConversion) bool {
+	return reflect.DeepEqual(existingConversion, desiredConversion)
+}
+
 func verifyCRD(existing, desired *v1.CustomResourceDefinition) bool {
-	return versionsAreEqual(existing.Spec.Versions, desired.Spec.Versions) && annotationsAreEqual(existing.Annotations, desired.Annotations)
+	return versionsAreEqual(existing.Spec.Versions, desired.Spec.Versions) && annotationsAreEqual(existing.Annotations, desired.Annotations) && conversionStrategiesAreEqual(existing.Spec.Conversion, desired.Spec.Conversion)
 }
 
 // getVersionWithName returns the CustomResourceDefinitionVersion with the specified name if it is found
