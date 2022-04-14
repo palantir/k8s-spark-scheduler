@@ -2,6 +2,8 @@ module github.com/palantir/k8s-spark-scheduler
 
 go 1.14
 
+replace github.com/palantir/k8s-spark-scheduler-lib => /Volumes/git/programming/go/src/github.com/palantir/k8s-spark-scheduler-lib
+
 require (
 	github.com/golang/groupcache v0.0.0-20191227052852-215e87163ea7 // indirect
 	github.com/palantir/go-metrics v1.1.0
