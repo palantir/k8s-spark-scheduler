@@ -69,6 +69,13 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 			},
 		},
 	}
+	// We explicitly do not schedule rescheduled executors in the same AZ as the application in this iteration
+	// for a few reasons
+	// * We do not currently have a way to create demands for a particular AZ http://github.com/palantir/k8s-spark-scheduler-lib/blob/02be893331748732b652e914a50bc20487161677/pkg/apis/scaler/v1alpha2/types_demand.go#L78-L91
+	//   and scheduler does not know information associated with AZs (pricing / capacity etc) so is not well informed
+	//   to make this decision
+	// * Metrics suggest that rescheduled executors are created fairly infrequent so we don't have much
+	//   incentive to invest in creating this right now
 	s.createDemand(ctx, executorPod, units, false)
 }
 
