@@ -297,7 +297,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		}
 		ok := s.fitEarlierDrivers(ctx, queuedDrivers, driverNodeNames, executorNodeNames, availableNodesSchedulingMetadata)
 		if !ok {
-			s.createDemandForApplication(ctx, driver, applicationResources)
+			s.createDemandForApplication(ctx, driver, applicationResources, DoesBinpackingScheduleInSingleAz(s.binpacker))
 			return "", failureEarlierDriver, werror.Error("earlier drivers do not fit to the cluster")
 		}
 	}
@@ -322,7 +322,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		svc1log.SafeParam("executorNodes", executorNodes),
 		svc1log.SafeParam("binpacker", s.binpacker.Name))
 	if !hasCapacity {
-		s.createDemandForApplication(ctx, driver, applicationResources)
+		s.createDemandForApplication(ctx, driver, applicationResources, DoesBinpackingScheduleInSingleAz(s.binpacker))
 		return "", failureFit, werror.Error("application does not fit to the cluster")
 	}
 	s.removeDemandIfExists(ctx, driver)

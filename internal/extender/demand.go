@@ -69,17 +69,17 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 			},
 		},
 	}
-	s.createDemand(ctx, executorPod, units)
+	s.createDemand(ctx, executorPod, units, false)
 }
 
-func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context, driverPod *v1.Pod, applicationResources *sparkApplicationResources) {
+func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context, driverPod *v1.Pod, applicationResources *sparkApplicationResources, enforceSingleZoneScheduling bool) {
 	if !s.demands.CRDExists() {
 		return
 	}
-	s.createDemand(ctx, driverPod, demandResources(applicationResources))
+	s.createDemand(ctx, driverPod, demandResources(applicationResources), enforceSingleZoneScheduling)
 }
 
-func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, demandUnits []demandapi.DemandUnit) {
+func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, demandUnits []demandapi.DemandUnit, enforceSingleZoneScheduling bool) {
 	instanceGroup, ok := internal.FindInstanceGroupFromPodSpec(pod.Spec, s.instanceGroupLabel)
 	if !ok {
 		svc1log.FromContext(ctx).Error("No instanceGroup label exists. Cannot map to InstanceGroup. Skipping demand object",
@@ -87,7 +87,7 @@ func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, 
 		return
 	}
 
-	newDemand, err := newDemand(pod, instanceGroup, demandUnits)
+	newDemand, err := newDemand(pod, instanceGroup, demandUnits, enforceSingleZoneScheduling)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("failed to construct demand object", svc1log.Stacktrace(err))
 		return
@@ -136,7 +136,7 @@ func DeleteDemandIfExists(ctx context.Context, cache *cache.SafeDemandCache, pod
 	}
 }
 
-func newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit) (*demandapi.Demand, error) {
+func newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit, enforceSingleZoneScheduling bool) (*demandapi.Demand, error) {
 	appID, ok := pod.Labels[common.SparkAppIDLabel]
 	if !ok {
 		return nil, werror.Error("pod did not contain expected label for AppID", werror.SafeParam("expectedLabel", common.SparkAppIDLabel))
@@ -154,8 +154,9 @@ func newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit) 
 			},
 		},
 		Spec: demandapi.DemandSpec{
-			InstanceGroup: instanceGroup,
-			Units:         units,
+			InstanceGroup:               instanceGroup,
+			Units:                       units,
+			EnforceSingleZoneScheduling: enforceSingleZoneScheduling,
 		},
 	}, nil
 }

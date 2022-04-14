@@ -19,9 +19,10 @@ import (
 )
 
 const (
-	distributeEvenly   string = "distribute-evenly"
-	tightlyPack        string = "tightly-pack"
-	azAwareTightlyPack string = "az-aware-tightly-pack"
+	distributeEvenly    string = "distribute-evenly"
+	tightlyPack         string = "tightly-pack"
+	azAwareTightlyPack  string = "az-aware-tightly-pack"
+	singleAZTightlyPack string = "single-az-tightly-pack"
 )
 
 // Binpacker is a BinpackFunc with a known name
@@ -31,9 +32,10 @@ type Binpacker struct {
 }
 
 var binpackFunctions = map[string]*Binpacker{
-	tightlyPack:        {tightlyPack, binpack.TightlyPack},
-	distributeEvenly:   {distributeEvenly, binpack.DistributeEvenly},
-	azAwareTightlyPack: {azAwareTightlyPack, binpack.AzAwareTightlyPack},
+	tightlyPack:         {tightlyPack, binpack.TightlyPack},
+	distributeEvenly:    {distributeEvenly, binpack.DistributeEvenly},
+	azAwareTightlyPack:  {azAwareTightlyPack, binpack.AzAwareTightlyPack},
+	singleAZTightlyPack: {singleAZTightlyPack, binpack.SingleAZTightlyPack},
 }
 
 // SelectBinpacker selects the binpack function from the given name
@@ -43,4 +45,8 @@ func SelectBinpacker(name string) *Binpacker {
 		return binpackFunctions[distributeEvenly]
 	}
 	return binpacker
+}
+
+func DoesBinpackingScheduleInSingleAz(binpacker *Binpacker) bool {
+	return binpacker.Name == singleAZTightlyPack
 }
