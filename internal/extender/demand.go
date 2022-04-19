@@ -33,7 +33,8 @@ import (
 )
 
 const (
-	podDemandCreated v1.PodConditionType = "PodDemandCreated"
+	podDemandCreated                 v1.PodConditionType = "PodDemandCreated"
+	doNotEnforceSingleZoneScheduling                     = false
 )
 
 var (
@@ -42,8 +43,6 @@ var (
 		Status: v1.ConditionTrue,
 	}
 )
-
-const DoNotEnforceSingleZoneScheduling = false
 
 // TODO: should patch instead of put to avoid conflicts
 func (s *SparkSchedulerExtender) updatePodStatus(ctx context.Context, pod *v1.Pod, _ *v1.PodCondition) {
@@ -78,7 +77,7 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 	//   to make this decision
 	// * Metrics suggest that rescheduled executors are created fairly infrequent so we don't have much
 	//   incentive to invest in creating this right now
-	s.createDemand(ctx, executorPod, units, DoNotEnforceSingleZoneScheduling)
+	s.createDemand(ctx, executorPod, units, doNotEnforceSingleZoneScheduling)
 }
 
 func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context, driverPod *v1.Pod, applicationResources *sparkApplicationResources, enforceSingleZoneScheduling bool) {
