@@ -40,7 +40,9 @@ const (
 	lifecycleAgeP50                 = "foundry.spark.scheduler.pod.lifecycle.p50"
 	lifecycleCount                  = "foundry.spark.scheduler.pod.lifecycle.count"
 	crossAzTraffic                  = "foundry.spark.scheduler.az.cross.traffic"
+	crossAzTrafficMean              = "foundry.spark.scheduler.az.cross.traffic.mean"
 	totalTraffic                    = "foundry.spark.scheduler.total.traffic"
+	totalTrafficMean                = "foundry.spark.scheduler.total.traffic.mean"
 	applicationZonesCount           = "foundry.spark.scheduler.application.zones.count"
 	requestLatency                  = "foundry.spark.scheduler.client.request.latency"
 	requestResult                   = "foundry.spark.scheduler.client.request.result"
@@ -220,8 +222,15 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 	totalPairs := int64(totalNumPods * (totalNumPods - 1) / 2)
 	numberOfZones := int64(len(numPodsPerZone))
 
-	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(crossZonePairs)
-	metrics.FromContext(ctx).Histogram(totalTraffic).Update(totalPairs)
+	crossAzTraffic := metrics.FromContext(ctx).Histogram(crossAzTraffic)
+	crossAzTraffic.Update(crossZonePairs)
+	totalTraffic := metrics.FromContext(ctx).Histogram(totalTraffic)
+	totalTraffic.Update(totalPairs)
+
+	// Needed because the mean is stripped from the metric logs of histograms by default, we need to explicitly update it
+	metrics.FromContext(ctx).GaugeFloat64(crossAzTrafficMean).Update(crossAzTraffic.Mean())
+	metrics.FromContext(ctx).GaugeFloat64(totalTrafficMean).Update(totalTraffic.Mean())
+
 	metrics.FromContext(ctx).Histogram(applicationZonesCount).Update(numberOfZones)
 }
 
