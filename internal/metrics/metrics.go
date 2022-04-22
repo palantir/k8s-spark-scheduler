@@ -227,7 +227,11 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 	totalTraffic := metrics.FromContext(ctx).Histogram(totalTraffic)
 	totalTraffic.Update(totalPairs)
 
-	// Needed because the mean is stripped from the metric logs of histograms by default, we need to explicitly update it
+	// We care about the mean because we want to see the overall picture of cross AZ scheduling, p95 and p99 are too
+	// easily skewed as a small application scheduled across AZs would skew the total cross AZ traffic percentage to be
+	// 100% when in reality this represents a fairly small amount of cross AZ traffic
+	// We need to explicitly create a metric for this because the mean is stripped from the metric logs of histograms
+	// by default, we need to explicitly update it
 	metrics.FromContext(ctx).GaugeFloat64(crossAzTrafficMean).Update(crossAzTraffic.Mean())
 	metrics.FromContext(ctx).GaugeFloat64(totalTrafficMean).Update(totalTraffic.Mean())
 
