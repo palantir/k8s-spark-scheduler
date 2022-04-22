@@ -49,8 +49,3 @@ func SelectBinpacker(name string) *Binpacker {
 	}
 	return binpacker
 }
-
-// DoesBinpackingScheduleInSingleAz returns true if the binpacking algo schedules only in a specific AZ
-func DoesBinpackingScheduleInSingleAz(binpacker *Binpacker) bool {
-	return binpacker.Name == singleAZTightlyPack
-}
