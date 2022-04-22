@@ -20,10 +20,13 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 )
 
-// SingleAZTightlyPack is a SparkBinPackFunction that tries to put the driver pod
-// to as prior nodes as possible before trying to tightly pack executors
-// while also ensuring that we can fit everything in a single AZ.
-// If it cannot fit into a single AZ binpacking fails
+// SingleAZTightlyPack ensures that the driver and all initially allocated executors (`spark-executor-count` or
+// `spark-dynamic-allocation-min-executor-count` when dynamic allocation is used) are scheduled in the same AZ
+// If these initial pods can not fit into the same AZ then the binpacking fails.
+// It behaves identically to az-aware-tightly-pack otherwise.
+// NOTE: This does not currently guarantee that subsequently requested executors (such as those scheduled from
+// additional dynamically allocated pods or pre-empted pods) will be scheduled in the same AZ as the initially
+// allocated pods
 var SingleAZTightlyPack = SparkBinPackFunction(func(
 	ctx context.Context,
 	driverResources, executorResources *resources.Resources,
