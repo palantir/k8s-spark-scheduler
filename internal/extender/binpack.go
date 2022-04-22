@@ -24,7 +24,7 @@ const (
 	azAwareTightlyPack string = "az-aware-tightly-pack"
 
 	// Note that single-az-tightly-pack does not guarantee that ALL pods will be scheduled in the same AZ, please see
-	// the SingleAzTightlyPack docs for more information/
+	// the SingleAzTightlyPack docs for more information
 	singleAZTightlyPack string = "single-az-tightly-pack"
 )
 
