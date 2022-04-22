@@ -33,8 +33,7 @@ import (
 )
 
 const (
-	podDemandCreated                 v1.PodConditionType = "PodDemandCreated"
-	doNotEnforceSingleZoneScheduling                     = false
+	podDemandCreated v1.PodConditionType = "PodDemandCreated"
 )
 
 var (
