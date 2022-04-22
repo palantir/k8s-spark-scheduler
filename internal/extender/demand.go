@@ -90,7 +90,7 @@ func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, 
 		return
 	}
 
-	newDemand, err := newDemand(pod, instanceGroup, demandUnits, doesBinpackingScheduleInSingleAz(s.binpacker))
+	newDemand, err := s.newDemand(pod, instanceGroup, demandUnits)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("failed to construct demand object", svc1log.Stacktrace(err))
 		return
@@ -139,7 +139,7 @@ func DeleteDemandIfExists(ctx context.Context, cache *cache.SafeDemandCache, pod
 	}
 }
 
-func newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit, enforceSingleZoneScheduling bool) (*demandapi.Demand, error) {
+func (s *SparkSchedulerExtender) newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit) (*demandapi.Demand, error) {
 	appID, ok := pod.Labels[common.SparkAppIDLabel]
 	if !ok {
 		return nil, werror.Error("pod did not contain expected label for AppID", werror.SafeParam("expectedLabel", common.SparkAppIDLabel))
@@ -159,7 +159,7 @@ func newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit, 
 		Spec: demandapi.DemandSpec{
 			InstanceGroup:               instanceGroup,
 			Units:                       units,
-			EnforceSingleZoneScheduling: enforceSingleZoneScheduling,
+			EnforceSingleZoneScheduling: doesBinpackingScheduleInSingleAz(s.binpacker),
 		},
 	}, nil
 }
