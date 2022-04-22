@@ -72,17 +72,17 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 	}
 	// We do not force rescheduled executors to be in the same AZ because we have no mechanism to create a demand in
 	// a specific AZ and this should happen infrequently enough that we prefer making progress
-	s.createDemand(ctx, executorPod, units, doNotEnforceSingleZoneScheduling)
+	s.createDemand(ctx, executorPod, units)
 }
 
-func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context, driverPod *v1.Pod, applicationResources *sparkApplicationResources, enforceSingleZoneScheduling bool) {
+func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context, driverPod *v1.Pod, applicationResources *sparkApplicationResources) {
 	if !s.demands.CRDExists() {
 		return
 	}
-	s.createDemand(ctx, driverPod, demandResources(applicationResources), enforceSingleZoneScheduling)
+	s.createDemand(ctx, driverPod, demandResources(applicationResources))
 }
 
-func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, demandUnits []demandapi.DemandUnit, enforceSingleZoneScheduling bool) {
+func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, demandUnits []demandapi.DemandUnit) {
 	instanceGroup, ok := internal.FindInstanceGroupFromPodSpec(pod.Spec, s.instanceGroupLabel)
 	if !ok {
 		svc1log.FromContext(ctx).Error("No instanceGroup label exists. Cannot map to InstanceGroup. Skipping demand object",
@@ -90,7 +90,7 @@ func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, 
 		return
 	}
 
-	newDemand, err := newDemand(pod, instanceGroup, demandUnits, enforceSingleZoneScheduling)
+	newDemand, err := newDemand(pod, instanceGroup, demandUnits, doesBinpackingScheduleInSingleAz(s.binpacker))
 	if err != nil {
 		svc1log.FromContext(ctx).Error("failed to construct demand object", svc1log.Stacktrace(err))
 		return
@@ -186,4 +186,9 @@ func demandResources(applicationResources *sparkApplicationResources) []demandap
 		})
 	}
 	return demandUnits
+}
+
+// doesBinpackingScheduleInSingleAz returns true if the binpacking algo schedules only in a specific AZ
+func doesBinpackingScheduleInSingleAz(binpacker *Binpacker) bool {
+	return binpacker.Name == singleAZTightlyPack
 }
