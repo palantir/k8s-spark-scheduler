@@ -40,7 +40,9 @@ const (
 	lifecycleAgeP50                 = "foundry.spark.scheduler.pod.lifecycle.p50"
 	lifecycleCount                  = "foundry.spark.scheduler.pod.lifecycle.count"
 	crossAzTraffic                  = "foundry.spark.scheduler.az.cross.traffic"
+	crossAzTrafficMean              = "foundry.spark.scheduler.az.cross.traffic.mean"
 	totalTraffic                    = "foundry.spark.scheduler.total.traffic"
+	totalTrafficMean                = "foundry.spark.scheduler.total.traffic.mean"
 	applicationZonesCount           = "foundry.spark.scheduler.application.zones.count"
 	requestLatency                  = "foundry.spark.scheduler.client.request.latency"
 	requestResult                   = "foundry.spark.scheduler.client.request.result"
@@ -220,8 +222,19 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 	totalPairs := int64(totalNumPods * (totalNumPods - 1) / 2)
 	numberOfZones := int64(len(numPodsPerZone))
 
-	metrics.FromContext(ctx).Histogram(crossAzTraffic).Update(crossZonePairs)
-	metrics.FromContext(ctx).Histogram(totalTraffic).Update(totalPairs)
+	crossAzPodPairs := metrics.FromContext(ctx).Histogram(crossAzTraffic)
+	crossAzPodPairs.Update(crossZonePairs)
+	totalPodPairs := metrics.FromContext(ctx).Histogram(totalTraffic)
+	totalPodPairs.Update(totalPairs)
+
+	// We care about the mean because we want to see the overall picture of cross AZ scheduling, p95 and p99 are too
+	// easily skewed as a small application scheduled across AZs would skew the total cross AZ traffic percentage to be
+	// 100% when in reality this represents a fairly small amount of cross AZ traffic
+	// We need to explicitly create a metric for this because the mean is stripped from the metric logs of histograms
+	// by default, we need to explicitly update it
+	metrics.FromContext(ctx).GaugeFloat64(crossAzTrafficMean).Update(crossAzPodPairs.Mean())
+	metrics.FromContext(ctx).GaugeFloat64(totalTrafficMean).Update(totalPodPairs.Mean())
+
 	metrics.FromContext(ctx).Histogram(applicationZonesCount).Update(numberOfZones)
 }
 

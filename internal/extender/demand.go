@@ -69,6 +69,8 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 			},
 		},
 	}
+	// We do not force rescheduled executors to be in the same AZ because we have no mechanism to create a demand in
+	// a specific AZ and this should happen infrequently enough that we prefer making progress
 	s.createDemand(ctx, executorPod, units)
 }
 
@@ -87,7 +89,7 @@ func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, 
 		return
 	}
 
-	newDemand, err := newDemand(pod, instanceGroup, demandUnits)
+	newDemand, err := s.newDemand(pod, instanceGroup, demandUnits)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("failed to construct demand object", svc1log.Stacktrace(err))
 		return
@@ -136,7 +138,7 @@ func DeleteDemandIfExists(ctx context.Context, cache *cache.SafeDemandCache, pod
 	}
 }
 
-func newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit) (*demandapi.Demand, error) {
+func (s *SparkSchedulerExtender) newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit) (*demandapi.Demand, error) {
 	appID, ok := pod.Labels[common.SparkAppIDLabel]
 	if !ok {
 		return nil, werror.Error("pod did not contain expected label for AppID", werror.SafeParam("expectedLabel", common.SparkAppIDLabel))
@@ -154,8 +156,9 @@ func newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit) 
 			},
 		},
 		Spec: demandapi.DemandSpec{
-			InstanceGroup: instanceGroup,
-			Units:         units,
+			InstanceGroup:               instanceGroup,
+			Units:                       units,
+			EnforceSingleZoneScheduling: doesBinpackingScheduleInSingleAz(s.binpacker),
 		},
 	}, nil
 }
@@ -182,4 +185,9 @@ func demandResources(applicationResources *sparkApplicationResources) []demandap
 		})
 	}
 	return demandUnits
+}
+
+// doesBinpackingScheduleInSingleAz returns true if the binpacking algo schedules only in a specific AZ
+func doesBinpackingScheduleInSingleAz(binpacker *Binpacker) bool {
+	return binpacker.Name == singleAZTightlyPack
 }
