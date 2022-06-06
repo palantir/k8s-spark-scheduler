@@ -1,4 +1,4 @@
-FROM alpine:3.7
+FROM alpine:3.16
 
 ENV SERVICE_HOME=/opt/palantir/services/spark-scheduler
 ENV SPARK_SCHEDULER_STARTUP_CONFIG=$SERVICE_HOME/var/conf/install.yml
