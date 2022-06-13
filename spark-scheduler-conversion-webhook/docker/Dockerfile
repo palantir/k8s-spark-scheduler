@@ -13,7 +13,7 @@ FROM scratch
 
 ENV SPARK_SCHEDULER_STARTUP_CONFIG=$SERVICE_HOME/var/conf/install.yml
 
-ENV SERVICE_HOME=/opt/palantir/services/spark-scheduler
+ENV SERVICE_HOME=/opt/palantir/services/spark-scheduler-conversion-webhook
 
 # Copy the spark-scheduler user from the alpine stage
 COPY --from=0 /etc/passwd /etc/passwd
