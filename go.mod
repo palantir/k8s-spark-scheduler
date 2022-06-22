@@ -1,6 +1,6 @@
 module github.com/palantir/k8s-spark-scheduler
 
-go 1.14
+go 1.17
 
 require (
 	github.com/golang/groupcache v0.0.0-20191227052852-215e87163ea7 // indirect
