@@ -21,9 +21,6 @@ require (
 	k8s.io/kube-scheduler v0.0.0
 	k8s.io/kubernetes v1.18.8
 	sigs.k8s.io/controller-runtime v0.6.4
-)
-
-require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver v3.5.0+incompatible // indirect
 	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e // indirect
