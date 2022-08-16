@@ -20,10 +20,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var V1beta2VersionDefinition = v1.CustomResourceDefinitionVersion{
+var v1beta2VersionDefinition = v1.CustomResourceDefinitionVersion{
 	Name:    "v1beta2",
 	Served:  true,
-	Storage: true,
+	Storage: false,
 	AdditionalPrinterColumns: []v1.CustomResourceColumnDefinition{{
 		Name:        "driver",
 		Type:        "string",
@@ -87,7 +87,7 @@ var resourceReservationDefinition = &v1.CustomResourceDefinition{
 	Spec: v1.CustomResourceDefinitionSpec{
 		Group: sparkscheduler.GroupName,
 		Versions: []v1.CustomResourceDefinitionVersion{
-			V1beta2VersionDefinition,
+			v1beta2VersionDefinition,
 		},
 		Scope: v1.NamespaceScoped,
 		Names: v1.CustomResourceDefinitionNames{
@@ -110,9 +110,6 @@ var resourceReservationDefinition = &v1.CustomResourceDefinition{
 func ResourceReservationCustomResourceDefinition(webhook *v1.WebhookClientConfig, supportedVersions ...v1.CustomResourceDefinitionVersion) *v1.CustomResourceDefinition {
 	resourceReservation := resourceReservationDefinition.DeepCopy()
 	resourceReservation.Spec.Conversion.Webhook.ClientConfig = webhook
-	for i := range supportedVersions {
-		supportedVersions[i].Storage = false
-	}
 	resourceReservation.Spec.Versions = append(resourceReservation.Spec.Versions, supportedVersions...)
 	return resourceReservation
 }

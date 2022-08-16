@@ -87,10 +87,13 @@ func sparkResources(ctx context.Context, pod *v1.Pod) (*sparkApplicationResource
 		dynamicAllocationEnabled = da
 	}
 
-	for _, a := range []string{common.DriverCPU, common.DriverMemory, common.ExecutorCPU, common.ExecutorMemory, common.ExecutorCount, common.DAMinExecutorCount, common.DAMaxExecutorCount} {
+	for _, a := range []string{common.DriverCPU, common.DriverMemory, common.DriverNvidiaGPUs, common.ExecutorCPU, common.ExecutorMemory, common.ExecutorNvidiaGPUs, common.ExecutorCount, common.DAMinExecutorCount, common.DAMaxExecutorCount} {
 		value, ok := pod.Annotations[a]
 		if !ok {
 			switch {
+			case a == common.DriverNvidiaGPUs || a == common.ExecutorNvidiaGPUs:
+				// These are optional annotations, you dont need GPUs
+				continue
 			case dynamicAllocationEnabled == false && a == common.ExecutorCount:
 				return nil, fmt.Errorf("annotation ExecutorCount is required when DynamicAllocationEnabled is false")
 			case dynamicAllocationEnabled == true && (a == common.DAMinExecutorCount || a == common.DAMaxExecutorCount):
@@ -122,12 +125,14 @@ func sparkResources(ctx context.Context, pod *v1.Pod) (*sparkApplicationResource
 	}
 
 	driverResources := &resources.Resources{
-		CPU:    parsedResources[common.DriverCPU],
-		Memory: parsedResources[common.DriverMemory],
+		CPU:       parsedResources[common.DriverCPU],
+		Memory:    parsedResources[common.DriverMemory],
+		NvidiaGPU: parsedResources[common.DriverNvidiaGPUs],
 	}
 	executorResources := &resources.Resources{
-		CPU:    parsedResources[common.ExecutorCPU],
-		Memory: parsedResources[common.ExecutorMemory],
+		CPU:       parsedResources[common.ExecutorCPU],
+		Memory:    parsedResources[common.ExecutorMemory],
+		NvidiaGPU: parsedResources[common.ExecutorNvidiaGPUs],
 	}
 	return &sparkApplicationResources{driverResources, executorResources, minExecutorCount, maxExecutorCount}, nil
 }

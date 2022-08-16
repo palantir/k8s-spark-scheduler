@@ -18,7 +18,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/pkg/metrics"
@@ -82,7 +82,7 @@ func (r *ResourceUsageReporter) doStart(ctx context.Context) error {
 	}
 }
 
-func (r *ResourceUsageReporter) report(ctx context.Context, nodes []*v1.Node, rrs []*v1beta1.ResourceReservation) {
+func (r *ResourceUsageReporter) report(ctx context.Context, nodes []*v1.Node, rrs []*v1beta2.ResourceReservation) {
 	resourceUsages := resources.UsageForNodes(rrs)
 
 	tagsToDelete := make([]metrics.Tags, 0, len(resourceUsages))
@@ -98,6 +98,7 @@ func (r *ResourceUsageReporter) report(ctx context.Context, nodes []*v1.Node, rr
 	for _, tags := range tagsToDelete {
 		metrics.FromContext(ctx).Unregister(resourceUsageCPU, tags...)
 		metrics.FromContext(ctx).Unregister(resourceUsageMemory, tags...)
+		metrics.FromContext(ctx).Unregister(resourceUsageNvidiaGPUs, tags...)
 	}
 	for _, n := range nodes {
 		usage, ok := resourceUsages[n.Name]
@@ -108,5 +109,6 @@ func (r *ResourceUsageReporter) report(ctx context.Context, nodes []*v1.Node, rr
 		instanceGroupTag := InstanceGroupTag(ctx, n.Labels[r.instanceGroupTagLabel])
 		metrics.FromContext(ctx).Gauge(resourceUsageCPU, hostTag, instanceGroupTag).Update(usage.CPU.Value())
 		metrics.FromContext(ctx).Gauge(resourceUsageMemory, hostTag, instanceGroupTag).Update(usage.Memory.Value())
+		metrics.FromContext(ctx).Gauge(resourceUsageNvidiaGPUs, hostTag, instanceGroupTag).Update(usage.NvidiaGPU.Value())
 	}
 }

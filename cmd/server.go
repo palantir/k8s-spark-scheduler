@@ -95,21 +95,17 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		svc1log.FromContext(ctx).Error("Error building api extensions clientset: %s", svc1log.Stacktrace(err))
 		return nil, err
 	}
-	webhookClientConfig, err := conversionwebhook.InitializeCRDConversionWebhook(ctx, info.Router, install.Server, install.SchedulerNamespace, install.SchedulerServiceName)
+	webhookClientConfig, err := conversionwebhook.InitializeCRDConversionWebhook(ctx, info.Router, install.Server,
+		install.WebhookServiceConfig.Namespace, install.WebhookServiceConfig.ServiceName, install.WebhookServiceConfig.ServicePort)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error instantiating CRD conversion webhook: %s", svc1log.Stacktrace(err))
 		return nil, err
 	}
-	err = crd.EnsureResourceReservationsCRD(ctx, apiExtensionsClient, install.ResourceReservationCRDAnnotations, func() *v1.CustomResourceDefinition {
-		return v1beta2.ResourceReservationCustomResourceDefinition(webhookClientConfig, v1beta1.ResourceReservationCustomResourceDefinitionVersion())
-	})
+	err = crd.EnsureResourceReservationsCRD(ctx, apiExtensionsClient, install.ResourceReservationCRDAnnotations,
+		v1beta2.ResourceReservationCustomResourceDefinition(webhookClientConfig, v1beta1.ResourceReservationCustomResourceDefinitionVersion()),
+	)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error ensuring resource reservations v1beta2 CRD exists: %s", svc1log.Stacktrace(err))
-		return nil, err
-	}
-	err = crd.EnsureResourceReservationsCRD(ctx, apiExtensionsClient, install.ResourceReservationCRDAnnotations, v1beta1.ResourceReservationCustomResourceDefinition)
-	if err != nil {
-		svc1log.FromContext(ctx).Error("Error ensuring resource reservations v1beta1 CRD exists: %s", svc1log.Stacktrace(err))
 		return nil, err
 	}
 
@@ -124,7 +120,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	podInformer := podInformerInterface.Informer()
 	podLister := podInformerInterface.Lister()
 
-	resourceReservationInformerInterface := sparkSchedulerInformerFactory.Sparkscheduler().V1beta1().ResourceReservations()
+	resourceReservationInformerInterface := sparkSchedulerInformerFactory.Sparkscheduler().V1beta2().ResourceReservations()
 	resourceReservationInformer := resourceReservationInformerInterface.Informer()
 	resourceReservationLister := resourceReservationInformerInterface.Lister()
 
@@ -154,7 +150,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	resourceReservationCache, err := cache.NewResourceReservationCache(
 		ctx,
 		resourceReservationInformerInterface,
-		sparkSchedulerClient.SparkschedulerV1beta1(),
+		sparkSchedulerClient.SparkschedulerV1beta2(),
 		install.AsyncClientConfig,
 	)
 
@@ -170,7 +166,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	demandCache := cache.NewSafeDemandCache(
 		lazyDemandInformer,
-		sparkSchedulerClient.ScalerV1alpha1(),
+		sparkSchedulerClient.ScalerV1alpha2(),
 		install.AsyncClientConfig,
 	)
 
@@ -263,7 +259,6 @@ func New() *witchcraft.Server {
 		WithInstallConfigFromFile("var/conf/install.yml").
 		// We do this in order to get witchcraft to honor the logging config, which it expects to be in runtime
 		WithRuntimeConfigFromFile("var/conf/install.yml").
-		WithSelfSignedCertificate().
 		WithECVKeyProvider(witchcraft.ECVKeyNoOp()).
 		WithInitFunc(initServer).
 		WithOrigin(svc1log.CallerPkg(0, 1))

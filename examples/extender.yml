@@ -1,27 +1,35 @@
 apiVersion: v1
-kind: Namespace
-metadata:
-  name: spark
----
-apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: spark-scheduler
   namespace: spark
 ---
-  apiVersion: rbac.authorization.k8s.io/v1
-  kind: ClusterRoleBinding
-  metadata:
-    name: spark-scheduler-admin-binding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: spark-scheduler-admin-binding
+  namespace: spark
+subjects:
+  - kind: ServiceAccount
+    name: spark-scheduler
     namespace: spark
-  subjects:
-    - kind: ServiceAccount
-      name: spark-scheduler
-      namespace: spark
-  roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: ClusterRole
-    name: cluster-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scheduler-service
+  namespace: spark
+spec:
+  selector:
+    app: spark-scheduler
+  ports:
+    - protocol: TCP
+      port: 443
+      targetPort: 8483
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -29,7 +37,7 @@ metadata:
   name: spark-scheduler
   namespace: spark
 data:
-  policy.cfg : |
+  policy.cfg: |
     {
     "kind" : "Policy",
     "apiVersion" : "v1",
@@ -68,13 +76,37 @@ data:
       port: 8483
       management-port: 8484
       context-path: /spark-scheduler
+      cert-file: /opt/palantir/services/spark-scheduler/var/secrets/spark-scheduler.crt
+      key-file: /opt/palantir/services/spark-scheduler/var/secrets/spark-scheduler.key
+      client-ca-files:
+        - /opt/palantir/services/spark-scheduler/var/secrets/rootCA.crt
     fifo: true
     instance-group-label: "instance-group"
     logging:
       level: debug
       output: STDOUT
+<<<<<<< HEAD
     scheduler-namespace: spark
     scheduler-service-name: scheduler-service
+=======
+    webhook-service-config:
+      namespace: spark
+      service-name: scheduler-service
+      service-port: 443
+      context-path: /spark-scheduler
+  spark-scheduler-conversion-webhook-config: |
+    server:
+      port: 8483
+      management-port: 8484
+      context-path: /spark-scheduler
+      cert-file: /opt/palantir/services/spark-scheduler-conversion-webhook/var/secrets/spark-scheduler.crt
+      key-file: /opt/palantir/services/spark-scheduler-conversion-webhook/var/secrets/spark-scheduler.key
+      client-ca-files:
+        - /opt/palantir/services/spark-scheduler-conversion-webhook/var/secrets/rootCA.crt
+    logging:
+      level: debug
+      output: STDOUT
+>>>>>>> origin/master
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -95,50 +127,119 @@ spec:
     spec:
       serviceAccountName: spark-scheduler
       containers:
-      - name: kube-scheduler
-        image: gcr.io/google_containers/hyperkube:v1.15.12
-        imagePullPolicy: IfNotPresent
-        command:
-        - sh
-        - -c
-        - |
-          /hyperkube kube-scheduler \
-            --config=/etc/config/config \
-            --feature-gates=PodPriority=false \
-            -v=4
-        volumeMounts:
-        - name: kube-scheduler-config-volume
-          mountPath: /etc/config
-      - name: spark-scheduler-extender
-        image: palantirtechnologies/spark-scheduler:latest
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          httpGet:
-            scheme: HTTPS
-            path: /spark-scheduler/status/liveness
-            port: 8484
-        readinessProbe:
-          httpGet:
-            scheme: HTTPS
-            path: /spark-scheduler/status/readiness
-            port: 8484
-        ports:
-        - containerPort: 8484
-        - containerPort: 8483
-        volumeMounts:
-        - name: scheduler-extender-config-volume
-          mountPath: /opt/palantir/services/spark-scheduler/var/conf
+        - name: kube-scheduler
+          image: gcr.io/google_containers/hyperkube:v1.15.12
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              /hyperkube kube-scheduler \
+                --config=/etc/config/config \
+                --feature-gates=PodPriority=false \
+                -v=4
+          volumeMounts:
+            - name: kube-scheduler-config-volume
+              mountPath: /etc/config
+        - name: spark-scheduler-extender
+          image: palantirtechnologies/spark-scheduler:latest
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /spark-scheduler/status/liveness
+              port: 8484
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /spark-scheduler/status/readiness
+              port: 8484
+          ports:
+            - containerPort: 8484
+            - containerPort: 8483
+          volumeMounts:
+            - name: scheduler-extender-config-volume
+              mountPath: /opt/palantir/services/spark-scheduler/var/conf
+            - name: scheduler-extender-secrets-volume
+              mountPath: /opt/palantir/services/spark-scheduler/var/secrets
       volumes:
-      - name: kube-scheduler-config-volume
-        configMap:
-          name: spark-scheduler
-          items:
-          - key: kube-scheduler-config
-            path: config
-      - name: scheduler-extender-config-volume
-        configMap:
-          name: spark-scheduler
-          items:
-          - key: spark-scheduler-extender-config
-            path: install.yml
-
+        - name: kube-scheduler-config-volume
+          configMap:
+            name: spark-scheduler
+            items:
+              - key: kube-scheduler-config
+                path: config
+        - name: scheduler-extender-secrets-volume
+          configMap:
+            name: scheduler-secrets
+            items:
+              - key: rootCA.crt
+                path: rootCA.crt
+              - key: spark-scheduler.crt
+                path: spark-scheduler.crt
+              - key: spark-scheduler.key
+                path: spark-scheduler.key
+        - name: scheduler-extender-config-volume
+          configMap:
+            name: spark-scheduler
+            items:
+              - key: spark-scheduler-extender-config
+                path: install.yml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-scheduler-conversion-webhook
+  namespace: spark
+  labels:
+    app: spark-scheduler-conversion-webhook
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: spark-scheduler
+  template:
+    metadata:
+      labels:
+        app: spark-scheduler
+    spec:
+      serviceAccountName: spark-scheduler
+      containers:
+        - name: spark-scheduler-conversion-webhook
+          image: palantirtechnologies/spark-scheduler-conversion-webhook:latest
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /spark-scheduler/status/liveness
+              port: 8484
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /spark-scheduler/status/readiness
+              port: 8484
+          ports:
+            - containerPort: 8483
+            - containerPort: 8484
+          volumeMounts:
+            - name: spark-scheduler-conversion-webhook-config-volume
+              mountPath: /opt/palantir/services/spark-scheduler-conversion-webhook/var/conf
+            - name: spark-scheduler-conversion-webhook-secrets-volume
+              mountPath: /opt/palantir/services/spark-scheduler-conversion-webhook/var/secrets
+      volumes:
+        - name: spark-scheduler-conversion-webhook-secrets-volume
+          configMap:
+            name: spark-scheduler-conversion-webhook-secrets
+            items:
+              - key: rootCA.crt
+                path: rootCA.crt
+              - key: spark-scheduler.crt
+                path: spark-scheduler.crt
+              - key: spark-scheduler.key
+                path: spark-scheduler.key
+        - name: spark-scheduler-conversion-webhook-config-volume
+          configMap:
+            name: spark-scheduler
+            items:
+              - key: spark-scheduler-conversion-webhook-config
+                path: install.yml

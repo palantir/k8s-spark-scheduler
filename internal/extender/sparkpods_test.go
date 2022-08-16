@@ -28,10 +28,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func createResources(cpu, memory int64) *resources.Resources {
+func createResources(cpu, memory, nvidiaGPU int64) *resources.Resources {
 	return &resources.Resources{
-		CPU:    *resource.NewQuantity(cpu, resource.DecimalSI),
-		Memory: *resource.NewQuantity(memory, resource.BinarySI),
+		CPU:       *resource.NewQuantity(cpu, resource.DecimalSI),
+		Memory:    *resource.NewQuantity(memory, resource.BinarySI),
+		NvidiaGPU: *resource.NewQuantity(nvidiaGPU, resource.DecimalSI),
 	}
 }
 
@@ -45,17 +46,19 @@ func TestSparkResources(t *testing.T) {
 		pod: v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
-					common.DriverCPU:      "1",
-					common.DriverMemory:   "2432Mi",
-					common.ExecutorCPU:    "2",
-					common.ExecutorMemory: "6758Mi",
-					common.ExecutorCount:  "2",
+					common.DriverCPU:          "1",
+					common.DriverMemory:       "2432Mi",
+					common.DriverNvidiaGPUs:   "1",
+					common.ExecutorCPU:        "2",
+					common.ExecutorMemory:     "6758Mi",
+					common.ExecutorNvidiaGPUs: "1",
+					common.ExecutorCount:      "2",
 				},
 			},
 		},
 		expectedApplicationResources: &sparkApplicationResources{
-			driverResources:   createResources(1, 2432*1024*1024),
-			executorResources: createResources(2, 6758*1024*1024),
+			driverResources:   createResources(1, 2432*1024*1024, 1),
+			executorResources: createResources(2, 6758*1024*1024, 1),
 			minExecutorCount:  2,
 			maxExecutorCount:  2,
 		},
@@ -66,8 +69,10 @@ func TestSparkResources(t *testing.T) {
 				Annotations: map[string]string{
 					common.DriverCPU:                "1",
 					common.DriverMemory:             "2432Mi",
+					common.DriverNvidiaGPUs:         "1",
 					common.ExecutorCPU:              "2",
 					common.ExecutorMemory:           "6758Mi",
+					common.ExecutorNvidiaGPUs:       "1",
 					common.DynamicAllocationEnabled: "true",
 					common.DAMinExecutorCount:       "2",
 					common.DAMaxExecutorCount:       "5",
@@ -75,12 +80,32 @@ func TestSparkResources(t *testing.T) {
 			},
 		},
 		expectedApplicationResources: &sparkApplicationResources{
-			driverResources:   createResources(1, 2432*1024*1024),
-			executorResources: createResources(2, 6758*1024*1024),
+			driverResources:   createResources(1, 2432*1024*1024, 1),
+			executorResources: createResources(2, 6758*1024*1024, 1),
 			minExecutorCount:  2,
 			maxExecutorCount:  5,
 		},
-	}}
+	}, {
+		name: "parses static allocation pod annotations into resources when no gpu annotation is present",
+		pod: v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					common.DriverCPU:      "1",
+					common.DriverMemory:   "2432Mi",
+					common.ExecutorCPU:    "2",
+					common.ExecutorMemory: "6758Mi",
+					common.ExecutorCount:  "2",
+				},
+			},
+		},
+		expectedApplicationResources: &sparkApplicationResources{
+			driverResources:   createResources(1, 2432*1024*1024, 0),
+			executorResources: createResources(2, 6758*1024*1024, 0),
+			minExecutorCount:  2,
+			maxExecutorCount:  2,
+		},
+	},
+	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -88,6 +113,10 @@ func TestSparkResources(t *testing.T) {
 			if err != nil {
 				t.Fatalf("error: %v", err)
 			}
+			cacheQuantities(applicationResources.driverResources)
+			cacheQuantities(test.expectedApplicationResources.driverResources)
+			cacheQuantities(applicationResources.executorResources)
+			cacheQuantities(test.expectedApplicationResources.executorResources)
 			if !applicationResources.driverResources.Eq(test.expectedApplicationResources.driverResources) {
 				t.Fatalf("driverResources are not equal, expected: %v, got: %v",
 					test.expectedApplicationResources.driverResources, applicationResources.driverResources)
@@ -106,6 +135,12 @@ func TestSparkResources(t *testing.T) {
 			}
 		})
 	}
+}
+
+func cacheQuantities(resources *resources.Resources) {
+	_ = resources.CPU.String()
+	_ = resources.Memory.String()
+	_ = resources.NvidiaGPU.String()
 }
 
 func createPod(seconds int64, uid, instanceGroupLabel, instanceGroup string) *v1.Pod {

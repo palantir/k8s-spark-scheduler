@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 
-# submit-test-spark-app <app-id> <executor-count> <driver-cpu> <driver-mem> <executor-cpu> <executor-mem>
 set -o errexit
 set -o nounset
 set -o pipefail
+
+if [ "$#" -ne 8 ]; then
+    echo "Illegal number of parameters. Correct usage: submit-test-spark-app <app-id> <executor-count> <driver-cpu> <driver-mem> <executor-cpu> <executor-mem>"
+fi
 
 APP_ID=$1
 EXECUTOR_COUNT=$2
 DRIVER_CPU=$3
 DRIVER_MEM=$4
-EXECUTOR_CPU=$5
-EXECUTOR_MEM=$6
+DRIVER_NVIDIA_GPUS=$5
+EXECUTOR_CPU=$6
+EXECUTOR_MEM=$7
+EXECUTOR_NVIDIA_GPUS=$8
 
 # create driver
 kubectl create -f <(cat << EOF
@@ -24,8 +29,10 @@ metadata:
   annotations:
     spark-driver-cpu: "$DRIVER_CPU"
     spark-driver-mem: "$DRIVER_MEM"
+    spark-driver-nvidia.com/gpu: "$DRIVER_NVIDIA_GPUS"
     spark-executor-cpu: "$EXECUTOR_CPU"
     spark-executor-mem: "$EXECUTOR_MEM"
+    spark-executor-nvidia.com/gpu: "$EXECUTOR_NVIDIA_GPUS"
     spark-executor-count: "$EXECUTOR_COUNT"
 spec:
   schedulerName: spark-scheduler
@@ -38,6 +45,9 @@ spec:
       requests:
         cpu: "$DRIVER_CPU"
         memory: "$DRIVER_MEM"
+        nvidia.com/gpu: "$DRIVER_NVIDIA_GPUS"
+      limits:
+        nvidia.com/gpu: "$DRIVER_NVIDIA_GPUS"
 EOF)
 
 # wait for driver to be running
@@ -72,6 +82,9 @@ spec:
       requests:
         cpu: "$EXECUTOR_CPU"
         memory: "$EXECUTOR_MEM"
+        nvidia.com/gpu: "$EXECUTOR_NVIDIA_GPUS"
+      limits:
+        nvidia.com/gpu: "$EXECUTOR_NVIDIA_GPUS"
 EOF)
 done
 

@@ -1,0 +1,7 @@
+server:
+  port: 8483
+  management-port: 8484
+  context-path: /spark-scheduler
+logging:
+  level: info
+  output: STDOUT

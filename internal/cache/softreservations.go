@@ -18,7 +18,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
@@ -40,7 +40,7 @@ type SoftReservationStore struct {
 // min reservation count
 type SoftReservation struct {
 	// Executor pod name -> Reservation (only valid ones here)
-	Reservations map[string]v1beta1.Reservation
+	Reservations map[string]v1beta2.Reservation
 
 	// Executor pod name -> Reservation valid or not
 	// The reason for this is that we want to keep a history of previously allocated extra executors that we should not create a
@@ -97,7 +97,7 @@ func (s *SoftReservationStore) CreateSoftReservationIfNotExists(appID string) {
 	defer s.storeLock.Unlock()
 	_, ok := s.store[appID]
 	if !ok {
-		r := make(map[string]v1beta1.Reservation)
+		r := make(map[string]v1beta2.Reservation)
 		sr := &SoftReservation{
 			Reservations: r,
 			Status:       make(map[string]bool),
@@ -108,7 +108,7 @@ func (s *SoftReservationStore) CreateSoftReservationIfNotExists(appID string) {
 
 // AddReservationForPod adds a reservation for an extra executor pod, attaching the associated node and resources to it.
 // This is a noop if the reservation already exists.
-func (s *SoftReservationStore) AddReservationForPod(ctx context.Context, appID string, podName string, reservation v1beta1.Reservation) error {
+func (s *SoftReservationStore) AddReservationForPod(ctx context.Context, appID string, podName string, reservation v1beta2.Reservation) error {
 	s.storeLock.Lock()
 	defer s.storeLock.Unlock()
 	appSoftReservation, ok := s.store[appID]
@@ -133,7 +133,7 @@ func (s *SoftReservationStore) ExecutorHasSoftReservation(ctx context.Context, e
 }
 
 // GetExecutorSoftReservation returns the Reservation object associated with this executor if it exists.
-func (s *SoftReservationStore) GetExecutorSoftReservation(ctx context.Context, executor *v1.Pod) (*v1beta1.Reservation, bool) {
+func (s *SoftReservationStore) GetExecutorSoftReservation(ctx context.Context, executor *v1.Pod) (*v1beta2.Reservation, bool) {
 	s.storeLock.RLock()
 	defer s.storeLock.RUnlock()
 	appID, ok := executor.Labels[common.SparkAppIDLabel]
@@ -218,7 +218,7 @@ func (s *SoftReservationStore) removeDriverReservation(appID string) {
 }
 
 func (s *SoftReservationStore) deepCopySoftReservation(reservation *SoftReservation) *SoftReservation {
-	reservationsCopy := make(map[string]v1beta1.Reservation, len(reservation.Reservations))
+	reservationsCopy := make(map[string]v1beta2.Reservation, len(reservation.Reservations))
 	for name, res := range reservation.Reservations {
 		reservationsCopy[name] = *res.DeepCopy()
 	}

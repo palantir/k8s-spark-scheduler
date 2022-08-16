@@ -85,6 +85,9 @@ type DemandSpec struct {
 	// an amount of compute resources that is left unused
 	// but ready for quick reservation should there be need.
 	IsLongLived bool `json:"is-long-lived"`
+	// EnforceSingleZoneScheduling indicates this demand must
+	// be satisfied in a single zone.
+	EnforceSingleZoneScheduling bool `json:"enforce-single-zone-scheduling"`
 }
 
 // DemandStatus represents the status a demand object is in
@@ -95,6 +98,9 @@ type DemandStatus struct {
 	// If left empty, defaults to the creation time of the demand.
 	// +optional
 	LastTransitionTime metav1.Time `json:"last-transition-time,omitempty"`
+	// FulfilledZone is the zone that was scaled up to satisfy this demand. Note this is only populated for
+	// single zone demands, and it does not guarantee that the demand resources will be scheduled in this zone.
+	FulfilledZone string `json:"fulfilled-zone,omitempty"`
 }
 
 // ResourceList is a set of (resource name, quantity) pairs.

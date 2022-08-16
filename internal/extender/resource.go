@@ -424,7 +424,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	if err != nil {
 		return "", failureInternal, err
 	}
-	executorResources := &resources.Resources{CPU: sparkResources.executorResources.CPU, Memory: sparkResources.executorResources.Memory}
+	executorResources := &resources.Resources{CPU: sparkResources.executorResources.CPU, Memory: sparkResources.executorResources.Memory, NvidiaGPU: sparkResources.executorResources.NvidiaGPU}
 	availableNodes := s.getNodes(ctx, nodeNames)
 	usages := s.resourceReservationManager.GetReservedResources()
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))

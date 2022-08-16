@@ -16,6 +16,7 @@ package conversionwebhook
 
 import (
 	"context"
+	"io/ioutil"
 	"path/filepath"
 
 	sparkscheme "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/scheme"
@@ -48,6 +49,7 @@ func InitializeCRDConversionWebhook(
 	server config.Server,
 	schedulerNamespace string,
 	schedulerServiceName string,
+	schedulerServicePort int32,
 ) (*v1.WebhookClientConfig, error) {
 	err := addConversionWebhookRoute(ctx, router)
 	if err != nil {
@@ -55,15 +57,29 @@ func InitializeCRDConversionWebhook(
 	}
 
 	path := filepath.Join(server.ContextPath, webhookPath)
-	port := int32(server.Port)
+
+	if len(server.ClientCAFiles) == 0 {
+		return nil, werror.WrapWithContextParams(ctx, err, "No client CA bundle provided, can not generate conversion webhook client config")
+	}
+
+	if len(server.ClientCAFiles) > 1 {
+		svc1log.FromContext(ctx).Warn("More than one client ca bundle provided, using the first one to generate " +
+			"the conversion webhook client config, it is likely that this scheduler is misconfigured.")
+	}
+
+	caBundle, err := ioutil.ReadFile(server.ClientCAFiles[0])
+	if err != nil {
+		return nil, werror.WrapWithContextParams(ctx, err, "Failed to read CA bundle from file, can not generate conversion webhook client config")
+	}
 
 	return &v1.WebhookClientConfig{
 		Service: &v1.ServiceReference{
 			Namespace: schedulerNamespace,
 			Name:      schedulerServiceName,
 			Path:      &path,
-			Port:      &port,
+			Port:      &schedulerServicePort,
 		},
+		CABundle: caBundle,
 	}, nil
 }
 

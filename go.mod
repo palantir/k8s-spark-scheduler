@@ -1,10 +1,10 @@
 module github.com/palantir/k8s-spark-scheduler
 
-go 1.14
+go 1.18
 
 require (
 	github.com/palantir/go-metrics v1.1.1
-	github.com/palantir/k8s-spark-scheduler-lib v0.2.16
+	github.com/palantir/k8s-spark-scheduler-lib v0.5.0
 	github.com/palantir/pkg/cobracli v1.0.1
 	github.com/palantir/pkg/metrics v1.2.0
 	github.com/palantir/pkg/retry v1.1.1
@@ -16,6 +16,7 @@ require (
 	github.com/prometheus/common v0.8.0 // indirect
 	github.com/spf13/cobra v1.2.1
 	go.uber.org/atomic v1.7.0
+	google.golang.org/grpc/examples v0.0.0-20220815172253-802b32e0ec27 // indirect
 	k8s.io/api v0.20.9
 	k8s.io/apiextensions-apiserver v0.20.9
 	k8s.io/apimachinery v0.20.9

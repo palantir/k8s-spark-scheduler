@@ -15,12 +15,12 @@
 package internal
 
 import (
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
 	v1 "k8s.io/api/core/v1"
 )
 
 // DemandSafeParamsFromObj gets the safe params for a demand object
-func DemandSafeParamsFromObj(demand *v1alpha1.Demand) map[string]interface{} {
+func DemandSafeParamsFromObj(demand *v1alpha2.Demand) map[string]interface{} {
 	return map[string]interface{}{
 		"demandName":      demand.Name,
 		"demandNamespace": demand.Namespace,

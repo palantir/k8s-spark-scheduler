@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
@@ -232,7 +232,7 @@ func (r *WasteMetricsReporter) markAndSlowLog(pod *v1.Pod, tag tagInfo, duration
 	metrics.FromContext(r.ctx).Histogram(schedulingWastePerInstanceGroup, tag.tag, InstanceGroupTag(r.ctx, instanceGroup)).Update(duration.Nanoseconds())
 }
 
-func (r *WasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
+func (r *WasteMetricsReporter) onDemandFulfilled(demand *v1alpha2.Demand) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -244,7 +244,7 @@ func (r *WasteMetricsReporter) onDemandFulfilled(demand *v1alpha1.Demand) {
 func (r *WasteMetricsReporter) onDemandCreated(obj interface{}) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	demand, ok := obj.(*v1alpha1.Demand)
+	demand, ok := obj.(*v1alpha2.Demand)
 	if !ok {
 		svc1log.FromContext(r.ctx).Error("failed to parse obj as demand")
 		return
