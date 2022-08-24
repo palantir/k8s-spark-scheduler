@@ -18,6 +18,7 @@ github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/protoc-gen-gogo/descriptor
 github.com/gogo/protobuf/sortkeys
 # github.com/golang/groupcache v0.0.0-20191227052852-215e87163ea7
+## explicit
 github.com/golang/groupcache/lru
 # github.com/golang/protobuf v1.4.2
 github.com/golang/protobuf/proto
@@ -72,8 +73,10 @@ github.com/palantir/conjure-go-runtime/v2/conjure-go-server/httpserver
 github.com/palantir/go-encrypted-config-value/encryptedconfigvalue
 github.com/palantir/go-encrypted-config-value/encryption
 # github.com/palantir/go-metrics v1.1.0
+## explicit
 github.com/palantir/go-metrics
 # github.com/palantir/k8s-spark-scheduler-lib v0.5.0
+## explicit
 github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1
 github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2
 github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler
@@ -108,12 +111,15 @@ github.com/palantir/k8s-spark-scheduler-lib/pkg/resources
 # github.com/palantir/pkg v1.0.1
 github.com/palantir/pkg
 # github.com/palantir/pkg/cobracli v1.0.1
+## explicit
 github.com/palantir/pkg/cobracli
 # github.com/palantir/pkg/datetime v1.0.1
 github.com/palantir/pkg/datetime
 # github.com/palantir/pkg/metrics v1.0.1
+## explicit
 github.com/palantir/pkg/metrics
 # github.com/palantir/pkg/retry v1.1.1
+## explicit
 github.com/palantir/pkg/retry
 # github.com/palantir/pkg/safejson v1.0.1
 github.com/palantir/pkg/safejson
@@ -122,6 +128,7 @@ github.com/palantir/pkg/safelong
 # github.com/palantir/pkg/safeyaml v1.0.1
 github.com/palantir/pkg/safeyaml
 # github.com/palantir/pkg/signals v1.0.1
+## explicit
 github.com/palantir/pkg/signals
 # github.com/palantir/pkg/tlsconfig v1.0.1
 github.com/palantir/pkg/tlsconfig
@@ -131,9 +138,11 @@ github.com/palantir/pkg/transform
 github.com/palantir/pkg/uuid
 github.com/palantir/pkg/uuid/internal/uuid
 # github.com/palantir/witchcraft-go-error v1.4.3
+## explicit
 github.com/palantir/witchcraft-go-error
 github.com/palantir/witchcraft-go-error/internal/errors
 # github.com/palantir/witchcraft-go-logging v1.7.0
+## explicit
 github.com/palantir/witchcraft-go-logging/conjure/witchcraft/api/logging
 github.com/palantir/witchcraft-go-logging/internal/gopath
 github.com/palantir/witchcraft-go-logging/wlog
@@ -153,6 +162,7 @@ github.com/palantir/witchcraft-go-logging/wlog/wapp
 # github.com/palantir/witchcraft-go-params v1.1.0
 github.com/palantir/witchcraft-go-params
 # github.com/palantir/witchcraft-go-server v1.27.0
+## explicit
 github.com/palantir/witchcraft-go-server/config
 github.com/palantir/witchcraft-go-server/conjure/witchcraft/api/health
 github.com/palantir/witchcraft-go-server/rest
@@ -175,12 +185,14 @@ github.com/palantir/witchcraft-go-tracing/wzipkin
 # github.com/pkg/errors v0.8.1
 github.com/pkg/errors
 # github.com/prometheus/client_golang v1.1.0
+## explicit
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/internal
 github.com/prometheus/client_golang/prometheus/promhttp
 # github.com/prometheus/client_model v0.2.0
 github.com/prometheus/client_model/go
 # github.com/prometheus/common v0.8.0
+## explicit
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
 github.com/prometheus/common/model
@@ -191,6 +203,7 @@ github.com/prometheus/procfs/internal/util
 # github.com/satori/go.uuid v1.2.0
 github.com/satori/go.uuid
 # github.com/spf13/cobra v0.0.5
+## explicit
 github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
@@ -214,6 +227,7 @@ go.etcd.io/etcd/raft/quorum
 go.etcd.io/etcd/raft/raftpb
 go.etcd.io/etcd/raft/tracker
 # go.uber.org/atomic v1.6.0
+## explicit
 go.uber.org/atomic
 # go.uber.org/multierr v1.5.0
 go.uber.org/multierr
@@ -257,6 +271,7 @@ google.golang.org/appengine/internal/remote_api
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/urlfetch
 # google.golang.org/genproto v0.0.0-20200115191322-ca5a22157cba
+## explicit
 google.golang.org/genproto/googleapis/rpc/status
 # google.golang.org/grpc v1.26.0
 google.golang.org/grpc
@@ -335,6 +350,7 @@ gopkg.in/natefinch/lumberjack.v2
 # gopkg.in/yaml.v2 v2.3.0
 gopkg.in/yaml.v2
 # k8s.io/api v0.18.8 => k8s.io/api v0.18.8
+## explicit
 k8s.io/api/admissionregistration/v1
 k8s.io/api/admissionregistration/v1beta1
 k8s.io/api/apps/v1
@@ -376,6 +392,7 @@ k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
 # k8s.io/apiextensions-apiserver v0.18.8 => k8s.io/apiextensions-apiserver v0.18.8
+## explicit
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1
@@ -387,6 +404,7 @@ k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextension
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1/fake
 # k8s.io/apimachinery v0.18.8 => k8s.io/apimachinery v0.18.8
+## explicit
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/api/meta
@@ -440,6 +458,7 @@ k8s.io/apiserver/pkg/storage/etcd3/metrics
 k8s.io/apiserver/pkg/storage/value
 k8s.io/apiserver/pkg/util/feature
 # k8s.io/client-go v0.18.8 => k8s.io/client-go v0.18.8
+## explicit
 k8s.io/client-go/discovery
 k8s.io/client-go/discovery/fake
 k8s.io/client-go/informers
@@ -663,8 +682,10 @@ k8s.io/klog/v2
 # k8s.io/kube-openapi v0.0.0-20200410145947-61e04a5be9a6
 k8s.io/kube-openapi/pkg/util/proto
 # k8s.io/kube-scheduler v0.0.0 => k8s.io/kube-scheduler v0.18.8
+## explicit
 k8s.io/kube-scheduler/extender/v1
 # k8s.io/kubernetes v1.18.8
+## explicit
 k8s.io/kubernetes/pkg/api/legacyscheme
 k8s.io/kubernetes/pkg/api/v1/pod
 k8s.io/kubernetes/pkg/apis/core
@@ -705,6 +726,7 @@ k8s.io/utils/pointer
 k8s.io/utils/strings
 k8s.io/utils/trace
 # sigs.k8s.io/controller-runtime v0.6.4
+## explicit
 sigs.k8s.io/controller-runtime/pkg/conversion
 sigs.k8s.io/controller-runtime/pkg/log
 sigs.k8s.io/controller-runtime/pkg/webhook/conversion
@@ -712,3 +734,24 @@ sigs.k8s.io/controller-runtime/pkg/webhook/conversion
 sigs.k8s.io/structured-merge-diff/v3/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
+# k8s.io/api => k8s.io/api v0.18.8
+# k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.18.8
+# k8s.io/apimachinery => k8s.io/apimachinery v0.18.8
+# k8s.io/apiserver => k8s.io/apiserver v0.18.8
+# k8s.io/cli-runtime => k8s.io/cli-runtime v0.18.8
+# k8s.io/client-go => k8s.io/client-go v0.18.8
+# k8s.io/cloud-provider => k8s.io/cloud-provider v0.18.8
+# k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.18.8
+# k8s.io/code-generator => k8s.io/code-generator v0.18.8
+# k8s.io/component-base => k8s.io/component-base v0.18.8
+# k8s.io/cri-api => k8s.io/cri-api v0.18.8
+# k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.18.8
+# k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.18.8
+# k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.18.8
+# k8s.io/kube-proxy => k8s.io/kube-proxy v0.18.8
+# k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.18.8
+# k8s.io/kubectl => k8s.io/kubectl v0.18.8
+# k8s.io/kubelet => k8s.io/kubelet v0.18.8
+# k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.18.8
+# k8s.io/metrics => k8s.io/metrics v0.18.8
+# k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.18.8
