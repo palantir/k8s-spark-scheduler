@@ -113,7 +113,7 @@ go-dist-setup-cache: &go-dist-setup-cache
       ### START modify for CircleCI 2
       # Use default value and Artifactory download prefix
       PARAM_GOPATH="/home/circleci/go"
-      PARAM_GO_DIST_DOWNLOAD_URL_PREFIX="https://artifactory.palantir.build/artifactory/external-dist-golang/"
+      PARAM_GO_DIST_DOWNLOAD_URL_PREFIX="https://golang.org/dl/"
       ### END modify for CircleCI 2
       # set Go version
       GO_VERSION="$(cat "${PARAM_GOPATH}/circleci/goversion")"
