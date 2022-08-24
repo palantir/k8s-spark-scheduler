@@ -28,6 +28,254 @@ all-tags-filter: &all-tags-filter
     tags:
       only: /.*/
 
+
+go-docker: &go-docker
+  <<: *working_directory
+  docker:
+    - image: cimg/go:1.16-browsers
+
+go-dist-write-go-version-file: &go-dist-write-go-version-file
+  run:
+    name: Writing go version to use in CircleCI job
+    command: |
+      # this pattern is used to make it easier to port the code to CircleCI 2.0
+      ### START modify for CircleCI 2
+      # Use envrionment variable value and default value instead of parameters
+      PARAM_GO_VERSION="$ENV_GO_VERSION"
+      PARAM_GO_VERSION_FILE=".palantir/go-version"
+      PARAM_GO_PREV_VERSION="$ENV_GO_PREV_VERSION"
+      PARAM_GOPATH="/go"
+      ### END modify for CircleCI 2
+      GO_VERSION_FILE_PATH="${PARAM_GOPATH}/circleci/goversion"
+      FALLBACK_GO_VERSION_FILE="/usr/local/go/VERSION"
+      # set Go version
+      GO_VERSION=${PARAM_GO_VERSION}
+      if [ ! -z "${GO_VERSION}" ]; then
+        echo "Go version specified as parameter is ${GO_VERSION}"
+      elif [ -f "${PARAM_GO_VERSION_FILE}" ]; then
+        GO_VERSION=$(cat "${PARAM_GO_VERSION_FILE}")
+        echo "Go version specified in ${PARAM_GO_VERSION_FILE} is ${GO_VERSION}"
+      elif [ -f "${FALLBACK_GO_VERSION_FILE}" ]; then
+        GO_VERSION=$(cat "${FALLBACK_GO_VERSION_FILE}")
+        echo "Go version specified in ${FALLBACK_GO_VERSION_FILE} is ${GO_VERSION}"
+      else
+        echo "Error: Go version was not specified as a parameter and neither ${PARAM_GO_VERSION_FILE} nor ${FALLBACK_GO_VERSION_FILE} exist"
+        exit 1
+      fi
+      if (( PARAM_GO_PREV_VERSION > 0 )); then
+        GO_MINOR_VERSION=$(echo "${GO_VERSION}" | sed 's/^go[0-9][0-9]*\.\([0-9][0-9]*\).*$/\1/')
+        if (( GO_MINOR_VERSION == 0 )); then
+          echo "Decrement operation not supported when minor version is 0"
+          exit 1
+        fi
+        (( GO_MINOR_VERSION = GO_MINOR_VERSION - PARAM_GO_PREV_VERSION ))
+        if (( GO_MINOR_VERSION < 0 )); then
+          echo "Minor version cannot be less than 0; was: ${GO_MINOR_VERSION}"
+          exit 1
+        fi
+        GO_MAJOR_VERSION=$(echo "${GO_VERSION}" | sed 's/^go\([0-9][0-9]*\).*$/\1/')
+        GO_VERSION="go${GO_MAJOR_VERSION}.${GO_MINOR_VERSION}"
+      fi
+      mkdir -p "$(dirname "${GO_VERSION_FILE_PATH}")"
+      echo "Writing ${GO_VERSION} to ${GO_VERSION_FILE_PATH}"
+      printf "%s" "$GO_VERSION" > "${GO_VERSION_FILE_PATH}"
+
+go-dist-write-cache-key-file: &go-dist-write-cache-key-file
+  run:
+    name: Writing cache key for golang distribution
+    command: |
+      # this pattern is used to make it easier to port the code to CircleCI 2.0
+      ### START modify for CircleCI 2
+      # Use default values instead of parameters
+      PARAM_GOPATH="/go"
+      ### END modify for CircleCI 2
+      # set Go version
+      GO_VERSION_FILE_PATH="${PARAM_GOPATH}/circleci/goversion"
+      GO_VERSION="$(cat ${GO_VERSION_FILE_PATH})"
+      echo "GO_VERSION=${GO_VERSION}"
+      # write cache key. Content is based on whether or not required data is already present and the Go version.
+      GO_CACHE_FILE_PATH="${PARAM_GOPATH}/circleci/circleci-cache-key-golang"
+      mkdir -p "$(dirname ${GO_CACHE_FILE_PATH})"
+      CACHE_KEY_FILE_CONTENT=""
+      if [ -d "${PARAM_GOPATH}/go-dists/${GO_VERSION}" ]; then
+        CACHE_KEY_FILE_CONTENT="Empty cache"
+      else
+        CACHE_KEY_FILE_CONTENT="${GO_VERSION}"
+      fi
+      echo "Writing cache key ${CACHE_KEY_FILE_CONTENT} to file ${GO_CACHE_FILE_PATH}"
+      echo "${CACHE_KEY_FILE_CONTENT}" > "${GO_CACHE_FILE_PATH}"
+
+go-dist-setup-cache: &go-dist-setup-cache
+  run:
+    name: Download go distribution and install standard libraries
+    command: |
+      # this pattern is used to make it easier to port the code to CircleCI 2.0
+      ### START modify for CircleCI 2
+      # Use default value and Artifactory download prefix
+      PARAM_GOPATH="/go"
+      PARAM_GO_DIST_DOWNLOAD_URL_PREFIX="https://artifactory.palantir.build/artifactory/external-dist-golang/"
+      ### END modify for CircleCI 2
+      # set Go version
+      GO_VERSION="$(cat "${PARAM_GOPATH}/circleci/goversion")"
+      GO_DIST_DIR="${PARAM_GOPATH}/go-dists/${GO_VERSION}"
+      GO_DIST_CACHE_DIR="${PARAM_GOPATH}/circleci/go-dists/${GO_VERSION}"
+      # desired distribution already exists: nothing to do
+      if [ -d "${GO_DIST_DIR}" ]; then
+        echo "${GO_DIST_DIR} exists: nothing to do"
+        exit
+      elif [ -d "${GO_DIST_CACHE_DIR}" ]; then
+        # Desired distribution restored from cache: move to expected location
+        echo "${GO_DIST_DIR} does not exist, but ${GO_DIST_CACHE_DIR} exists: move to expected location"
+        mkdir -p "${PARAM_GOPATH}/go-dists"
+        mv "${GO_DIST_CACHE_DIR}" "${GO_DIST_DIR}"
+        exit
+      fi
+      # Desired distribution does not already exist and is not in cache: download and ensure that it exists in
+      # location that will be cached and in expected location
+      echo "Neither ${GO_DIST_DIR} nor ${GO_DIST_CACHE_DIR} exist"
+      echo "Downloading golang distribution from ${PARAM_GO_DIST_DOWNLOAD_URL_PREFIX}${GO_VERSION}.linux-amd64.tar.gz..." && wget -q "${PARAM_GO_DIST_DOWNLOAD_URL_PREFIX}${GO_VERSION}.linux-amd64.tar.gz"
+      echo "Expanding archive" && tar xf "${GO_VERSION}.linux-amd64.tar.gz"
+      echo "Removing archive" && rm "${GO_VERSION}.linux-amd64.tar.gz"
+      echo "Creating $(dirname "${GO_DIST_CACHE_DIR}")" && mkdir -p "$(dirname "${GO_DIST_CACHE_DIR}")"
+      echo "Moving expanded Go distribution to ${GO_DIST_CACHE_DIR}" && mv go "${GO_DIST_CACHE_DIR}"
+      echo "Creating ${PARAM_GOPATH}/go-dists directory" && mkdir -p "${PARAM_GOPATH}/go-dists"
+      echo "Copying expanded Go distribution to ${GO_DIST_DIR}" && cp -r "${GO_DIST_CACHE_DIR}" "${GO_DIST_DIR}"
+      echo "Setting working directory to ${PARAM_GOPATH} to ensure that 'install std' command doesn't use local go.mod file" && cd "${PARAM_GOPATH}"
+      echo "Running go install std for linux-amd64" && GOOS=linux GOARCH=amd64 "${GO_DIST_DIR}/bin/go" install std
+      echo "Running go install std for linux-arm64" && GOOS=linux GOARCH=arm64 "${GO_DIST_DIR}/bin/go" install std
+      echo "Running go install std for darwin-amd64" && GOOS=darwin GOARCH=amd64 "${GO_DIST_DIR}/bin/go" install std
+      echo "Running go install std for darwin-arm64" && GOOS=darwin GOARCH=arm64 "${GO_DIST_DIR}/bin/go" install std
+      echo "Running go install std for windows-amd64" && GOOS=windows GOARCH=amd64 "${GO_DIST_DIR}/bin/go" install std
+
+go-dist-setup-symlink: &go-dist-setup-symlink
+  run:
+    name: Set up symlink from /usr/local/go -> /go/go-dists/${GO_VERSION}
+    command: |
+      # this pattern is used to make it easier to port the code to CircleCI 2.0
+      ### START modify for CircleCI 2
+      # Use default value
+      PARAM_GOPATH="/go"
+      ### END modify for CircleCI 2
+      # set Go version
+      GO_VERSION_FILE_PATH="${PARAM_GOPATH}/circleci/goversion"
+      GO_VERSION="$(cat ${GO_VERSION_FILE_PATH})"
+      echo "GO_VERSION=${GO_VERSION}"
+      if command -v sudo &> /dev/null; then
+        sudo rm -rf /usr/local/go
+        sudo ln -s "${PARAM_GOPATH}/go-dists/${GO_VERSION}" /usr/local/go
+      else
+        rm -rf /usr/local/go
+        ln -s "${PARAM_GOPATH}/go-dists/${GO_VERSION}" /usr/local/go
+      fi
+
+go-dist-setup-go-distribution:
+  steps:
+    #########################
+    # START: palantir/go-dist@0.0.4
+    #########################
+    - *go-dist-write-go-version-file
+    - *go-dist-write-cache-key-file
+    - restore_cache:
+        name: Restore Go distribution from cache
+        keys:
+          - v4-golang-{{ .Environment.CIRCLE_JOB }}-{{ checksum "/go/circleci/circleci-cache-key-golang" }}
+    - *go-dist-setup-cache
+    - *go-dist-setup-symlink
+    - run: go version
+    - save_cache:
+        name: Save Go distribution to cache
+        key: v4-golang-{{ .Environment.CIRCLE_JOB }}-{{ checksum "/go/circleci/circleci-cache-key-golang" }}
+        paths:
+          - /go/circleci/go-dists
+    #########################
+    # END: palantir/go-dist@0.0.4
+    #########################
+#########################
+# END: Define go-dist steps, from orb palantir/go-dist@0.0.4
+#########################
+
+go-build-cache-restore: &go-build-cache-restore
+  restore_cache:
+    name: Restoring Go build cache
+    keys:
+      - go-build-cache-v1-{{ .Revision }}
+go-build-cache-save: &go-build-cache-save
+  save_cache:
+    name: Saving Go build cache
+    key: go-build-cache-v1-{{ .Revision }}
+    paths:
+      - /root/.cache/go-build
+
+go-mod-cache-restore: &go-mod-cache-restore
+  restore_cache:
+    name: Restoring Go module cache
+    keys:
+      - go-mod-cache-v1-{{ checksum "go.mod" }}-{{ checksum "go.sum" }}
+      - go-mod-cache-v1-{{ checksum "go.mod" }}
+go-mod-cache-save: &go-mod-cache-save
+  save_cache:
+    name: Saving Go module cache
+    key: go-mod-cache-v1-{{ checksum "go.mod" }}-{{ checksum "go.sum" }}
+    paths:
+      - /go/pkg/mod
+
+godel-cache-restore: &godel-cache-restore
+  restore_cache:
+    keys:
+      - &godel-cache-key godel-cache-{{ checksum "godelw" }}-{{ checksum "godel/config/godel.yml" }}-v2
+godel-cache-save: &godel-cache-save
+  save_cache:
+    key: *godel-cache-key
+    paths:
+      - ~/.godel
+
+godel-version: &godel-version
+  run: ./godelw version
+
+jobs:
+  docker-build:
+    <<: *go-docker
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - checkout
+      - run: delete_unrelated_tags
+      #########################
+      # START: palantir/go-dist@0.0.4
+      #########################
+      - *go-dist-write-go-version-file
+      - *go-dist-write-cache-key-file
+      - restore_cache:
+          name: Restore Go distribution from cache
+          keys:
+            - v4-golang-verify-{{ checksum "/go/circleci/circleci-cache-key-golang" }}
+      - *go-dist-setup-cache
+      - *go-dist-setup-symlink
+      - run: go version
+      - save_cache:
+          name: Save Go distribution to cache
+          key: v4-golang-verify-{{ checksum "/go/circleci/circleci-cache-key-golang" }}
+          paths:
+            - /go/circleci/go-dists
+      #########################
+      # END: palantir/go-dist@0.0.4
+      #########################
+      - *go-build-cache-restore
+      - *go-mod-cache-restore
+      - *godel-cache-restore
+      - *godel-version
+      - *godel-cache-save
+      - run: ./godelw docker build --verbose
+      - run: |
+          mkdir -p /tmp/docker-cache
+          docker save -o /tmp/docker-cache/docker-images.tar $(./godelw artifacts docker)
+      - persist_to_workspace:
+          root: /tmp/docker-cache/
+          paths:
+            - docker-images.tar
+      - *go-build-cache-save
+      - *go-mod-cache-save
+
 workflows:
   version: 2
   verify-test-dist-publish:
@@ -47,6 +295,10 @@ workflows:
       - godel/dist:
           name: dist
           executor: circleci-go
+          <<: *homepath
+          <<: *gopath
+          <<: *all-tags-filter
+      - docker-build:
           <<: *homepath
           <<: *gopath
           <<: *all-tags-filter
