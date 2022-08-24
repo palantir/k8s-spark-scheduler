@@ -168,32 +168,6 @@ go-dist-setup-symlink: &go-dist-setup-symlink
         ln -s "${PARAM_GOPATH}/go-dists/${GO_VERSION}" /usr/local/go
       fi
 
-go-dist-setup-go-distribution:
-  steps:
-    #########################
-    # START: palantir/go-dist@0.0.4
-    #########################
-    - *go-dist-write-go-version-file
-    - *go-dist-write-cache-key-file
-    - restore_cache:
-        name: Restore Go distribution from cache
-        keys:
-          - v4-golang-{{ .Environment.CIRCLE_JOB }}-{{ checksum "/go/circleci/circleci-cache-key-golang" }}
-    - *go-dist-setup-cache
-    - *go-dist-setup-symlink
-    - run: go version
-    - save_cache:
-        name: Save Go distribution to cache
-        key: v4-golang-{{ .Environment.CIRCLE_JOB }}-{{ checksum "/go/circleci/circleci-cache-key-golang" }}
-        paths:
-          - /home/circleci/go/circleci/go-dists
-    #########################
-    # END: palantir/go-dist@0.0.4
-    #########################
-#########################
-# END: Define go-dist steps, from orb palantir/go-dist@0.0.4
-#########################
-
 go-build-cache-restore: &go-build-cache-restore
   restore_cache:
     name: Restoring Go build cache
@@ -232,6 +206,48 @@ godel-cache-save: &godel-cache-save
 godel-version: &godel-version
   run: ./godelw version
 
+docker-publish-steps:
+  - setup_remote_docker:
+      docker_layer_caching: true
+  - attach_workspace:
+      at: /tmp/docker-cache/
+  - checkout
+  #########################
+  # START: palantir/go-dist@0.0.4
+  #########################
+  - *go-dist-write-go-version-file
+  - *go-dist-write-cache-key-file
+  - restore_cache:
+      name: Restore Go distribution from cache
+      keys:
+        - v4-golang-docker-build-{{ checksum "/home/circleci/go/circleci/circleci-cache-key-golang" }}
+  - *go-dist-setup-cache
+  - *go-dist-setup-symlink
+  - run: go version
+  - save_cache:
+      name: Save Go distribution to cache
+      key: v4-golang-docker-build-{{ checksum "/home/circleci/go/circleci/circleci-cache-key-golang" }}
+      paths:
+        - /home/circleci/go/circleci/go-dists
+  #########################
+  # END: palantir/go-dist@0.0.4
+  #########################
+  - *go-build-cache-restore
+  - *go-mod-cache-restore
+  - *godel-cache-restore
+  - *godel-version
+  - *godel-cache-save
+  - run: ./godelw docker build --verbose
+  - run: |
+      mkdir -p /tmp/docker-cache
+      docker save -o /tmp/docker-cache/docker-images.tar $(./godelw artifacts docker)
+  - persist_to_workspace:
+      root: /tmp/docker-cache/
+      paths:
+        - docker-images.tar
+  - *go-build-cache-save
+  - *go-mod-cache-save
+
 jobs:
   docker-build:
     <<: *go-docker
@@ -247,13 +263,13 @@ jobs:
       - restore_cache:
           name: Restore Go distribution from cache
           keys:
-            - v4-golang-docker-build-{{ checksum "/go/circleci/circleci-cache-key-golang" }}
+            - v4-golang-docker-build-{{ checksum "/home/circleci/go/circleci/circleci-cache-key-golang" }}
       - *go-dist-setup-cache
       - *go-dist-setup-symlink
       - run: go version
       - save_cache:
           name: Save Go distribution to cache
-          key: v4-golang-docker-build-{{ checksum "/go/circleci/circleci-cache-key-golang" }}
+          key: v4-golang-docker-build-{{ checksum "/home/circleci/go/circleci/circleci-cache-key-golang" }}
           paths:
             - /home/circleci/go/circleci/go-dists
       #########################
@@ -274,6 +290,35 @@ jobs:
             - docker-images.tar
       - *go-build-cache-save
       - *go-mod-cache-save
+  push-docker-release:
+    <<: *go-docker
+    environment:
+      RELEASE_TYPE: release
+    steps: *docker_publish_steps
+  push-docker-snapshot:
+    <<: *go-docker
+    steps: *docker_publish_steps
+
+### Workflows ###
+# The set of jobs that should be run on every build. All publish operations block on these jobs.
+requires_jobs: &requires_jobs
+  - verify
+  - test
+  - docker-build
+
+# Filter that matches only release tags. Used for jobs that publish releases.
+release-requires-filter: &release-requires-filter
+  requires: *requires_jobs
+  filters:
+    tags:
+      only: /^v?[0-9]+(\.[0-9]+)+(-rc[0-9]+)?$/
+    branches:
+      ignore: /.*/
+
+# Filter that matches only the "master" branch. Used for jobs that publish snapshots.
+master-requires-filter: &master-requires-filter
+  requires: *requires_jobs
+  filters: { tags: { ignore: /.*/ }, branches: { only: /master/ } }
 
 workflows:
   version: 2
@@ -299,3 +344,7 @@ workflows:
           <<: *all-tags-filter
       - docker-build:
           <<: *all-tags-filter
+      - push-docker-release:
+          <<: *release-requires-filter
+      - push-docker-snapshot:
+          <<: *master-requires-filter
