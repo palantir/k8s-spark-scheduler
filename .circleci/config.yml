@@ -239,7 +239,6 @@ jobs:
       - setup_remote_docker:
           docker_layer_caching: true
       - checkout
-      - run: delete_unrelated_tags
       #########################
       # START: palantir/go-dist@0.0.4
       #########################
