@@ -299,6 +299,4 @@ workflows:
           <<: *gopath
           <<: *all-tags-filter
       - docker-build:
-          <<: *homepath
-          <<: *gopath
           <<: *all-tags-filter
