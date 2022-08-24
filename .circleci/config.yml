@@ -206,7 +206,7 @@ godel-cache-save: &godel-cache-save
 godel-version: &godel-version
   run: ./godelw version
 
-docker-publish-steps:
+docker-publish-steps: &docker-publish-steps
   - setup_remote_docker:
       docker_layer_caching: true
   - attach_workspace:
