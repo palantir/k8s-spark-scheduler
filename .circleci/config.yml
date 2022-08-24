@@ -237,14 +237,17 @@ docker-publish-steps: &docker_publish_steps
   - *godel-cache-restore
   - *godel-version
   - *godel-cache-save
-  - run: ./godelw docker build --verbose
+  - run: docker load -i /tmp/docker-cache/docker-images.tar
+  - run: docker login -u "$DOCKERHUB_USERNAME" -p "$DOCKERHUB_PASSWORD"
+    # if release type is "release", then only push the tags with the key "release" (these tags typically include a concrete version to ensure that they are
+    # globally unique). Required because release repository typically does not include overwrite permissions, so tags like "latest" or "snapshot" should not
+    # be pushed on real releases (whereas it is fine for snapshots).
   - run: |
-      mkdir -p /tmp/docker-cache
-      docker save -o /tmp/docker-cache/docker-images.tar $(./godelw artifacts docker)
-  - persist_to_workspace:
-      root: /tmp/docker-cache/
-      paths:
-        - docker-images.tar
+     if [ "$RELEASE_TYPE" == "release" ]; then
+       ./godelw docker push --repository "$DOCKER_REPO" --tags=release
+     else
+       ./godelw docker push --repository "$DOCKER_REPO" --tags=latest
+     fi
   - *go-build-cache-save
   - *go-mod-cache-save
 
