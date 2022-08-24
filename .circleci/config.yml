@@ -44,7 +44,7 @@ go-dist-write-go-version-file: &go-dist-write-go-version-file
       PARAM_GO_VERSION="$ENV_GO_VERSION"
       PARAM_GO_VERSION_FILE=".palantir/go-version"
       PARAM_GO_PREV_VERSION="$ENV_GO_PREV_VERSION"
-      PARAM_GOPATH="/go"
+      PARAM_GOPATH="/home/circleci/go"
       ### END modify for CircleCI 2
       GO_VERSION_FILE_PATH="${PARAM_GOPATH}/circleci/goversion"
       FALLBACK_GO_VERSION_FILE="/usr/local/go/VERSION"
@@ -87,7 +87,7 @@ go-dist-write-cache-key-file: &go-dist-write-cache-key-file
       # this pattern is used to make it easier to port the code to CircleCI 2.0
       ### START modify for CircleCI 2
       # Use default values instead of parameters
-      PARAM_GOPATH="/go"
+      PARAM_GOPATH="/home/circleci/go"
       ### END modify for CircleCI 2
       # set Go version
       GO_VERSION_FILE_PATH="${PARAM_GOPATH}/circleci/goversion"
@@ -112,7 +112,7 @@ go-dist-setup-cache: &go-dist-setup-cache
       # this pattern is used to make it easier to port the code to CircleCI 2.0
       ### START modify for CircleCI 2
       # Use default value and Artifactory download prefix
-      PARAM_GOPATH="/go"
+      PARAM_GOPATH="/home/circleci/go"
       PARAM_GO_DIST_DOWNLOAD_URL_PREFIX="https://artifactory.palantir.build/artifactory/external-dist-golang/"
       ### END modify for CircleCI 2
       # set Go version
@@ -154,7 +154,7 @@ go-dist-setup-symlink: &go-dist-setup-symlink
       # this pattern is used to make it easier to port the code to CircleCI 2.0
       ### START modify for CircleCI 2
       # Use default value
-      PARAM_GOPATH="/go"
+      PARAM_GOPATH="/home/circleci/go"
       ### END modify for CircleCI 2
       # set Go version
       GO_VERSION_FILE_PATH="${PARAM_GOPATH}/circleci/goversion"
