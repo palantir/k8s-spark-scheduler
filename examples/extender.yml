@@ -85,6 +85,10 @@ data:
     logging:
       level: debug
       output: STDOUT
+<<<<<<< HEAD
+    scheduler-namespace: spark
+    scheduler-service-name: scheduler-service
+=======
     webhook-service-config:
       namespace: spark
       service-name: scheduler-service
@@ -102,6 +106,7 @@ data:
     logging:
       level: debug
       output: STDOUT
+>>>>>>> origin/master
 ---
 apiVersion: apps/v1
 kind: Deployment

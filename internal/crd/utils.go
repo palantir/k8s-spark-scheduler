@@ -93,6 +93,8 @@ func versionsAreEqual(existingVersions []v1.CustomResourceDefinitionVersion, des
 	return true
 }
 
+type crdSupplierFunc func() *v1.CustomResourceDefinition
+
 // EnsureResourceReservationsCRD is responsible for creating and ensuring the ResourceReservation CRD
 // is created, it ensures that both v1beta1 and v1beta2 exist.
 func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsclientset.Interface, annotations map[string]string, crd *v1.CustomResourceDefinition) error {
