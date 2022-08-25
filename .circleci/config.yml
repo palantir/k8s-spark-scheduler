@@ -34,6 +34,13 @@ go-docker: &go-docker
   docker:
     - image: cimg/go:1.16-browsers
 
+
+# docker-build and docker-publish jobs are not available as part of palantir/go and palantir/godel orbs.commands:
+# Copying go-dist commands from circle-templates to respect the go version specified in .palantir/go-version
+# Source: https://github.palantir.build/excavator-checks/circle-templates/blob/develop/src/test/resources/rendered/go-sls-with-gradle/config.yml
+#############################################################################################
+####### START: Copy go-dist commands for custom circleci jobs for k8s-spark-scheduler #######
+#############################################################################################
 go-dist-write-go-version-file: &go-dist-write-go-version-file
   run:
     name: Writing go version to use in CircleCI job
@@ -205,6 +212,9 @@ godel-cache-save: &godel-cache-save
 
 godel-version: &godel-version
   run: ./godelw version
+#############################################################################################
+####### END: Copy go-dist commands for custom circleci jobs for k8s-spark-scheduler #######
+#############################################################################################
 
 docker-publish-steps: &docker_publish_steps
   - setup_remote_docker:
