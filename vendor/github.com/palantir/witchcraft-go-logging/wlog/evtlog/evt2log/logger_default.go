@@ -15,6 +15,8 @@
 package evt2log
 
 import (
+	"time"
+
 	"github.com/palantir/witchcraft-go-logging/wlog"
 )
 
@@ -23,10 +25,10 @@ type defaultLogger struct {
 }
 
 func (l *defaultLogger) Event(name string, params ...Param) {
-	l.logger.Log(toParams(name, params)...)
+	l.logger.Log(ToParams(name, params)...)
 }
 
-func toParams(evtName string, inParams []Param) []wlog.Param {
+func ToParams(evtName string, inParams []Param) []wlog.Param {
 	outParams := make([]wlog.Param, len(defaultTypeParam)+1+len(inParams))
 	copy(outParams, defaultTypeParam)
 	outParams[len(defaultTypeParam)] = wlog.NewParam(eventNameParam(evtName).apply)
@@ -39,5 +41,6 @@ func toParams(evtName string, inParams []Param) []wlog.Param {
 var defaultTypeParam = []wlog.Param{
 	wlog.NewParam(func(entry wlog.LogEntry) {
 		entry.StringValue(wlog.TypeKey, TypeValue)
+		entry.StringValue(wlog.TimeKey, time.Now().Format(time.RFC3339Nano))
 	}),
 }

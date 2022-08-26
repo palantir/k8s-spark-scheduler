@@ -242,6 +242,11 @@ func (e *werror) Cause() error {
 	return e.cause
 }
 
+// Unwrap returns the wrapped error. Exists to support Go error Is/As functions introduced in Go 1.13.
+func (e *werror) Unwrap() error {
+	return e.cause
+}
+
 // StackTrace returns the Stacktracer for this error or nil if there is none.
 func (e *werror) StackTrace() StackTrace {
 	return e.stack

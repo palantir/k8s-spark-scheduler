@@ -6,57 +6,131 @@ import (
 	"strings"
 )
 
-type AuditResult string
+type AuditResult struct {
+	val AuditResult_Value
+}
+
+type AuditResult_Value string
 
 const (
-	AuditResultSuccess      AuditResult = "SUCCESS"
-	AuditResultUnauthorized AuditResult = "UNAUTHORIZED"
-	AuditResultError        AuditResult = "ERROR"
-	AuditResultUnknown      AuditResult = "UNKNOWN"
+	AuditResult_SUCCESS      AuditResult_Value = "SUCCESS"
+	AuditResult_UNAUTHORIZED AuditResult_Value = "UNAUTHORIZED"
+	AuditResult_ERROR        AuditResult_Value = "ERROR"
+	AuditResult_UNKNOWN      AuditResult_Value = "UNKNOWN"
 )
 
+// AuditResult_Values returns all known variants of AuditResult.
+func AuditResult_Values() []AuditResult_Value {
+	return []AuditResult_Value{AuditResult_SUCCESS, AuditResult_UNAUTHORIZED, AuditResult_ERROR}
+}
+
+func New_AuditResult(value AuditResult_Value) AuditResult {
+	return AuditResult{val: value}
+}
+
+// IsUnknown returns false for all known variants of AuditResult and true otherwise.
+func (e AuditResult) IsUnknown() bool {
+	switch e.val {
+	case AuditResult_SUCCESS, AuditResult_UNAUTHORIZED, AuditResult_ERROR:
+		return false
+	}
+	return true
+}
+
+func (e AuditResult) Value() AuditResult_Value {
+	if e.IsUnknown() {
+		return AuditResult_UNKNOWN
+	}
+	return e.val
+}
+
+func (e AuditResult) String() string {
+	return string(e.val)
+}
+
+func (e AuditResult) MarshalText() ([]byte, error) {
+	return []byte(e.val), nil
+}
+
 func (e *AuditResult) UnmarshalText(data []byte) error {
-	switch strings.ToUpper(string(data)) {
+	switch v := strings.ToUpper(string(data)); v {
 	default:
-		*e = AuditResultUnknown
+		*e = New_AuditResult(AuditResult_Value(v))
 	case "SUCCESS":
-		*e = AuditResultSuccess
+		*e = New_AuditResult(AuditResult_SUCCESS)
 	case "UNAUTHORIZED":
-		*e = AuditResultUnauthorized
+		*e = New_AuditResult(AuditResult_UNAUTHORIZED)
 	case "ERROR":
-		*e = AuditResultError
+		*e = New_AuditResult(AuditResult_ERROR)
 	}
 	return nil
 }
 
-type LogLevel string
+type LogLevel struct {
+	val LogLevel_Value
+}
+
+type LogLevel_Value string
 
 const (
-	LogLevelFatal   LogLevel = "FATAL"
-	LogLevelError   LogLevel = "ERROR"
-	LogLevelWarn    LogLevel = "WARN"
-	LogLevelInfo    LogLevel = "INFO"
-	LogLevelDebug   LogLevel = "DEBUG"
-	LogLevelTrace   LogLevel = "TRACE"
-	LogLevelUnknown LogLevel = "UNKNOWN"
+	LogLevel_FATAL   LogLevel_Value = "FATAL"
+	LogLevel_ERROR   LogLevel_Value = "ERROR"
+	LogLevel_WARN    LogLevel_Value = "WARN"
+	LogLevel_INFO    LogLevel_Value = "INFO"
+	LogLevel_DEBUG   LogLevel_Value = "DEBUG"
+	LogLevel_TRACE   LogLevel_Value = "TRACE"
+	LogLevel_UNKNOWN LogLevel_Value = "UNKNOWN"
 )
 
+// LogLevel_Values returns all known variants of LogLevel.
+func LogLevel_Values() []LogLevel_Value {
+	return []LogLevel_Value{LogLevel_FATAL, LogLevel_ERROR, LogLevel_WARN, LogLevel_INFO, LogLevel_DEBUG, LogLevel_TRACE}
+}
+
+func New_LogLevel(value LogLevel_Value) LogLevel {
+	return LogLevel{val: value}
+}
+
+// IsUnknown returns false for all known variants of LogLevel and true otherwise.
+func (e LogLevel) IsUnknown() bool {
+	switch e.val {
+	case LogLevel_FATAL, LogLevel_ERROR, LogLevel_WARN, LogLevel_INFO, LogLevel_DEBUG, LogLevel_TRACE:
+		return false
+	}
+	return true
+}
+
+func (e LogLevel) Value() LogLevel_Value {
+	if e.IsUnknown() {
+		return LogLevel_UNKNOWN
+	}
+	return e.val
+}
+
+func (e LogLevel) String() string {
+	return string(e.val)
+}
+
+func (e LogLevel) MarshalText() ([]byte, error) {
+	return []byte(e.val), nil
+}
+
 func (e *LogLevel) UnmarshalText(data []byte) error {
-	switch strings.ToUpper(string(data)) {
+	switch v := strings.ToUpper(string(data)); v {
 	default:
-		*e = LogLevelUnknown
+		*e = New_LogLevel(LogLevel_Value(v))
 	case "FATAL":
-		*e = LogLevelFatal
+		*e = New_LogLevel(LogLevel_FATAL)
 	case "ERROR":
-		*e = LogLevelError
+		*e = New_LogLevel(LogLevel_ERROR)
 	case "WARN":
-		*e = LogLevelWarn
+		*e = New_LogLevel(LogLevel_WARN)
 	case "INFO":
-		*e = LogLevelInfo
+		*e = New_LogLevel(LogLevel_INFO)
 	case "DEBUG":
-		*e = LogLevelDebug
+		*e = New_LogLevel(LogLevel_DEBUG)
 	case "TRACE":
-		*e = LogLevelTrace
+		*e = New_LogLevel(LogLevel_TRACE)
 	}
 	return nil
 }

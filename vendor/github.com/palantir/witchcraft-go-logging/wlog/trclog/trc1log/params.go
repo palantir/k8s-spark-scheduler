@@ -29,6 +29,7 @@ const (
 	SpanTimestampKey   = "timestamp"
 	SpanDurationKey    = "duration"
 	SpanAnnotationsKey = "annotations"
+	SpanTagsKey        = "tags"
 
 	AnnotationTimestampKey = "timestamp"
 	AnnotationValueKey     = "value"

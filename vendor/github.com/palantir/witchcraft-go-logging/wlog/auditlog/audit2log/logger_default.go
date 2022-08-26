@@ -15,6 +15,8 @@
 package audit2log
 
 import (
+	"time"
+
 	"github.com/palantir/witchcraft-go-logging/wlog"
 )
 
@@ -23,10 +25,10 @@ type defaultLogger struct {
 }
 
 func (l *defaultLogger) Audit(name string, result AuditResultType, params ...Param) {
-	l.logger.Log(toParams(name, result, params)...)
+	l.logger.Log(ToParams(name, result, params)...)
 }
 
-func toParams(name string, result AuditResultType, inParams []Param) []wlog.Param {
+func ToParams(name string, result AuditResultType, inParams []Param) []wlog.Param {
 	outParams := make([]wlog.Param, len(defaultTypeParam)+1+len(inParams))
 	copy(outParams, defaultTypeParam)
 	outParams[len(defaultTypeParam)] = wlog.NewParam(auditNameResultParam(name, result).apply)
@@ -39,5 +41,6 @@ func toParams(name string, result AuditResultType, inParams []Param) []wlog.Para
 var defaultTypeParam = []wlog.Param{
 	wlog.NewParam(func(entry wlog.LogEntry) {
 		entry.StringValue(wlog.TypeKey, TypeValue)
+		entry.StringValue(wlog.TimeKey, time.Now().Format(time.RFC3339Nano))
 	}),
 }

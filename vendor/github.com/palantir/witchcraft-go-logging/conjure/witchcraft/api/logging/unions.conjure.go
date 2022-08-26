@@ -3,11 +3,292 @@
 package logging
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/palantir/pkg/safejson"
 	"github.com/palantir/pkg/safeyaml"
 )
+
+type Diagnostic struct {
+	typ        string
+	generic    *GenericDiagnostic
+	threadDump *ThreadDumpV1
+}
+
+type diagnosticDeserializer struct {
+	Type       string             `json:"type"`
+	Generic    *GenericDiagnostic `json:"generic"`
+	ThreadDump *ThreadDumpV1      `json:"threadDump"`
+}
+
+func (u *diagnosticDeserializer) toStruct() Diagnostic {
+	return Diagnostic{typ: u.Type, generic: u.Generic, threadDump: u.ThreadDump}
+}
+
+func (u *Diagnostic) toSerializer() (interface{}, error) {
+	switch u.typ {
+	default:
+		return nil, fmt.Errorf("unknown type %s", u.typ)
+	case "generic":
+		return struct {
+			Type    string            `json:"type"`
+			Generic GenericDiagnostic `json:"generic"`
+		}{Type: "generic", Generic: *u.generic}, nil
+	case "threadDump":
+		return struct {
+			Type       string       `json:"type"`
+			ThreadDump ThreadDumpV1 `json:"threadDump"`
+		}{Type: "threadDump", ThreadDump: *u.threadDump}, nil
+	}
+}
+
+func (u Diagnostic) MarshalJSON() ([]byte, error) {
+	ser, err := u.toSerializer()
+	if err != nil {
+		return nil, err
+	}
+	return safejson.Marshal(ser)
+}
+
+func (u *Diagnostic) UnmarshalJSON(data []byte) error {
+	var deser diagnosticDeserializer
+	if err := safejson.Unmarshal(data, &deser); err != nil {
+		return err
+	}
+	*u = deser.toStruct()
+	return nil
+}
+
+func (u Diagnostic) MarshalYAML() (interface{}, error) {
+	jsonBytes, err := safejson.Marshal(u)
+	if err != nil {
+		return nil, err
+	}
+	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
+}
+
+func (u *Diagnostic) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
+	if err != nil {
+		return err
+	}
+	return safejson.Unmarshal(jsonBytes, *&u)
+}
+
+func (u *Diagnostic) AcceptFuncs(genericFunc func(GenericDiagnostic) error, threadDumpFunc func(ThreadDumpV1) error, unknownFunc func(string) error) error {
+	switch u.typ {
+	default:
+		if u.typ == "" {
+			return fmt.Errorf("invalid value in union type")
+		}
+		return unknownFunc(u.typ)
+	case "generic":
+		return genericFunc(*u.generic)
+	case "threadDump":
+		return threadDumpFunc(*u.threadDump)
+	}
+}
+
+func (u *Diagnostic) GenericNoopSuccess(GenericDiagnostic) error {
+	return nil
+}
+
+func (u *Diagnostic) ThreadDumpNoopSuccess(ThreadDumpV1) error {
+	return nil
+}
+
+func (u *Diagnostic) ErrorOnUnknown(typeName string) error {
+	return fmt.Errorf("invalid value in union type. Type name: %s", typeName)
+}
+
+func (u *Diagnostic) Accept(v DiagnosticVisitor) error {
+	switch u.typ {
+	default:
+		if u.typ == "" {
+			return fmt.Errorf("invalid value in union type")
+		}
+		return v.VisitUnknown(u.typ)
+	case "generic":
+		return v.VisitGeneric(*u.generic)
+	case "threadDump":
+		return v.VisitThreadDump(*u.threadDump)
+	}
+}
+
+type DiagnosticVisitor interface {
+	VisitGeneric(v GenericDiagnostic) error
+	VisitThreadDump(v ThreadDumpV1) error
+	VisitUnknown(typeName string) error
+}
+
+func (u *Diagnostic) AcceptWithContext(ctx context.Context, v DiagnosticVisitorWithContext) error {
+	switch u.typ {
+	default:
+		if u.typ == "" {
+			return fmt.Errorf("invalid value in union type")
+		}
+		return v.VisitUnknownWithContext(ctx, u.typ)
+	case "generic":
+		return v.VisitGenericWithContext(ctx, *u.generic)
+	case "threadDump":
+		return v.VisitThreadDumpWithContext(ctx, *u.threadDump)
+	}
+}
+
+type DiagnosticVisitorWithContext interface {
+	VisitGenericWithContext(ctx context.Context, v GenericDiagnostic) error
+	VisitThreadDumpWithContext(ctx context.Context, v ThreadDumpV1) error
+	VisitUnknownWithContext(ctx context.Context, typeName string) error
+}
+
+func NewDiagnosticFromGeneric(v GenericDiagnostic) Diagnostic {
+	return Diagnostic{typ: "generic", generic: &v}
+}
+
+func NewDiagnosticFromThreadDump(v ThreadDumpV1) Diagnostic {
+	return Diagnostic{typ: "threadDump", threadDump: &v}
+}
+
+type RequestLog struct {
+	typ string
+	v1  *RequestLogV1
+	v2  *RequestLogV2
+}
+
+type requestLogDeserializer struct {
+	Type string        `json:"type"`
+	V1   *RequestLogV1 `json:"v1"`
+	V2   *RequestLogV2 `json:"v2"`
+}
+
+func (u *requestLogDeserializer) toStruct() RequestLog {
+	return RequestLog{typ: u.Type, v1: u.V1, v2: u.V2}
+}
+
+func (u *RequestLog) toSerializer() (interface{}, error) {
+	switch u.typ {
+	default:
+		return nil, fmt.Errorf("unknown type %s", u.typ)
+	case "v1":
+		return struct {
+			Type string       `json:"type"`
+			V1   RequestLogV1 `json:"v1"`
+		}{Type: "v1", V1: *u.v1}, nil
+	case "v2":
+		return struct {
+			Type string       `json:"type"`
+			V2   RequestLogV2 `json:"v2"`
+		}{Type: "v2", V2: *u.v2}, nil
+	}
+}
+
+func (u RequestLog) MarshalJSON() ([]byte, error) {
+	ser, err := u.toSerializer()
+	if err != nil {
+		return nil, err
+	}
+	return safejson.Marshal(ser)
+}
+
+func (u *RequestLog) UnmarshalJSON(data []byte) error {
+	var deser requestLogDeserializer
+	if err := safejson.Unmarshal(data, &deser); err != nil {
+		return err
+	}
+	*u = deser.toStruct()
+	return nil
+}
+
+func (u RequestLog) MarshalYAML() (interface{}, error) {
+	jsonBytes, err := safejson.Marshal(u)
+	if err != nil {
+		return nil, err
+	}
+	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
+}
+
+func (u *RequestLog) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
+	if err != nil {
+		return err
+	}
+	return safejson.Unmarshal(jsonBytes, *&u)
+}
+
+func (u *RequestLog) AcceptFuncs(v1Func func(RequestLogV1) error, v2Func func(RequestLogV2) error, unknownFunc func(string) error) error {
+	switch u.typ {
+	default:
+		if u.typ == "" {
+			return fmt.Errorf("invalid value in union type")
+		}
+		return unknownFunc(u.typ)
+	case "v1":
+		return v1Func(*u.v1)
+	case "v2":
+		return v2Func(*u.v2)
+	}
+}
+
+func (u *RequestLog) V1NoopSuccess(RequestLogV1) error {
+	return nil
+}
+
+func (u *RequestLog) V2NoopSuccess(RequestLogV2) error {
+	return nil
+}
+
+func (u *RequestLog) ErrorOnUnknown(typeName string) error {
+	return fmt.Errorf("invalid value in union type. Type name: %s", typeName)
+}
+
+func (u *RequestLog) Accept(v RequestLogVisitor) error {
+	switch u.typ {
+	default:
+		if u.typ == "" {
+			return fmt.Errorf("invalid value in union type")
+		}
+		return v.VisitUnknown(u.typ)
+	case "v1":
+		return v.VisitV1(*u.v1)
+	case "v2":
+		return v.VisitV2(*u.v2)
+	}
+}
+
+type RequestLogVisitor interface {
+	VisitV1(v RequestLogV1) error
+	VisitV2(v RequestLogV2) error
+	VisitUnknown(typeName string) error
+}
+
+func (u *RequestLog) AcceptWithContext(ctx context.Context, v RequestLogVisitorWithContext) error {
+	switch u.typ {
+	default:
+		if u.typ == "" {
+			return fmt.Errorf("invalid value in union type")
+		}
+		return v.VisitUnknownWithContext(ctx, u.typ)
+	case "v1":
+		return v.VisitV1WithContext(ctx, *u.v1)
+	case "v2":
+		return v.VisitV2WithContext(ctx, *u.v2)
+	}
+}
+
+type RequestLogVisitorWithContext interface {
+	VisitV1WithContext(ctx context.Context, v RequestLogV1) error
+	VisitV2WithContext(ctx context.Context, v RequestLogV2) error
+	VisitUnknownWithContext(ctx context.Context, typeName string) error
+}
+
+func NewRequestLogFromV1(v RequestLogV1) RequestLog {
+	return RequestLog{typ: "v1", v1: &v}
+}
+
+func NewRequestLogFromV2(v RequestLogV2) RequestLog {
+	return RequestLog{typ: "v2", v2: &v}
+}
 
 // Union type containing log types that are logged to event.log.
 type UnionEventLog struct {
@@ -83,6 +364,38 @@ func (u *UnionEventLog) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return safejson.Unmarshal(jsonBytes, *&u)
 }
 
+func (u *UnionEventLog) AcceptFuncs(eventLogFunc func(EventLogV1) error, eventLogV2Func func(EventLogV2) error, beaconLogFunc func(BeaconLogV1) error, unknownFunc func(string) error) error {
+	switch u.typ {
+	default:
+		if u.typ == "" {
+			return fmt.Errorf("invalid value in union type")
+		}
+		return unknownFunc(u.typ)
+	case "eventLog":
+		return eventLogFunc(*u.eventLog)
+	case "eventLogV2":
+		return eventLogV2Func(*u.eventLogV2)
+	case "beaconLog":
+		return beaconLogFunc(*u.beaconLog)
+	}
+}
+
+func (u *UnionEventLog) EventLogNoopSuccess(EventLogV1) error {
+	return nil
+}
+
+func (u *UnionEventLog) EventLogV2NoopSuccess(EventLogV2) error {
+	return nil
+}
+
+func (u *UnionEventLog) BeaconLogNoopSuccess(BeaconLogV1) error {
+	return nil
+}
+
+func (u *UnionEventLog) ErrorOnUnknown(typeName string) error {
+	return fmt.Errorf("invalid value in union type. Type name: %s", typeName)
+}
+
 func (u *UnionEventLog) Accept(v UnionEventLogVisitor) error {
 	switch u.typ {
 	default:
@@ -104,6 +417,29 @@ type UnionEventLogVisitor interface {
 	VisitEventLogV2(v EventLogV2) error
 	VisitBeaconLog(v BeaconLogV1) error
 	VisitUnknown(typeName string) error
+}
+
+func (u *UnionEventLog) AcceptWithContext(ctx context.Context, v UnionEventLogVisitorWithContext) error {
+	switch u.typ {
+	default:
+		if u.typ == "" {
+			return fmt.Errorf("invalid value in union type")
+		}
+		return v.VisitUnknownWithContext(ctx, u.typ)
+	case "eventLog":
+		return v.VisitEventLogWithContext(ctx, *u.eventLog)
+	case "eventLogV2":
+		return v.VisitEventLogV2WithContext(ctx, *u.eventLogV2)
+	case "beaconLog":
+		return v.VisitBeaconLogWithContext(ctx, *u.beaconLog)
+	}
+}
+
+type UnionEventLogVisitorWithContext interface {
+	VisitEventLogWithContext(ctx context.Context, v EventLogV1) error
+	VisitEventLogV2WithContext(ctx context.Context, v EventLogV2) error
+	VisitBeaconLogWithContext(ctx context.Context, v BeaconLogV1) error
+	VisitUnknownWithContext(ctx context.Context, typeName string) error
 }
 
 func NewUnionEventLogFromEventLog(v EventLogV1) UnionEventLog {
@@ -219,6 +555,62 @@ func (u *WrappedLogV1Payload) UnmarshalYAML(unmarshal func(interface{}) error) e
 	return safejson.Unmarshal(jsonBytes, *&u)
 }
 
+func (u *WrappedLogV1Payload) AcceptFuncs(serviceLogV1Func func(ServiceLogV1) error, requestLogV2Func func(RequestLogV2) error, traceLogV1Func func(TraceLogV1) error, eventLogV2Func func(EventLogV2) error, metricLogV1Func func(MetricLogV1) error, auditLogV2Func func(AuditLogV2) error, diagnosticLogV1Func func(DiagnosticLogV1) error, unknownFunc func(string) error) error {
+	switch u.typ {
+	default:
+		if u.typ == "" {
+			return fmt.Errorf("invalid value in union type")
+		}
+		return unknownFunc(u.typ)
+	case "serviceLogV1":
+		return serviceLogV1Func(*u.serviceLogV1)
+	case "requestLogV2":
+		return requestLogV2Func(*u.requestLogV2)
+	case "traceLogV1":
+		return traceLogV1Func(*u.traceLogV1)
+	case "eventLogV2":
+		return eventLogV2Func(*u.eventLogV2)
+	case "metricLogV1":
+		return metricLogV1Func(*u.metricLogV1)
+	case "auditLogV2":
+		return auditLogV2Func(*u.auditLogV2)
+	case "diagnosticLogV1":
+		return diagnosticLogV1Func(*u.diagnosticLogV1)
+	}
+}
+
+func (u *WrappedLogV1Payload) ServiceLogV1NoopSuccess(ServiceLogV1) error {
+	return nil
+}
+
+func (u *WrappedLogV1Payload) RequestLogV2NoopSuccess(RequestLogV2) error {
+	return nil
+}
+
+func (u *WrappedLogV1Payload) TraceLogV1NoopSuccess(TraceLogV1) error {
+	return nil
+}
+
+func (u *WrappedLogV1Payload) EventLogV2NoopSuccess(EventLogV2) error {
+	return nil
+}
+
+func (u *WrappedLogV1Payload) MetricLogV1NoopSuccess(MetricLogV1) error {
+	return nil
+}
+
+func (u *WrappedLogV1Payload) AuditLogV2NoopSuccess(AuditLogV2) error {
+	return nil
+}
+
+func (u *WrappedLogV1Payload) DiagnosticLogV1NoopSuccess(DiagnosticLogV1) error {
+	return nil
+}
+
+func (u *WrappedLogV1Payload) ErrorOnUnknown(typeName string) error {
+	return fmt.Errorf("invalid value in union type. Type name: %s", typeName)
+}
+
 func (u *WrappedLogV1Payload) Accept(v WrappedLogV1PayloadVisitor) error {
 	switch u.typ {
 	default:
@@ -254,6 +646,41 @@ type WrappedLogV1PayloadVisitor interface {
 	VisitUnknown(typeName string) error
 }
 
+func (u *WrappedLogV1Payload) AcceptWithContext(ctx context.Context, v WrappedLogV1PayloadVisitorWithContext) error {
+	switch u.typ {
+	default:
+		if u.typ == "" {
+			return fmt.Errorf("invalid value in union type")
+		}
+		return v.VisitUnknownWithContext(ctx, u.typ)
+	case "serviceLogV1":
+		return v.VisitServiceLogV1WithContext(ctx, *u.serviceLogV1)
+	case "requestLogV2":
+		return v.VisitRequestLogV2WithContext(ctx, *u.requestLogV2)
+	case "traceLogV1":
+		return v.VisitTraceLogV1WithContext(ctx, *u.traceLogV1)
+	case "eventLogV2":
+		return v.VisitEventLogV2WithContext(ctx, *u.eventLogV2)
+	case "metricLogV1":
+		return v.VisitMetricLogV1WithContext(ctx, *u.metricLogV1)
+	case "auditLogV2":
+		return v.VisitAuditLogV2WithContext(ctx, *u.auditLogV2)
+	case "diagnosticLogV1":
+		return v.VisitDiagnosticLogV1WithContext(ctx, *u.diagnosticLogV1)
+	}
+}
+
+type WrappedLogV1PayloadVisitorWithContext interface {
+	VisitServiceLogV1WithContext(ctx context.Context, v ServiceLogV1) error
+	VisitRequestLogV2WithContext(ctx context.Context, v RequestLogV2) error
+	VisitTraceLogV1WithContext(ctx context.Context, v TraceLogV1) error
+	VisitEventLogV2WithContext(ctx context.Context, v EventLogV2) error
+	VisitMetricLogV1WithContext(ctx context.Context, v MetricLogV1) error
+	VisitAuditLogV2WithContext(ctx context.Context, v AuditLogV2) error
+	VisitDiagnosticLogV1WithContext(ctx context.Context, v DiagnosticLogV1) error
+	VisitUnknownWithContext(ctx context.Context, typeName string) error
+}
+
 func NewWrappedLogV1PayloadFromServiceLogV1(v ServiceLogV1) WrappedLogV1Payload {
 	return WrappedLogV1Payload{typ: "serviceLogV1", serviceLogV1: &v}
 }
@@ -280,192 +707,4 @@ func NewWrappedLogV1PayloadFromAuditLogV2(v AuditLogV2) WrappedLogV1Payload {
 
 func NewWrappedLogV1PayloadFromDiagnosticLogV1(v DiagnosticLogV1) WrappedLogV1Payload {
 	return WrappedLogV1Payload{typ: "diagnosticLogV1", diagnosticLogV1: &v}
-}
-
-type Diagnostic struct {
-	typ        string
-	generic    *GenericDiagnostic
-	threadDump *ThreadDumpV1
-}
-
-type diagnosticDeserializer struct {
-	Type       string             `json:"type"`
-	Generic    *GenericDiagnostic `json:"generic"`
-	ThreadDump *ThreadDumpV1      `json:"threadDump"`
-}
-
-func (u *diagnosticDeserializer) toStruct() Diagnostic {
-	return Diagnostic{typ: u.Type, generic: u.Generic, threadDump: u.ThreadDump}
-}
-
-func (u *Diagnostic) toSerializer() (interface{}, error) {
-	switch u.typ {
-	default:
-		return nil, fmt.Errorf("unknown type %s", u.typ)
-	case "generic":
-		return struct {
-			Type    string            `json:"type"`
-			Generic GenericDiagnostic `json:"generic"`
-		}{Type: "generic", Generic: *u.generic}, nil
-	case "threadDump":
-		return struct {
-			Type       string       `json:"type"`
-			ThreadDump ThreadDumpV1 `json:"threadDump"`
-		}{Type: "threadDump", ThreadDump: *u.threadDump}, nil
-	}
-}
-
-func (u Diagnostic) MarshalJSON() ([]byte, error) {
-	ser, err := u.toSerializer()
-	if err != nil {
-		return nil, err
-	}
-	return safejson.Marshal(ser)
-}
-
-func (u *Diagnostic) UnmarshalJSON(data []byte) error {
-	var deser diagnosticDeserializer
-	if err := safejson.Unmarshal(data, &deser); err != nil {
-		return err
-	}
-	*u = deser.toStruct()
-	return nil
-}
-
-func (u Diagnostic) MarshalYAML() (interface{}, error) {
-	jsonBytes, err := safejson.Marshal(u)
-	if err != nil {
-		return nil, err
-	}
-	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
-}
-
-func (u *Diagnostic) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
-	if err != nil {
-		return err
-	}
-	return safejson.Unmarshal(jsonBytes, *&u)
-}
-
-func (u *Diagnostic) Accept(v DiagnosticVisitor) error {
-	switch u.typ {
-	default:
-		if u.typ == "" {
-			return fmt.Errorf("invalid value in union type")
-		}
-		return v.VisitUnknown(u.typ)
-	case "generic":
-		return v.VisitGeneric(*u.generic)
-	case "threadDump":
-		return v.VisitThreadDump(*u.threadDump)
-	}
-}
-
-type DiagnosticVisitor interface {
-	VisitGeneric(v GenericDiagnostic) error
-	VisitThreadDump(v ThreadDumpV1) error
-	VisitUnknown(typeName string) error
-}
-
-func NewDiagnosticFromGeneric(v GenericDiagnostic) Diagnostic {
-	return Diagnostic{typ: "generic", generic: &v}
-}
-
-func NewDiagnosticFromThreadDump(v ThreadDumpV1) Diagnostic {
-	return Diagnostic{typ: "threadDump", threadDump: &v}
-}
-
-type RequestLog struct {
-	typ string
-	v1  *RequestLogV1
-	v2  *RequestLogV2
-}
-
-type requestLogDeserializer struct {
-	Type string        `json:"type"`
-	V1   *RequestLogV1 `json:"v1"`
-	V2   *RequestLogV2 `json:"v2"`
-}
-
-func (u *requestLogDeserializer) toStruct() RequestLog {
-	return RequestLog{typ: u.Type, v1: u.V1, v2: u.V2}
-}
-
-func (u *RequestLog) toSerializer() (interface{}, error) {
-	switch u.typ {
-	default:
-		return nil, fmt.Errorf("unknown type %s", u.typ)
-	case "v1":
-		return struct {
-			Type string       `json:"type"`
-			V1   RequestLogV1 `json:"v1"`
-		}{Type: "v1", V1: *u.v1}, nil
-	case "v2":
-		return struct {
-			Type string       `json:"type"`
-			V2   RequestLogV2 `json:"v2"`
-		}{Type: "v2", V2: *u.v2}, nil
-	}
-}
-
-func (u RequestLog) MarshalJSON() ([]byte, error) {
-	ser, err := u.toSerializer()
-	if err != nil {
-		return nil, err
-	}
-	return safejson.Marshal(ser)
-}
-
-func (u *RequestLog) UnmarshalJSON(data []byte) error {
-	var deser requestLogDeserializer
-	if err := safejson.Unmarshal(data, &deser); err != nil {
-		return err
-	}
-	*u = deser.toStruct()
-	return nil
-}
-
-func (u RequestLog) MarshalYAML() (interface{}, error) {
-	jsonBytes, err := safejson.Marshal(u)
-	if err != nil {
-		return nil, err
-	}
-	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
-}
-
-func (u *RequestLog) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
-	if err != nil {
-		return err
-	}
-	return safejson.Unmarshal(jsonBytes, *&u)
-}
-
-func (u *RequestLog) Accept(v RequestLogVisitor) error {
-	switch u.typ {
-	default:
-		if u.typ == "" {
-			return fmt.Errorf("invalid value in union type")
-		}
-		return v.VisitUnknown(u.typ)
-	case "v1":
-		return v.VisitV1(*u.v1)
-	case "v2":
-		return v.VisitV2(*u.v2)
-	}
-}
-
-type RequestLogVisitor interface {
-	VisitV1(v RequestLogV1) error
-	VisitV2(v RequestLogV2) error
-	VisitUnknown(typeName string) error
-}
-
-func NewRequestLogFromV1(v RequestLogV1) RequestLog {
-	return RequestLog{typ: "v1", v1: &v}
-}
-
-func NewRequestLogFromV2(v RequestLogV2) RequestLog {
-	return RequestLog{typ: "v2", v2: &v}
 }

@@ -101,6 +101,8 @@ func (noopSpan) Context() SpanContext {
 
 func (noopSpan) Finish() {}
 
+func (noopSpan) Tag(string, string) {}
+
 // TraceIDFromContext returns the traceId associated with the span stored in the provided context. Returns an empty
 // string if no span is stored in the context.
 func TraceIDFromContext(ctx context.Context) TraceID {

@@ -17,6 +17,7 @@ package wlog
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
 )
 
 type LogLevel string
@@ -50,3 +51,71 @@ func (l *LogLevel) UnmarshalText(b []byte) error {
 		return fmt.Errorf("invalid log level: %q", string(b))
 	}
 }
+
+func (l LogLevel) Enabled(other LogLevel) bool {
+	switch l {
+	case DebugLevel:
+		switch other {
+		case DebugLevel, InfoLevel, WarnLevel, ErrorLevel, FatalLevel:
+			return true
+		}
+	case InfoLevel:
+		switch other {
+		case InfoLevel, WarnLevel, ErrorLevel, FatalLevel:
+			return true
+		}
+	case WarnLevel:
+		switch other {
+		case WarnLevel, ErrorLevel, FatalLevel:
+			return true
+		}
+	case ErrorLevel:
+		switch other {
+		case ErrorLevel, FatalLevel:
+			return true
+		}
+	case FatalLevel:
+		switch other {
+		case FatalLevel:
+			return true
+		}
+	}
+	return false
+}
+
+// AtomicLogLevel wraps atomic.Value containing a LogLevel.
+// Always use NewAtomicLogLevel to create it.
+type AtomicLogLevel struct {
+	value atomic.Value
+	noCopy
+}
+
+func NewAtomicLogLevel(level LogLevel) *AtomicLogLevel {
+	a := &AtomicLogLevel{}
+	a.SetLevel(level)
+	return a
+}
+
+func (l *AtomicLogLevel) LogLevel() LogLevel {
+	return l.value.Load().(LogLevel)
+}
+
+func (l *AtomicLogLevel) SetLevel(level LogLevel) {
+	l.value.Store(level)
+}
+
+func (l *AtomicLogLevel) Enabled(other LogLevel) bool {
+	return l.LogLevel().Enabled(other)
+}
+
+// noCopy may be embedded into structs which must not be copied
+// after the first use.
+//
+// See https://golang.org/issues/8005#issuecomment-190753527
+// for details.
+// Copied from the standard library's sync package.
+type noCopy struct{}
+
+// Lock is a no-op used by -copylocks checker from `go vet`.
+func (*noCopy) Lock()   {}
+func (*noCopy) Unlock() {}

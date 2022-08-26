@@ -15,12 +15,10 @@
 package zapimpl
 
 import (
-	"fmt"
 	"io"
 	"time"
 
 	"github.com/palantir/witchcraft-go-logging/wlog"
-	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -32,29 +30,22 @@ func LoggerProvider() wlog.LoggerProvider {
 type loggerProvider struct{}
 
 func (lp *loggerProvider) NewLogger(w io.Writer) wlog.Logger {
-	logger, atomicLevel := newZapLogger(w, wlog.InfoLevel, zapcore.EncoderConfig{
-		TimeKey:        wlog.TimeKey,
-		EncodeTime:     rfc3339NanoTimeEncoder,
-		EncodeDuration: zapcore.NanosDurationEncoder,
-	})
 	return &zapLogger{
-		logger: logger,
-		level:  atomicLevel,
+		logger: newZapLogger(w, zapcore.EncoderConfig{
+			EncodeTime:     rfc3339NanoTimeEncoder,
+			EncodeDuration: zapcore.NanosDurationEncoder,
+		}),
 	}
 }
 
 func (lp *loggerProvider) NewLeveledLogger(w io.Writer, level wlog.LogLevel) wlog.LeveledLogger {
-	logger, atomicLevel := newZapLogger(w, level, zapcore.EncoderConfig{
-		TimeKey:        wlog.TimeKey,
-		EncodeTime:     rfc3339NanoTimeEncoder,
-		EncodeDuration: zapcore.NanosDurationEncoder,
-		LevelKey:       svc1log.LevelKey,
-		EncodeLevel:    zapcore.CapitalLevelEncoder,
-		MessageKey:     svc1log.MessageKey,
-	})
 	return &zapLogger{
-		logger: logger,
-		level:  atomicLevel,
+		logger: newZapLogger(w, zapcore.EncoderConfig{
+			EncodeTime:     rfc3339NanoTimeEncoder,
+			EncodeDuration: zapcore.NanosDurationEncoder,
+			EncodeLevel:    zapcore.CapitalLevelEncoder,
+		}),
+		AtomicLogLevel: wlog.NewAtomicLogLevel(level),
 	}
 }
 
@@ -62,26 +53,9 @@ func rfc3339NanoTimeEncoder(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 	enc.AppendString(t.In(time.UTC).Format(time.RFC3339Nano))
 }
 
-func newZapLogger(w io.Writer, logLevel wlog.LogLevel, encoderConfig zapcore.EncoderConfig) (*zap.Logger, *zap.AtomicLevel) {
-	level := zap.NewAtomicLevel()
-	level.SetLevel(toZapLevel(logLevel))
-	enc := zapcore.NewJSONEncoder(encoderConfig)
-	return zap.New(zapcore.NewCore(enc, zapcore.AddSync(w), level)), &level
-}
+func newZapLogger(w io.Writer, encoderConfig zapcore.EncoderConfig) *zap.Logger {
+	// *zapLogger performs its own enforcement in the level-specific methods; no need for zap to check again.
+	level := zap.LevelEnablerFunc(func(zapcore.Level) bool { return true })
 
-func toZapLevel(lvl wlog.LogLevel) zapcore.Level {
-	switch lvl {
-	case wlog.DebugLevel:
-		return zapcore.DebugLevel
-	case wlog.LogLevel(""), wlog.InfoLevel:
-		return zapcore.InfoLevel
-	case wlog.WarnLevel:
-		return zapcore.WarnLevel
-	case wlog.ErrorLevel:
-		return zapcore.ErrorLevel
-	case wlog.FatalLevel:
-		return zapcore.FatalLevel
-	default:
-		panic(fmt.Errorf("Invalid log level %q", lvl))
-	}
+	return zap.New(zapcore.NewCore(zapcore.NewJSONEncoder(encoderConfig), zapcore.AddSync(w), level))
 }

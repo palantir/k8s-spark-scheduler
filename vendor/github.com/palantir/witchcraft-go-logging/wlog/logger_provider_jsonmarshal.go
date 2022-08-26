@@ -30,8 +30,8 @@ func NewJSONMarshalLoggerProvider() LoggerProvider {
 }
 
 type jsonMapLogger struct {
-	w     io.Writer
-	level LogLevel
+	w io.Writer
+	*AtomicLogLevel
 }
 
 func (l *jsonMapLogger) Log(params ...Param) {
@@ -39,35 +39,27 @@ func (l *jsonMapLogger) Log(params ...Param) {
 }
 
 func (l *jsonMapLogger) Debug(msg string, params ...Param) {
-	switch l.level {
-	case DebugLevel:
-		l.logOutput(append(params, StringParam("message", msg), StringParam("level", "DEBUG")))
+	if l.Enabled(DebugLevel) {
+		l.logOutput(ParamsWithMessage(msg, params))
 	}
 }
 
 func (l *jsonMapLogger) Info(msg string, params ...Param) {
-	switch l.level {
-	case DebugLevel, InfoLevel:
-		l.logOutput(append(params, StringParam("message", msg), StringParam("level", "INFO")))
+	if l.Enabled(InfoLevel) {
+		l.logOutput(ParamsWithMessage(msg, params))
 	}
 }
 
 func (l *jsonMapLogger) Warn(msg string, params ...Param) {
-	switch l.level {
-	case DebugLevel, InfoLevel, WarnLevel:
-		l.logOutput(append(params, StringParam("message", msg), StringParam("level", "WARN")))
+	if l.Enabled(WarnLevel) {
+		l.logOutput(ParamsWithMessage(msg, params))
 	}
 }
 
 func (l *jsonMapLogger) Error(msg string, params ...Param) {
-	switch l.level {
-	case DebugLevel, InfoLevel, WarnLevel, ErrorLevel:
-		l.logOutput(append(params, StringParam("message", msg), StringParam("level", "ERROR")))
+	if l.Enabled(ErrorLevel) {
+		l.logOutput(ParamsWithMessage(msg, params))
 	}
-}
-
-func (l *jsonMapLogger) SetLevel(level LogLevel) {
-	l.level = level
 }
 
 func (l *jsonMapLogger) logOutput(params []Param) {
@@ -89,8 +81,8 @@ func (*jsonMarshalLoggerProvider) NewLogger(w io.Writer) Logger {
 
 func (*jsonMarshalLoggerProvider) NewLeveledLogger(w io.Writer, level LogLevel) LeveledLogger {
 	return &jsonMapLogger{
-		w:     w,
-		level: level,
+		w:              w,
+		AtomicLogLevel: NewAtomicLogLevel(level),
 	}
 }
 

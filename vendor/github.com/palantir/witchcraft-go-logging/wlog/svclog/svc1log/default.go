@@ -49,55 +49,43 @@ type warnLogger struct {
 }
 
 func (l *warnLogger) Debug(msg string, params ...Param) {
-	switch l.level {
-	case wlog.DebugLevel:
-	default:
-		return
+	if l.level.Enabled(wlog.DebugLevel) {
+		l.log(func(logger Logger) {
+			logger.Debug(msg, params...)
+		})
 	}
-
-	l.log(func(logger Logger) {
-		logger.Debug(msg, params...)
-	})
 }
 
 func (l *warnLogger) Info(msg string, params ...Param) {
-	switch l.level {
-	case wlog.DebugLevel, wlog.InfoLevel:
-	default:
-		return
+	if l.level.Enabled(wlog.InfoLevel) {
+		l.log(func(logger Logger) {
+			logger.Info(msg, params...)
+		})
 	}
-
-	l.log(func(logger Logger) {
-		logger.Info(msg, params...)
-	})
 }
 
 func (l *warnLogger) Warn(msg string, params ...Param) {
-	switch l.level {
-	case wlog.DebugLevel, wlog.InfoLevel, wlog.WarnLevel:
-	default:
-		return
+	if l.level.Enabled(wlog.WarnLevel) {
+		l.log(func(logger Logger) {
+			logger.Warn(msg, params...)
+		})
 	}
-
-	l.log(func(logger Logger) {
-		logger.Warn(msg, params...)
-	})
 }
 
 func (l *warnLogger) Error(msg string, params ...Param) {
-	switch l.level {
-	case wlog.DebugLevel, wlog.InfoLevel, wlog.WarnLevel, wlog.ErrorLevel:
-	default:
-		return
+	if l.level.Enabled(wlog.ErrorLevel) {
+		l.log(func(logger Logger) {
+			logger.Error(msg, params...)
+		})
 	}
-
-	l.log(func(logger Logger) {
-		logger.Error(msg, params...)
-	})
 }
 
 func (l *warnLogger) SetLevel(level wlog.LogLevel) {
 	l.level = level
+}
+
+func (l *warnLogger) LogLevel() wlog.LogLevel {
+	return l.level
 }
 
 func (l *warnLogger) log(logFn func(logger Logger)) {

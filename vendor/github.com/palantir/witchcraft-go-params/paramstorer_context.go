@@ -19,9 +19,7 @@ func ContextWithParamStorers(ctx context.Context, params ...ParamStorer) context
 // provided context already has safe/unsafe params, the newly returned context will contain the result of merging the
 // previous parameters with the provided parameter.
 func ContextWithSafeParam(ctx context.Context, key string, value interface{}) context.Context {
-	return ContextWithSafeParams(ctx, map[string]interface{}{
-		key: value,
-	})
+	return ContextWithParamStorers(ctx, NewSafeParam(key, value))
 }
 
 // ContextWithSafeParams returns a copy of the provided context that contains the provided safe parameters. If the
@@ -35,9 +33,7 @@ func ContextWithSafeParams(ctx context.Context, safeParams map[string]interface{
 // provided context already has safe/unsafe params, the newly returned context will contain the result of merging the
 // previous parameters with the provided parameter.
 func ContextWithUnsafeParam(ctx context.Context, key string, value interface{}) context.Context {
-	return ContextWithUnsafeParams(ctx, map[string]interface{}{
-		key: value,
-	})
+	return ContextWithParamStorers(ctx, NewUnsafeParam(key, value))
 }
 
 // ContextWithUnsafeParams returns a copy of the provided context that contains the provided unsafe parameters. If the
