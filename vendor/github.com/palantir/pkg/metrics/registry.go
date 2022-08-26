@@ -5,7 +5,6 @@
 package metrics
 
 import (
-	"bytes"
 	"context"
 	"sort"
 	"strings"
@@ -380,14 +379,14 @@ func toMetricTagsID(name string, tags Tags) metricTagsID {
 	for _, t := range tags {
 		bufSize += len(t.keyValue) + 1 // 1 for separator
 	}
-
-	buf := bytes.NewBuffer(make([]byte, 0, bufSize))
+	buf := strings.Builder{}
+	buf.Grow(bufSize)
 	_, _ = buf.WriteString(name)
 	for _, tag := range tags {
 		_, _ = buf.WriteRune('|')
 		_, _ = buf.WriteString(tag.keyValue)
 	}
-	return metricTagsID(buf.Bytes())
+	return metricTagsID(buf.String())
 }
 
 // newSortedTags copies the tag slice before sorting so that in-place mutation does not affect the input slice.

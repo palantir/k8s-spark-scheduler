@@ -6,6 +6,8 @@ package metrics
 
 import (
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/pkg/errors"
 )
@@ -99,15 +101,9 @@ func NewTag(k, v string) (Tag, error) {
 		return Tag{}, errors.New("value cannot be empty")
 	}
 
-	k = strings.ToLower(k)
-	if !(k[0] >= 'a' && k[0] <= 'z') {
+	firstLetter := unicode.ToLower(rune(k[0]))
+	if !(firstLetter >= 'a' && firstLetter <= 'z') {
 		return Tag{}, errors.New("tag must start with a letter")
-	}
-
-	for _, r := range k {
-		if r == ':' {
-			return Tag{}, errors.New("tag key cannot contain ':'")
-		}
 	}
 
 	// full tag, which is "key:value", must be <= 200 characters
@@ -119,8 +115,8 @@ func NewTag(k, v string) (Tag, error) {
 }
 
 func newTag(k, v string) Tag {
-	normalizedKey := normalizeTag(k)
-	normalizedValue := normalizeTag(v)
+	normalizedKey := normalizeTag(k, validKeyChars)
+	normalizedValue := normalizeTag(v, validValueChars)
 	return Tag{
 		key:      normalizedKey,
 		value:    normalizedValue,
@@ -151,20 +147,30 @@ func NewTags(t map[string]string) (Tags, error) {
 	return tags, nil
 }
 
-var validChars = make(map[rune]struct{})
+var validKeyChars = [utf8.RuneSelf]bool{
+	'_': true,
+	'-': true,
+	'.': true,
+	'/': true,
+}
+
+var validValueChars = [utf8.RuneSelf]bool{
+	'_': true,
+	'-': true,
+	':': true,
+	'.': true,
+	'/': true,
+}
 
 func init() {
 	for ch := 'a'; ch <= 'z'; ch++ {
-		validChars[ch] = struct{}{}
+		validKeyChars[ch] = true
+		validValueChars[ch] = true
 	}
 	for ch := '0'; ch <= '9'; ch++ {
-		validChars[ch] = struct{}{}
+		validKeyChars[ch] = true
+		validValueChars[ch] = true
 	}
-	validChars['_'] = struct{}{}
-	validChars['-'] = struct{}{}
-	validChars[':'] = struct{}{}
-	validChars['.'] = struct{}{}
-	validChars['/'] = struct{}{}
 }
 
 // normalizeTag takes the given input string and normalizes it using the same rules as DataDog (https://help.datadoghq.com/hc/en-us/articles/204312749-Getting-started-with-tags):
@@ -173,14 +179,15 @@ func init() {
 // unicode. Tags will be converted to lowercase."
 //
 // Note that this function does not impose the length restriction described above.
-func normalizeTag(in string) string {
-	in = strings.ToLower(in)
-	var out string
+func normalizeTag(in string, validChars [utf8.RuneSelf]bool) string {
+	var builder strings.Builder
+	builder.Grow(len(in))
 	for _, r := range in {
-		if _, ok := validChars[r]; !ok {
+		r = unicode.ToLower(r)
+		if r >= utf8.RuneSelf || !validChars[r] {
 			r = '_'
 		}
-		out += string(r)
+		_, _ = builder.WriteRune(r)
 	}
-	return out
+	return builder.String()
 }

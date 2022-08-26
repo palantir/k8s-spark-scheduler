@@ -3,10 +3,10 @@ module github.com/palantir/k8s-spark-scheduler
 go 1.18
 
 require (
-	github.com/palantir/go-metrics v1.1.0
+	github.com/palantir/go-metrics v1.1.1
 	github.com/palantir/k8s-spark-scheduler-lib v0.5.0
 	github.com/palantir/pkg/cobracli v1.0.1
-	github.com/palantir/pkg/metrics v1.0.1
+	github.com/palantir/pkg/metrics v1.2.0
 	github.com/palantir/pkg/retry v1.1.1
 	github.com/palantir/pkg/signals v1.0.1
 	github.com/palantir/witchcraft-go-error v1.4.3
