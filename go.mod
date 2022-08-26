@@ -13,7 +13,7 @@ require (
 	github.com/palantir/witchcraft-go-logging v1.17.0
 	github.com/palantir/witchcraft-go-server v1.30.0
 	github.com/spf13/cobra v0.0.5
-	go.uber.org/atomic v1.6.0
+	go.uber.org/atomic v1.7.0
 	k8s.io/api v0.18.8
 	k8s.io/apiextensions-apiserver v0.18.8
 	k8s.io/apimachinery v0.18.8
