@@ -287,8 +287,8 @@ go.uber.org/zap/internal/bufferpool
 go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
 go.uber.org/zap/zapcore
-# golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-## explicit; go 1.11
+# golang.org/x/crypto v0.0.0-20211215165025-cf75a172585e
+## explicit; go 1.17
 golang.org/x/crypto/ssh/terminal
 # golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 ## explicit; go 1.11
@@ -307,8 +307,12 @@ golang.org/x/oauth2/internal
 # golang.org/x/sys v0.0.0-20220823224334-20c2bfdbfe24
 ## explicit; go 1.17
 golang.org/x/sys/internal/unsafeheader
+golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
+# golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
+## explicit; go 1.11
+golang.org/x/term
 # golang.org/x/text v0.3.7
 ## explicit; go 1.17
 golang.org/x/text/secure/bidirule
