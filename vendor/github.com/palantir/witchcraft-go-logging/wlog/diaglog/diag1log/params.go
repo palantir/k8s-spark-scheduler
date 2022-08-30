@@ -15,9 +15,6 @@
 package diag1log
 
 import (
-	"reflect"
-
-	"github.com/palantir/witchcraft-go-logging/conjure/witchcraft/api/logging"
 	"github.com/palantir/witchcraft-go-logging/wlog"
 )
 
@@ -42,14 +39,6 @@ type paramFunc func(entry wlog.LogEntry)
 
 func (f paramFunc) apply(entry wlog.LogEntry) {
 	f(entry)
-}
-
-var diagnosticType = reflect.TypeOf(logging.Diagnostic{})
-
-func diagnosticParam(diagnostic logging.Diagnostic) Param {
-	return paramFunc(func(logger wlog.LogEntry) {
-		logger.ObjectValue(DiagnosticKey, diagnostic, diagnosticType)
-	})
 }
 
 func UnsafeParam(key string, value interface{}) Param {

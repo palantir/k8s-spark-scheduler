@@ -64,6 +64,11 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 }
 
 func (rw *responseWriter) Status() int {
+	if rw.status == 0 {
+		// This matches the behavior of the go std library response writer, which will default to
+		// http.StatusOK when not set by calling either Write or WriteHeader
+		return http.StatusOK
+	}
 	return rw.status
 }
 

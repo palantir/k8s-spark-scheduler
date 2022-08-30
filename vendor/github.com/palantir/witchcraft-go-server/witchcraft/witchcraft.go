@@ -157,6 +157,10 @@ type Server struct {
 	// be the package from which "Start" was called.
 	svcLogOrigin *string
 
+	// specifies that the service.1 logger should use the call site for the origin field.
+	// See docs on svc1log.OriginFromCallLine for details.
+	svcLogOriginFromCallLine bool
+
 	// applicationTraceSampler is the function that is used to determine whether or not a trace should be sampled.
 	// This applies to routes registered under the application port and the context passed to the initialize function
 	// If nil, the default behavior is to sample every trace.
@@ -381,6 +385,12 @@ func (s *Server) WithLiveness(liveness status.Source) *Server {
 // WithOrigin configures the server to use the specified origin.
 func (s *Server) WithOrigin(origin string) *Server {
 	s.svcLogOrigin = &origin
+	return s
+}
+
+// WithOriginFromCallLine configures the server to use the svc1log.OriginFromCallLine parameter.
+func (s *Server) WithOriginFromCallLine() *Server {
+	s.svcLogOriginFromCallLine = true
 	return s
 }
 

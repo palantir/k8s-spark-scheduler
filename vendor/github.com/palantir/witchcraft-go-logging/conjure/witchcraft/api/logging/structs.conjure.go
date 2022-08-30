@@ -9,6 +9,31 @@ import (
 	"github.com/palantir/pkg/safeyaml"
 )
 
+// A Zipkin-compatible Annotation object.
+type Annotation struct {
+	// Time annotation was created (epoch microsecond value)
+	Timestamp safelong.SafeLong `json:"timestamp" conjure-docs:"Time annotation was created (epoch microsecond value)\n"`
+	// Value encapsulated by this annotation
+	Value    string   `json:"value" conjure-docs:"Value encapsulated by this annotation\n"`
+	Endpoint Endpoint `json:"endpoint"`
+}
+
+func (o Annotation) MarshalYAML() (interface{}, error) {
+	jsonBytes, err := safejson.Marshal(o)
+	if err != nil {
+		return nil, err
+	}
+	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
+}
+
+func (o *Annotation) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
+	if err != nil {
+		return err
+	}
+	return safejson.Unmarshal(jsonBytes, *&o)
+}
+
 // Definition of the audit.2 format.
 type AuditLogV2 struct {
 	// "audit.2"
@@ -86,281 +111,6 @@ func (o *AuditLogV2) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return safejson.Unmarshal(jsonBytes, *&o)
 }
 
-// Definition of the metric.1 format.
-type MetricLogV1 struct {
-	Type string            `json:"type"`
-	Time datetime.DateTime `json:"time"`
-	// Dot-delimited name of metric, e.g. `com.foundry.compass.api.Compass.http.ping.failures`
-	MetricName string `json:"metricName" conjure-docs:"Dot-delimited name of metric, e.g. \"com.foundry.compass.api.Compass.http.ping.failures\"\n"`
-	// Type of metric being represented, e.g. `gauge`, `histogram`, `counter`
-	MetricType string `json:"metricType" conjure-docs:"Type of metric being represented, e.g. \"gauge\", \"histogram\", \"counter\"\n"`
-	// Observations, measurements and context associated with the metric
-	Values map[string]interface{} `json:"values" conjure-docs:"Observations, measurements and context associated with the metric\n"`
-	// Additional dimensions that describe the instance of the metric
-	Tags map[string]string `json:"tags" conjure-docs:"Additional dimensions that describe the instance of the metric\n"`
-	// User id (if available)
-	Uid *UserId `json:"uid" conjure-docs:"User id (if available)\n"`
-	// Session id (if available)
-	Sid *SessionId `json:"sid" conjure-docs:"Session id (if available)\n"`
-	// API token id (if available)
-	TokenId *TokenId `json:"tokenId" conjure-docs:"API token id (if available)\n"`
-	// Unsafe metadata describing the event
-	UnsafeParams map[string]interface{} `json:"unsafeParams" conjure-docs:"Unsafe metadata describing the event\n"`
-}
-
-func (o MetricLogV1) MarshalJSON() ([]byte, error) {
-	if o.Values == nil {
-		o.Values = make(map[string]interface{}, 0)
-	}
-	if o.Tags == nil {
-		o.Tags = make(map[string]string, 0)
-	}
-	if o.UnsafeParams == nil {
-		o.UnsafeParams = make(map[string]interface{}, 0)
-	}
-	type MetricLogV1Alias MetricLogV1
-	return safejson.Marshal(MetricLogV1Alias(o))
-}
-
-func (o *MetricLogV1) UnmarshalJSON(data []byte) error {
-	type MetricLogV1Alias MetricLogV1
-	var rawMetricLogV1 MetricLogV1Alias
-	if err := safejson.Unmarshal(data, &rawMetricLogV1); err != nil {
-		return err
-	}
-	if rawMetricLogV1.Values == nil {
-		rawMetricLogV1.Values = make(map[string]interface{}, 0)
-	}
-	if rawMetricLogV1.Tags == nil {
-		rawMetricLogV1.Tags = make(map[string]string, 0)
-	}
-	if rawMetricLogV1.UnsafeParams == nil {
-		rawMetricLogV1.UnsafeParams = make(map[string]interface{}, 0)
-	}
-	*o = MetricLogV1(rawMetricLogV1)
-	return nil
-}
-
-func (o MetricLogV1) MarshalYAML() (interface{}, error) {
-	jsonBytes, err := safejson.Marshal(o)
-	if err != nil {
-		return nil, err
-	}
-	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
-}
-
-func (o *MetricLogV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
-	if err != nil {
-		return err
-	}
-	return safejson.Unmarshal(jsonBytes, *&o)
-}
-
-// Definition of the request.2 format.
-type RequestLogV2 struct {
-	Type string            `json:"type"`
-	Time datetime.DateTime `json:"time"`
-	// HTTP method of request
-	Method *string `json:"method" conjure-docs:"HTTP method of request\n"`
-	// Protocol, e.g. `HTTP/1.1`, `HTTP/2`
-	Protocol string `json:"protocol" conjure-docs:"Protocol, e.g. \"HTTP/1.1\", \"HTTP/2\"\n"`
-	// Path of request. If templated, the unrendered path, e.g.: `/catalog/dataset/{datasetId}`, `/{rid}/paths/contents/{path:.*}`.
-	Path string `json:"path" conjure-docs:"Path of request. If templated, the unrendered path, e.g.: \"/catalog/dataset/{datasetId}\", \"/{rid}/paths/contents/{path:.*}\".\n"`
-	// Known-safe parameters
-	Params map[string]interface{} `json:"params" conjure-docs:"Known-safe parameters\n"`
-	// HTTP status code of response
-	Status int `json:"status" conjure-docs:"HTTP status code of response\n"`
-	// Size of request (bytes)
-	RequestSize safelong.SafeLong `json:"requestSize" conjure-docs:"Size of request (bytes)\n"`
-	// Size of response (bytes)
-	ResponseSize safelong.SafeLong `json:"responseSize" conjure-docs:"Size of response (bytes)\n"`
-	// Amount of time spent handling request (microseconds)
-	Duration safelong.SafeLong `json:"duration" conjure-docs:"Amount of time spent handling request (microseconds)\n"`
-	// User id (if available)
-	Uid *UserId `json:"uid" conjure-docs:"User id (if available)\n"`
-	// Session id (if available)
-	Sid *SessionId `json:"sid" conjure-docs:"Session id (if available)\n"`
-	// API token id (if available)
-	TokenId *TokenId `json:"tokenId" conjure-docs:"API token id (if available)\n"`
-	// Zipkin trace id (if available)
-	TraceId *TraceId `json:"traceId" conjure-docs:"Zipkin trace id (if available)\n"`
-	// Unredacted parameters such as path, query and header parameters
-	UnsafeParams map[string]interface{} `json:"unsafeParams" conjure-docs:"Unredacted parameters such as path, query and header parameters\n"`
-}
-
-func (o RequestLogV2) MarshalJSON() ([]byte, error) {
-	if o.Params == nil {
-		o.Params = make(map[string]interface{}, 0)
-	}
-	if o.UnsafeParams == nil {
-		o.UnsafeParams = make(map[string]interface{}, 0)
-	}
-	type RequestLogV2Alias RequestLogV2
-	return safejson.Marshal(RequestLogV2Alias(o))
-}
-
-func (o *RequestLogV2) UnmarshalJSON(data []byte) error {
-	type RequestLogV2Alias RequestLogV2
-	var rawRequestLogV2 RequestLogV2Alias
-	if err := safejson.Unmarshal(data, &rawRequestLogV2); err != nil {
-		return err
-	}
-	if rawRequestLogV2.Params == nil {
-		rawRequestLogV2.Params = make(map[string]interface{}, 0)
-	}
-	if rawRequestLogV2.UnsafeParams == nil {
-		rawRequestLogV2.UnsafeParams = make(map[string]interface{}, 0)
-	}
-	*o = RequestLogV2(rawRequestLogV2)
-	return nil
-}
-
-func (o RequestLogV2) MarshalYAML() (interface{}, error) {
-	jsonBytes, err := safejson.Marshal(o)
-	if err != nil {
-		return nil, err
-	}
-	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
-}
-
-func (o *RequestLogV2) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
-	if err != nil {
-		return err
-	}
-	return safejson.Unmarshal(jsonBytes, *&o)
-}
-
-// Definition of the trace.1 format.
-type TraceLogV1 struct {
-	Type         string                 `json:"type"`
-	Time         datetime.DateTime      `json:"time"`
-	Uid          *UserId                `json:"uid"`
-	Sid          *SessionId             `json:"sid"`
-	TokenId      *TokenId               `json:"tokenId"`
-	UnsafeParams map[string]interface{} `json:"unsafeParams"`
-	Span         Span                   `json:"span"`
-}
-
-func (o TraceLogV1) MarshalJSON() ([]byte, error) {
-	if o.UnsafeParams == nil {
-		o.UnsafeParams = make(map[string]interface{}, 0)
-	}
-	type TraceLogV1Alias TraceLogV1
-	return safejson.Marshal(TraceLogV1Alias(o))
-}
-
-func (o *TraceLogV1) UnmarshalJSON(data []byte) error {
-	type TraceLogV1Alias TraceLogV1
-	var rawTraceLogV1 TraceLogV1Alias
-	if err := safejson.Unmarshal(data, &rawTraceLogV1); err != nil {
-		return err
-	}
-	if rawTraceLogV1.UnsafeParams == nil {
-		rawTraceLogV1.UnsafeParams = make(map[string]interface{}, 0)
-	}
-	*o = TraceLogV1(rawTraceLogV1)
-	return nil
-}
-
-func (o TraceLogV1) MarshalYAML() (interface{}, error) {
-	jsonBytes, err := safejson.Marshal(o)
-	if err != nil {
-		return nil, err
-	}
-	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
-}
-
-func (o *TraceLogV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
-	if err != nil {
-		return err
-	}
-	return safejson.Unmarshal(jsonBytes, *&o)
-}
-
-// Definition of the service.1 format.
-type ServiceLogV1 struct {
-	// "service.1"
-	Type string `json:"type" conjure-docs:"\"service.1\""`
-	// The logger output level. One of {FATAL,ERROR,WARN,INFO,DEBUG,TRACE}.
-	Level LogLevel `json:"level" conjure-docs:"The logger output level. One of {FATAL,ERROR,WARN,INFO,DEBUG,TRACE}."`
-	// RFC3339Nano UTC datetime string when the log event was emitted
-	Time datetime.DateTime `json:"time" conjure-docs:"RFC3339Nano UTC datetime string when the log event was emitted"`
-	// Class or file name. May include line number.
-	Origin *string `json:"origin" conjure-docs:"Class or file name. May include line number."`
-	// Thread name
-	Thread *string `json:"thread" conjure-docs:"Thread name"`
-	// Log message. Palantir Java services using slf4j should not use slf4j placeholders ({}). Logs obtained from 3rd party libraries or services that use slf4j and contain slf4j placeholders will always produce `unsafeParams` with numeric indexes corresponding to the zero-indexed order of placeholders. Renderers should substitute numeric parameters from `unsafeParams` and may leave placeholders that do not match indexes as the original placeholder text.
-	Message string `json:"message" conjure-docs:"Log message. Palantir Java services using slf4j should not use slf4j placeholders ({}). Logs obtained from 3rd party libraries or services that use slf4j and contain slf4j placeholders will always produce \"unsafeParams\" with numeric indexes corresponding to the zero-indexed order of placeholders. Renderers should substitute numeric parameters from \"unsafeParams\" and may leave placeholders that do not match indexes as the original placeholder text.\n"`
-	// Known-safe parameters (redaction may be used to make params knowably safe, but is not required).
-	Params map[string]interface{} `json:"params" conjure-docs:"Known-safe parameters (redaction may be used to make params knowably safe, but is not required)."`
-	// User id (if available).
-	Uid *UserId `json:"uid" conjure-docs:"User id (if available).\n"`
-	// Session id (if available)
-	Sid *SessionId `json:"sid" conjure-docs:"Session id (if available)"`
-	// API token id (if available)
-	TokenId *TokenId `json:"tokenId" conjure-docs:"API token id (if available)"`
-	// Zipkin trace id (if available)
-	TraceId *TraceId `json:"traceId" conjure-docs:"Zipkin trace id (if available)"`
-	// Language-specific stack trace. Content is knowably safe. Renderers should substitute named placeholders ({name}, for name as a key) with keyed value from unsafeParams and leave non-matching keys as the original placeholder text.
-	Stacktrace *string `json:"stacktrace" conjure-docs:"Language-specific stack trace. Content is knowably safe. Renderers should substitute named placeholders ({name}, for name as a key) with keyed value from unsafeParams and leave non-matching keys as the original placeholder text.\n"`
-	// Unredacted parameters
-	UnsafeParams map[string]interface{} `json:"unsafeParams" conjure-docs:"Unredacted parameters"`
-	// Additional dimensions that describe the instance of the log event
-	Tags map[string]string `json:"tags" conjure-docs:"Additional dimensions that describe the instance of the log event"`
-}
-
-func (o ServiceLogV1) MarshalJSON() ([]byte, error) {
-	if o.Params == nil {
-		o.Params = make(map[string]interface{}, 0)
-	}
-	if o.UnsafeParams == nil {
-		o.UnsafeParams = make(map[string]interface{}, 0)
-	}
-	if o.Tags == nil {
-		o.Tags = make(map[string]string, 0)
-	}
-	type ServiceLogV1Alias ServiceLogV1
-	return safejson.Marshal(ServiceLogV1Alias(o))
-}
-
-func (o *ServiceLogV1) UnmarshalJSON(data []byte) error {
-	type ServiceLogV1Alias ServiceLogV1
-	var rawServiceLogV1 ServiceLogV1Alias
-	if err := safejson.Unmarshal(data, &rawServiceLogV1); err != nil {
-		return err
-	}
-	if rawServiceLogV1.Params == nil {
-		rawServiceLogV1.Params = make(map[string]interface{}, 0)
-	}
-	if rawServiceLogV1.UnsafeParams == nil {
-		rawServiceLogV1.UnsafeParams = make(map[string]interface{}, 0)
-	}
-	if rawServiceLogV1.Tags == nil {
-		rawServiceLogV1.Tags = make(map[string]string, 0)
-	}
-	*o = ServiceLogV1(rawServiceLogV1)
-	return nil
-}
-
-func (o ServiceLogV1) MarshalYAML() (interface{}, error) {
-	jsonBytes, err := safejson.Marshal(o)
-	if err != nil {
-		return nil, err
-	}
-	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
-}
-
-func (o *ServiceLogV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
-	if err != nil {
-		return err
-	}
-	return safejson.Unmarshal(jsonBytes, *&o)
-}
-
 // Definition of the beacon.1 format.
 type BeaconLogV1 struct {
 	Type string            `json:"type"`
@@ -428,59 +178,39 @@ func (o *BeaconLogV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return safejson.Unmarshal(jsonBytes, *&o)
 }
 
-// Wraps a log entry with entity information.
-type WrappedLogV1 struct {
-	// "wrapped.1"
-	Type    string              `json:"type" conjure-docs:"\"wrapped.1\""`
-	Payload WrappedLogV1Payload `json:"payload"`
-	// Artifact part of entity's maven coordinate
-	EntityName    string `json:"entityName" conjure-docs:"Artifact part of entity's maven coordinate"`
-	EntityVersion string `json:"entityVersion"`
+// Definition of the diagnostic.1 format.
+type DiagnosticLogV1 struct {
+	// "diagnostic.1"
+	Type string            `json:"type" conjure-docs:"\"diagnostic.1\""`
+	Time datetime.DateTime `json:"time"`
+	// The diagnostic being logged.
+	Diagnostic Diagnostic `json:"diagnostic" conjure-docs:"The diagnostic being logged."`
+	// Unredacted parameters
+	UnsafeParams map[string]interface{} `json:"unsafeParams" conjure-docs:"Unredacted parameters\n"`
 }
 
-func (o WrappedLogV1) MarshalYAML() (interface{}, error) {
-	jsonBytes, err := safejson.Marshal(o)
-	if err != nil {
-		return nil, err
+func (o DiagnosticLogV1) MarshalJSON() ([]byte, error) {
+	if o.UnsafeParams == nil {
+		o.UnsafeParams = make(map[string]interface{}, 0)
 	}
-	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
+	type DiagnosticLogV1Alias DiagnosticLogV1
+	return safejson.Marshal(DiagnosticLogV1Alias(o))
 }
 
-func (o *WrappedLogV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
-	if err != nil {
+func (o *DiagnosticLogV1) UnmarshalJSON(data []byte) error {
+	type DiagnosticLogV1Alias DiagnosticLogV1
+	var rawDiagnosticLogV1 DiagnosticLogV1Alias
+	if err := safejson.Unmarshal(data, &rawDiagnosticLogV1); err != nil {
 		return err
 	}
-	return safejson.Unmarshal(jsonBytes, *&o)
-}
-
-type ThreadDumpV1 struct {
-	// Information about each of the threads in the thread dump. "Thread" may refer to a userland thread such as a goroutine, or an OS-level thread.
-	Threads []ThreadInfoV1 `json:"threads" conjure-docs:"Information about each of the threads in the thread dump. \"Thread\" may refer to a userland thread such as a goroutine, or an OS-level thread.\n"`
-}
-
-func (o ThreadDumpV1) MarshalJSON() ([]byte, error) {
-	if o.Threads == nil {
-		o.Threads = make([]ThreadInfoV1, 0)
+	if rawDiagnosticLogV1.UnsafeParams == nil {
+		rawDiagnosticLogV1.UnsafeParams = make(map[string]interface{}, 0)
 	}
-	type ThreadDumpV1Alias ThreadDumpV1
-	return safejson.Marshal(ThreadDumpV1Alias(o))
-}
-
-func (o *ThreadDumpV1) UnmarshalJSON(data []byte) error {
-	type ThreadDumpV1Alias ThreadDumpV1
-	var rawThreadDumpV1 ThreadDumpV1Alias
-	if err := safejson.Unmarshal(data, &rawThreadDumpV1); err != nil {
-		return err
-	}
-	if rawThreadDumpV1.Threads == nil {
-		rawThreadDumpV1.Threads = make([]ThreadInfoV1, 0)
-	}
-	*o = ThreadDumpV1(rawThreadDumpV1)
+	*o = DiagnosticLogV1(rawDiagnosticLogV1)
 	return nil
 }
 
-func (o ThreadDumpV1) MarshalYAML() (interface{}, error) {
+func (o DiagnosticLogV1) MarshalYAML() (interface{}, error) {
 	jsonBytes, err := safejson.Marshal(o)
 	if err != nil {
 		return nil, err
@@ -488,7 +218,7 @@ func (o ThreadDumpV1) MarshalYAML() (interface{}, error) {
 	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
 }
 
-func (o *ThreadDumpV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (o *DiagnosticLogV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
 	if err != nil {
 		return err
@@ -496,16 +226,16 @@ func (o *ThreadDumpV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return safejson.Unmarshal(jsonBytes, *&o)
 }
 
-// A Zipkin-compatible Annotation object.
-type Annotation struct {
-	// Time annotation was created (epoch microsecond value)
-	Timestamp safelong.SafeLong `json:"timestamp" conjure-docs:"Time annotation was created (epoch microsecond value)\n"`
-	// Value encapsulated by this annotation
-	Value    string   `json:"value" conjure-docs:"Value encapsulated by this annotation\n"`
-	Endpoint Endpoint `json:"endpoint"`
+type Endpoint struct {
+	// Name of the service that generated the annotation
+	ServiceName string `json:"serviceName" conjure-docs:"Name of the service that generated the annotation\n"`
+	// IPv4 address of the machine that generated this annotation (`xxx.xxx.xxx.xxx`)
+	Ipv4 *string `json:"ipv4" conjure-docs:"IPv4 address of the machine that generated this annotation (\"xxx.xxx.xxx.xxx\")\n"`
+	// IPv6 address of the machine that generated this annotation (standard hextet form)
+	Ipv6 *string `json:"ipv6" conjure-docs:"IPv6 address of the machine that generated this annotation (standard hextet form)\n"`
 }
 
-func (o Annotation) MarshalYAML() (interface{}, error) {
+func (o Endpoint) MarshalYAML() (interface{}, error) {
 	jsonBytes, err := safejson.Marshal(o)
 	if err != nil {
 		return nil, err
@@ -513,7 +243,7 @@ func (o Annotation) MarshalYAML() (interface{}, error) {
 	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
 }
 
-func (o *Annotation) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (o *Endpoint) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
 	if err != nil {
 		return err
@@ -584,41 +314,62 @@ func (o *EventLogV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return safejson.Unmarshal(jsonBytes, *&o)
 }
 
-type StackFrameV1 struct {
-	// The address of the execution point of this stack frame. This is a string because a safelong can't represent the full 64 bit address space.
-	Address *string `json:"address" conjure-docs:"The address of the execution point of this stack frame. This is a string because a safelong can't represent the full 64 bit address space.\n"`
-	// The identifier of the procedure containing the execution point of this stack frame. This is a fully qualified method name in Java and a demangled symbol name in native code, for example. Note that procedure names may include unsafe information if a service is, for exmaple, running user-defined code. It must be safely redacted.
-	Procedure *string `json:"procedure" conjure-docs:"The identifier of the procedure containing the execution point of this stack frame. This is a fully qualified method name in Java and a demangled symbol name in native code, for example. Note that procedure names may include unsafe information if a service is, for exmaple, running user-defined code. It must be safely redacted.\n"`
-	// The name of the file containing the source location of the execution point of this stack frame. Note that file names may include unsafe information if a service is, for example, running user-defined code. It must be safely redacted.
-	File *string `json:"file" conjure-docs:"The name of the file containing the source location of the execution point of this stack frame. Note that file names may include unsafe information if a service is, for example, running user-defined code. It must be safely redacted.\n"`
-	// The line number of the source location of the execution point of this stack frame.
-	Line *int `json:"line" conjure-docs:"The line number of the source location of the execution point of this stack frame.\n"`
-	// Other frame-level information.
-	Params map[string]interface{} `json:"params" conjure-docs:"Other frame-level information."`
+// Definition of the event.2 format.
+type EventLogV2 struct {
+	Type string            `json:"type"`
+	Time datetime.DateTime `json:"time"`
+	// Dot-delimited name of event, e.g. `com.foundry.compass.api.Compass.http.ping.failures`
+	EventName string `json:"eventName" conjure-docs:"Dot-delimited name of event, e.g. \"com.foundry.compass.api.Compass.http.ping.failures\"\n"`
+	// Observations, measurements and context associated with the event
+	Values map[string]interface{} `json:"values" conjure-docs:"Observations, measurements and context associated with the event\n"`
+	// User id (if available)
+	Uid *UserId `json:"uid" conjure-docs:"User id (if available)\n"`
+	// Session id (if available)
+	Sid *SessionId `json:"sid" conjure-docs:"Session id (if available)\n"`
+	// API token id (if available)
+	TokenId *TokenId `json:"tokenId" conjure-docs:"API token id (if available)\n"`
+	// Zipkin trace id (if available)
+	TraceId *TraceId `json:"traceId" conjure-docs:"Zipkin trace id (if available)\n"`
+	// Unsafe metadata describing the event
+	UnsafeParams map[string]interface{} `json:"unsafeParams" conjure-docs:"Unsafe metadata describing the event\n"`
+	// Additional dimensions that describe the instance of the log event
+	Tags map[string]string `json:"tags" conjure-docs:"Additional dimensions that describe the instance of the log event"`
 }
 
-func (o StackFrameV1) MarshalJSON() ([]byte, error) {
-	if o.Params == nil {
-		o.Params = make(map[string]interface{}, 0)
+func (o EventLogV2) MarshalJSON() ([]byte, error) {
+	if o.Values == nil {
+		o.Values = make(map[string]interface{}, 0)
 	}
-	type StackFrameV1Alias StackFrameV1
-	return safejson.Marshal(StackFrameV1Alias(o))
+	if o.UnsafeParams == nil {
+		o.UnsafeParams = make(map[string]interface{}, 0)
+	}
+	if o.Tags == nil {
+		o.Tags = make(map[string]string, 0)
+	}
+	type EventLogV2Alias EventLogV2
+	return safejson.Marshal(EventLogV2Alias(o))
 }
 
-func (o *StackFrameV1) UnmarshalJSON(data []byte) error {
-	type StackFrameV1Alias StackFrameV1
-	var rawStackFrameV1 StackFrameV1Alias
-	if err := safejson.Unmarshal(data, &rawStackFrameV1); err != nil {
+func (o *EventLogV2) UnmarshalJSON(data []byte) error {
+	type EventLogV2Alias EventLogV2
+	var rawEventLogV2 EventLogV2Alias
+	if err := safejson.Unmarshal(data, &rawEventLogV2); err != nil {
 		return err
 	}
-	if rawStackFrameV1.Params == nil {
-		rawStackFrameV1.Params = make(map[string]interface{}, 0)
+	if rawEventLogV2.Values == nil {
+		rawEventLogV2.Values = make(map[string]interface{}, 0)
 	}
-	*o = StackFrameV1(rawStackFrameV1)
+	if rawEventLogV2.UnsafeParams == nil {
+		rawEventLogV2.UnsafeParams = make(map[string]interface{}, 0)
+	}
+	if rawEventLogV2.Tags == nil {
+		rawEventLogV2.Tags = make(map[string]string, 0)
+	}
+	*o = EventLogV2(rawEventLogV2)
 	return nil
 }
 
-func (o StackFrameV1) MarshalYAML() (interface{}, error) {
+func (o EventLogV2) MarshalYAML() (interface{}, error) {
 	jsonBytes, err := safejson.Marshal(o)
 	if err != nil {
 		return nil, err
@@ -626,7 +377,7 @@ func (o StackFrameV1) MarshalYAML() (interface{}, error) {
 	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
 }
 
-func (o *StackFrameV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (o *EventLogV2) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
 	if err != nil {
 		return err
@@ -650,6 +401,77 @@ func (o GenericDiagnostic) MarshalYAML() (interface{}, error) {
 }
 
 func (o *GenericDiagnostic) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
+	if err != nil {
+		return err
+	}
+	return safejson.Unmarshal(jsonBytes, *&o)
+}
+
+// Definition of the metric.1 format.
+type MetricLogV1 struct {
+	Type string            `json:"type"`
+	Time datetime.DateTime `json:"time"`
+	// Dot-delimited name of metric, e.g. `com.foundry.compass.api.Compass.http.ping.failures`
+	MetricName string `json:"metricName" conjure-docs:"Dot-delimited name of metric, e.g. \"com.foundry.compass.api.Compass.http.ping.failures\"\n"`
+	// Type of metric being represented, e.g. `gauge`, `histogram`, `counter`
+	MetricType string `json:"metricType" conjure-docs:"Type of metric being represented, e.g. \"gauge\", \"histogram\", \"counter\"\n"`
+	// Observations, measurements and context associated with the metric
+	Values map[string]interface{} `json:"values" conjure-docs:"Observations, measurements and context associated with the metric\n"`
+	// Additional dimensions that describe the instance of the metric
+	Tags map[string]string `json:"tags" conjure-docs:"Additional dimensions that describe the instance of the metric\n"`
+	// User id (if available)
+	Uid *UserId `json:"uid" conjure-docs:"User id (if available)\n"`
+	// Session id (if available)
+	Sid *SessionId `json:"sid" conjure-docs:"Session id (if available)\n"`
+	// API token id (if available)
+	TokenId *TokenId `json:"tokenId" conjure-docs:"API token id (if available)\n"`
+	// Unsafe metadata describing the event
+	UnsafeParams map[string]interface{} `json:"unsafeParams" conjure-docs:"Unsafe metadata describing the event\n"`
+}
+
+func (o MetricLogV1) MarshalJSON() ([]byte, error) {
+	if o.Values == nil {
+		o.Values = make(map[string]interface{}, 0)
+	}
+	if o.Tags == nil {
+		o.Tags = make(map[string]string, 0)
+	}
+	if o.UnsafeParams == nil {
+		o.UnsafeParams = make(map[string]interface{}, 0)
+	}
+	type MetricLogV1Alias MetricLogV1
+	return safejson.Marshal(MetricLogV1Alias(o))
+}
+
+func (o *MetricLogV1) UnmarshalJSON(data []byte) error {
+	type MetricLogV1Alias MetricLogV1
+	var rawMetricLogV1 MetricLogV1Alias
+	if err := safejson.Unmarshal(data, &rawMetricLogV1); err != nil {
+		return err
+	}
+	if rawMetricLogV1.Values == nil {
+		rawMetricLogV1.Values = make(map[string]interface{}, 0)
+	}
+	if rawMetricLogV1.Tags == nil {
+		rawMetricLogV1.Tags = make(map[string]string, 0)
+	}
+	if rawMetricLogV1.UnsafeParams == nil {
+		rawMetricLogV1.UnsafeParams = make(map[string]interface{}, 0)
+	}
+	*o = MetricLogV1(rawMetricLogV1)
+	return nil
+}
+
+func (o MetricLogV1) MarshalYAML() (interface{}, error) {
+	jsonBytes, err := safejson.Marshal(o)
+	if err != nil {
+		return nil, err
+	}
+	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
+}
+
+func (o *MetricLogV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
 	if err != nil {
 		return err
@@ -756,6 +578,316 @@ func (o *RequestLogV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return safejson.Unmarshal(jsonBytes, *&o)
 }
 
+// Definition of the request.2 format.
+type RequestLogV2 struct {
+	Type string            `json:"type"`
+	Time datetime.DateTime `json:"time"`
+	// HTTP method of request
+	Method *string `json:"method" conjure-docs:"HTTP method of request\n"`
+	// Protocol, e.g. `HTTP/1.1`, `HTTP/2`
+	Protocol string `json:"protocol" conjure-docs:"Protocol, e.g. \"HTTP/1.1\", \"HTTP/2\"\n"`
+	// Path of request. If templated, the unrendered path, e.g.: `/catalog/dataset/{datasetId}`, `/{rid}/paths/contents/{path:.*}`.
+	Path string `json:"path" conjure-docs:"Path of request. If templated, the unrendered path, e.g.: \"/catalog/dataset/{datasetId}\", \"/{rid}/paths/contents/{path:.*}\".\n"`
+	// Known-safe parameters
+	Params map[string]interface{} `json:"params" conjure-docs:"Known-safe parameters\n"`
+	// HTTP status code of response
+	Status int `json:"status" conjure-docs:"HTTP status code of response\n"`
+	// Size of request (bytes)
+	RequestSize safelong.SafeLong `json:"requestSize" conjure-docs:"Size of request (bytes)\n"`
+	// Size of response (bytes)
+	ResponseSize safelong.SafeLong `json:"responseSize" conjure-docs:"Size of response (bytes)\n"`
+	// Amount of time spent handling request (microseconds)
+	Duration safelong.SafeLong `json:"duration" conjure-docs:"Amount of time spent handling request (microseconds)\n"`
+	// User id (if available)
+	Uid *UserId `json:"uid" conjure-docs:"User id (if available)\n"`
+	// Session id (if available)
+	Sid *SessionId `json:"sid" conjure-docs:"Session id (if available)\n"`
+	// API token id (if available)
+	TokenId *TokenId `json:"tokenId" conjure-docs:"API token id (if available)\n"`
+	// Zipkin trace id (if available)
+	TraceId *TraceId `json:"traceId" conjure-docs:"Zipkin trace id (if available)\n"`
+	// Unredacted parameters such as path, query and header parameters
+	UnsafeParams map[string]interface{} `json:"unsafeParams" conjure-docs:"Unredacted parameters such as path, query and header parameters\n"`
+}
+
+func (o RequestLogV2) MarshalJSON() ([]byte, error) {
+	if o.Params == nil {
+		o.Params = make(map[string]interface{}, 0)
+	}
+	if o.UnsafeParams == nil {
+		o.UnsafeParams = make(map[string]interface{}, 0)
+	}
+	type RequestLogV2Alias RequestLogV2
+	return safejson.Marshal(RequestLogV2Alias(o))
+}
+
+func (o *RequestLogV2) UnmarshalJSON(data []byte) error {
+	type RequestLogV2Alias RequestLogV2
+	var rawRequestLogV2 RequestLogV2Alias
+	if err := safejson.Unmarshal(data, &rawRequestLogV2); err != nil {
+		return err
+	}
+	if rawRequestLogV2.Params == nil {
+		rawRequestLogV2.Params = make(map[string]interface{}, 0)
+	}
+	if rawRequestLogV2.UnsafeParams == nil {
+		rawRequestLogV2.UnsafeParams = make(map[string]interface{}, 0)
+	}
+	*o = RequestLogV2(rawRequestLogV2)
+	return nil
+}
+
+func (o RequestLogV2) MarshalYAML() (interface{}, error) {
+	jsonBytes, err := safejson.Marshal(o)
+	if err != nil {
+		return nil, err
+	}
+	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
+}
+
+func (o *RequestLogV2) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
+	if err != nil {
+		return err
+	}
+	return safejson.Unmarshal(jsonBytes, *&o)
+}
+
+// Definition of the service.1 format.
+type ServiceLogV1 struct {
+	// "service.1"
+	Type string `json:"type" conjure-docs:"\"service.1\""`
+	// The logger output level. One of {FATAL,ERROR,WARN,INFO,DEBUG,TRACE}.
+	Level LogLevel `json:"level" conjure-docs:"The logger output level. One of {FATAL,ERROR,WARN,INFO,DEBUG,TRACE}."`
+	// RFC3339Nano UTC datetime string when the log event was emitted
+	Time datetime.DateTime `json:"time" conjure-docs:"RFC3339Nano UTC datetime string when the log event was emitted"`
+	// Class or file name. May include line number.
+	Origin *string `json:"origin" conjure-docs:"Class or file name. May include line number."`
+	// Thread name
+	Thread *string `json:"thread" conjure-docs:"Thread name"`
+	// Log message. Palantir Java services using slf4j should not use slf4j placeholders ({}). Logs obtained from 3rd party libraries or services that use slf4j and contain slf4j placeholders will always produce `unsafeParams` with numeric indexes corresponding to the zero-indexed order of placeholders. Renderers should substitute numeric parameters from `unsafeParams` and may leave placeholders that do not match indexes as the original placeholder text.
+	Message string `json:"message" conjure-docs:"Log message. Palantir Java services using slf4j should not use slf4j placeholders ({}). Logs obtained from 3rd party libraries or services that use slf4j and contain slf4j placeholders will always produce \"unsafeParams\" with numeric indexes corresponding to the zero-indexed order of placeholders. Renderers should substitute numeric parameters from \"unsafeParams\" and may leave placeholders that do not match indexes as the original placeholder text.\n"`
+	// Known-safe parameters (redaction may be used to make params knowably safe, but is not required).
+	Params map[string]interface{} `json:"params" conjure-docs:"Known-safe parameters (redaction may be used to make params knowably safe, but is not required)."`
+	// User id (if available).
+	Uid *UserId `json:"uid" conjure-docs:"User id (if available).\n"`
+	// Session id (if available)
+	Sid *SessionId `json:"sid" conjure-docs:"Session id (if available)"`
+	// API token id (if available)
+	TokenId *TokenId `json:"tokenId" conjure-docs:"API token id (if available)"`
+	// Zipkin trace id (if available)
+	TraceId *TraceId `json:"traceId" conjure-docs:"Zipkin trace id (if available)"`
+	// Language-specific stack trace. Content is knowably safe. Renderers should substitute named placeholders ({name}, for name as a key) with keyed value from unsafeParams and leave non-matching keys as the original placeholder text.
+	Stacktrace *string `json:"stacktrace" conjure-docs:"Language-specific stack trace. Content is knowably safe. Renderers should substitute named placeholders ({name}, for name as a key) with keyed value from unsafeParams and leave non-matching keys as the original placeholder text.\n"`
+	// Unredacted parameters
+	UnsafeParams map[string]interface{} `json:"unsafeParams" conjure-docs:"Unredacted parameters"`
+	// Additional dimensions that describe the instance of the log event
+	Tags map[string]string `json:"tags" conjure-docs:"Additional dimensions that describe the instance of the log event"`
+}
+
+func (o ServiceLogV1) MarshalJSON() ([]byte, error) {
+	if o.Params == nil {
+		o.Params = make(map[string]interface{}, 0)
+	}
+	if o.UnsafeParams == nil {
+		o.UnsafeParams = make(map[string]interface{}, 0)
+	}
+	if o.Tags == nil {
+		o.Tags = make(map[string]string, 0)
+	}
+	type ServiceLogV1Alias ServiceLogV1
+	return safejson.Marshal(ServiceLogV1Alias(o))
+}
+
+func (o *ServiceLogV1) UnmarshalJSON(data []byte) error {
+	type ServiceLogV1Alias ServiceLogV1
+	var rawServiceLogV1 ServiceLogV1Alias
+	if err := safejson.Unmarshal(data, &rawServiceLogV1); err != nil {
+		return err
+	}
+	if rawServiceLogV1.Params == nil {
+		rawServiceLogV1.Params = make(map[string]interface{}, 0)
+	}
+	if rawServiceLogV1.UnsafeParams == nil {
+		rawServiceLogV1.UnsafeParams = make(map[string]interface{}, 0)
+	}
+	if rawServiceLogV1.Tags == nil {
+		rawServiceLogV1.Tags = make(map[string]string, 0)
+	}
+	*o = ServiceLogV1(rawServiceLogV1)
+	return nil
+}
+
+func (o ServiceLogV1) MarshalYAML() (interface{}, error) {
+	jsonBytes, err := safejson.Marshal(o)
+	if err != nil {
+		return nil, err
+	}
+	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
+}
+
+func (o *ServiceLogV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
+	if err != nil {
+		return err
+	}
+	return safejson.Unmarshal(jsonBytes, *&o)
+}
+
+// A Zipkin-compatible Span object.
+type Span struct {
+	// 16-digit hex trace identifier
+	TraceId string `json:"traceId" conjure-docs:"16-digit hex trace identifier\n"`
+	// 16-digit hex span identifier
+	Id string `json:"id" conjure-docs:"16-digit hex span identifier\n"`
+	// Name of the span (typically the operation/RPC/method name for corresponding to this span)
+	Name string `json:"name" conjure-docs:"Name of the span (typically the operation/RPC/method name for corresponding to this span)\n"`
+	// 16-digit hex identifer of the parent span
+	ParentId *string `json:"parentId" conjure-docs:"16-digit hex identifer of the parent span\n"`
+	// Timestamp of the start of this span (epoch microsecond value)
+	Timestamp safelong.SafeLong `json:"timestamp" conjure-docs:"Timestamp of the start of this span (epoch microsecond value)\n"`
+	// Duration of this span (microseconds)
+	Duration    safelong.SafeLong `json:"duration" conjure-docs:"Duration of this span (microseconds)\n"`
+	Annotations []Annotation      `json:"annotations"`
+	// Additional dimensions that describe the instance of the trace span
+	Tags map[string]string `json:"tags" conjure-docs:"Additional dimensions that describe the instance of the trace span\n"`
+}
+
+func (o Span) MarshalJSON() ([]byte, error) {
+	if o.Annotations == nil {
+		o.Annotations = make([]Annotation, 0)
+	}
+	if o.Tags == nil {
+		o.Tags = make(map[string]string, 0)
+	}
+	type SpanAlias Span
+	return safejson.Marshal(SpanAlias(o))
+}
+
+func (o *Span) UnmarshalJSON(data []byte) error {
+	type SpanAlias Span
+	var rawSpan SpanAlias
+	if err := safejson.Unmarshal(data, &rawSpan); err != nil {
+		return err
+	}
+	if rawSpan.Annotations == nil {
+		rawSpan.Annotations = make([]Annotation, 0)
+	}
+	if rawSpan.Tags == nil {
+		rawSpan.Tags = make(map[string]string, 0)
+	}
+	*o = Span(rawSpan)
+	return nil
+}
+
+func (o Span) MarshalYAML() (interface{}, error) {
+	jsonBytes, err := safejson.Marshal(o)
+	if err != nil {
+		return nil, err
+	}
+	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
+}
+
+func (o *Span) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
+	if err != nil {
+		return err
+	}
+	return safejson.Unmarshal(jsonBytes, *&o)
+}
+
+type StackFrameV1 struct {
+	// The address of the execution point of this stack frame. This is a string because a safelong can't represent the full 64 bit address space.
+	Address *string `json:"address" conjure-docs:"The address of the execution point of this stack frame. This is a string because a safelong can't represent the full 64 bit address space.\n"`
+	// The identifier of the procedure containing the execution point of this stack frame. This is a fully qualified method name in Java and a demangled symbol name in native code, for example. Note that procedure names may include unsafe information if a service is, for exmaple, running user-defined code. It must be safely redacted.
+	Procedure *string `json:"procedure" conjure-docs:"The identifier of the procedure containing the execution point of this stack frame. This is a fully qualified method name in Java and a demangled symbol name in native code, for example. Note that procedure names may include unsafe information if a service is, for exmaple, running user-defined code. It must be safely redacted.\n"`
+	// The name of the file containing the source location of the execution point of this stack frame. Note that file names may include unsafe information if a service is, for example, running user-defined code. It must be safely redacted.
+	File *string `json:"file" conjure-docs:"The name of the file containing the source location of the execution point of this stack frame. Note that file names may include unsafe information if a service is, for example, running user-defined code. It must be safely redacted.\n"`
+	// The line number of the source location of the execution point of this stack frame.
+	Line *int `json:"line" conjure-docs:"The line number of the source location of the execution point of this stack frame.\n"`
+	// Other frame-level information.
+	Params map[string]interface{} `json:"params" conjure-docs:"Other frame-level information."`
+}
+
+func (o StackFrameV1) MarshalJSON() ([]byte, error) {
+	if o.Params == nil {
+		o.Params = make(map[string]interface{}, 0)
+	}
+	type StackFrameV1Alias StackFrameV1
+	return safejson.Marshal(StackFrameV1Alias(o))
+}
+
+func (o *StackFrameV1) UnmarshalJSON(data []byte) error {
+	type StackFrameV1Alias StackFrameV1
+	var rawStackFrameV1 StackFrameV1Alias
+	if err := safejson.Unmarshal(data, &rawStackFrameV1); err != nil {
+		return err
+	}
+	if rawStackFrameV1.Params == nil {
+		rawStackFrameV1.Params = make(map[string]interface{}, 0)
+	}
+	*o = StackFrameV1(rawStackFrameV1)
+	return nil
+}
+
+func (o StackFrameV1) MarshalYAML() (interface{}, error) {
+	jsonBytes, err := safejson.Marshal(o)
+	if err != nil {
+		return nil, err
+	}
+	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
+}
+
+func (o *StackFrameV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
+	if err != nil {
+		return err
+	}
+	return safejson.Unmarshal(jsonBytes, *&o)
+}
+
+type ThreadDumpV1 struct {
+	// Information about each of the threads in the thread dump. "Thread" may refer to a userland thread such as a goroutine, or an OS-level thread.
+	Threads []ThreadInfoV1 `json:"threads" conjure-docs:"Information about each of the threads in the thread dump. \"Thread\" may refer to a userland thread such as a goroutine, or an OS-level thread.\n"`
+}
+
+func (o ThreadDumpV1) MarshalJSON() ([]byte, error) {
+	if o.Threads == nil {
+		o.Threads = make([]ThreadInfoV1, 0)
+	}
+	type ThreadDumpV1Alias ThreadDumpV1
+	return safejson.Marshal(ThreadDumpV1Alias(o))
+}
+
+func (o *ThreadDumpV1) UnmarshalJSON(data []byte) error {
+	type ThreadDumpV1Alias ThreadDumpV1
+	var rawThreadDumpV1 ThreadDumpV1Alias
+	if err := safejson.Unmarshal(data, &rawThreadDumpV1); err != nil {
+		return err
+	}
+	if rawThreadDumpV1.Threads == nil {
+		rawThreadDumpV1.Threads = make([]ThreadInfoV1, 0)
+	}
+	*o = ThreadDumpV1(rawThreadDumpV1)
+	return nil
+}
+
+func (o ThreadDumpV1) MarshalYAML() (interface{}, error) {
+	jsonBytes, err := safejson.Marshal(o)
+	if err != nil {
+		return nil, err
+	}
+	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
+}
+
+func (o *ThreadDumpV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
+	if err != nil {
+		return err
+	}
+	return safejson.Unmarshal(jsonBytes, *&o)
+}
+
 type ThreadInfoV1 struct {
 	// The ID of the thread.
 	Id *safelong.SafeLong `json:"id" conjure-docs:"The ID of the thread."`
@@ -810,118 +942,39 @@ func (o *ThreadInfoV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return safejson.Unmarshal(jsonBytes, *&o)
 }
 
-type Endpoint struct {
-	// Name of the service that generated the annotation
-	ServiceName string `json:"serviceName" conjure-docs:"Name of the service that generated the annotation\n"`
-	// IPv4 address of the machine that generated this annotation (`xxx.xxx.xxx.xxx`)
-	Ipv4 *string `json:"ipv4" conjure-docs:"IPv4 address of the machine that generated this annotation (\"xxx.xxx.xxx.xxx\")\n"`
-	// IPv6 address of the machine that generated this annotation (standard hextet form)
-	Ipv6 *string `json:"ipv6" conjure-docs:"IPv6 address of the machine that generated this annotation (standard hextet form)\n"`
+// Definition of the trace.1 format.
+type TraceLogV1 struct {
+	Type         string                 `json:"type"`
+	Time         datetime.DateTime      `json:"time"`
+	Uid          *UserId                `json:"uid"`
+	Sid          *SessionId             `json:"sid"`
+	TokenId      *TokenId               `json:"tokenId"`
+	UnsafeParams map[string]interface{} `json:"unsafeParams"`
+	Span         Span                   `json:"span"`
 }
 
-func (o Endpoint) MarshalYAML() (interface{}, error) {
-	jsonBytes, err := safejson.Marshal(o)
-	if err != nil {
-		return nil, err
-	}
-	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
-}
-
-func (o *Endpoint) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
-	if err != nil {
-		return err
-	}
-	return safejson.Unmarshal(jsonBytes, *&o)
-}
-
-// A Zipkin-compatible Span object.
-type Span struct {
-	// 16-digit hex trace identifier
-	TraceId string `json:"traceId" conjure-docs:"16-digit hex trace identifier\n"`
-	// 16-digit hex span identifier
-	Id string `json:"id" conjure-docs:"16-digit hex span identifier\n"`
-	// Name of the span (typically the operation/RPC/method name for corresponding to this span)
-	Name string `json:"name" conjure-docs:"Name of the span (typically the operation/RPC/method name for corresponding to this span)\n"`
-	// 16-digit hex identifer of the parent span
-	ParentId *string `json:"parentId" conjure-docs:"16-digit hex identifer of the parent span\n"`
-	// Timestamp of the start of this span (epoch microsecond value)
-	Timestamp safelong.SafeLong `json:"timestamp" conjure-docs:"Timestamp of the start of this span (epoch microsecond value)\n"`
-	// Duration of this span (microseconds)
-	Duration    safelong.SafeLong `json:"duration" conjure-docs:"Duration of this span (microseconds)\n"`
-	Annotations []Annotation      `json:"annotations"`
-}
-
-func (o Span) MarshalJSON() ([]byte, error) {
-	if o.Annotations == nil {
-		o.Annotations = make([]Annotation, 0)
-	}
-	type SpanAlias Span
-	return safejson.Marshal(SpanAlias(o))
-}
-
-func (o *Span) UnmarshalJSON(data []byte) error {
-	type SpanAlias Span
-	var rawSpan SpanAlias
-	if err := safejson.Unmarshal(data, &rawSpan); err != nil {
-		return err
-	}
-	if rawSpan.Annotations == nil {
-		rawSpan.Annotations = make([]Annotation, 0)
-	}
-	*o = Span(rawSpan)
-	return nil
-}
-
-func (o Span) MarshalYAML() (interface{}, error) {
-	jsonBytes, err := safejson.Marshal(o)
-	if err != nil {
-		return nil, err
-	}
-	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
-}
-
-func (o *Span) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
-	if err != nil {
-		return err
-	}
-	return safejson.Unmarshal(jsonBytes, *&o)
-}
-
-// Definition of the diagnostic.1 format.
-type DiagnosticLogV1 struct {
-	// "diagnostic.1"
-	Type string            `json:"type" conjure-docs:"\"diagnostic.1\""`
-	Time datetime.DateTime `json:"time"`
-	// The diagnostic being logged.
-	Diagnostic Diagnostic `json:"diagnostic" conjure-docs:"The diagnostic being logged."`
-	// Unredacted parameters
-	UnsafeParams map[string]interface{} `json:"unsafeParams" conjure-docs:"Unredacted parameters\n"`
-}
-
-func (o DiagnosticLogV1) MarshalJSON() ([]byte, error) {
+func (o TraceLogV1) MarshalJSON() ([]byte, error) {
 	if o.UnsafeParams == nil {
 		o.UnsafeParams = make(map[string]interface{}, 0)
 	}
-	type DiagnosticLogV1Alias DiagnosticLogV1
-	return safejson.Marshal(DiagnosticLogV1Alias(o))
+	type TraceLogV1Alias TraceLogV1
+	return safejson.Marshal(TraceLogV1Alias(o))
 }
 
-func (o *DiagnosticLogV1) UnmarshalJSON(data []byte) error {
-	type DiagnosticLogV1Alias DiagnosticLogV1
-	var rawDiagnosticLogV1 DiagnosticLogV1Alias
-	if err := safejson.Unmarshal(data, &rawDiagnosticLogV1); err != nil {
+func (o *TraceLogV1) UnmarshalJSON(data []byte) error {
+	type TraceLogV1Alias TraceLogV1
+	var rawTraceLogV1 TraceLogV1Alias
+	if err := safejson.Unmarshal(data, &rawTraceLogV1); err != nil {
 		return err
 	}
-	if rawDiagnosticLogV1.UnsafeParams == nil {
-		rawDiagnosticLogV1.UnsafeParams = make(map[string]interface{}, 0)
+	if rawTraceLogV1.UnsafeParams == nil {
+		rawTraceLogV1.UnsafeParams = make(map[string]interface{}, 0)
 	}
-	*o = DiagnosticLogV1(rawDiagnosticLogV1)
+	*o = TraceLogV1(rawTraceLogV1)
 	return nil
 }
 
-func (o DiagnosticLogV1) MarshalYAML() (interface{}, error) {
+func (o TraceLogV1) MarshalYAML() (interface{}, error) {
 	jsonBytes, err := safejson.Marshal(o)
 	if err != nil {
 		return nil, err
@@ -929,7 +982,7 @@ func (o DiagnosticLogV1) MarshalYAML() (interface{}, error) {
 	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
 }
 
-func (o *DiagnosticLogV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (o *TraceLogV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
 	if err != nil {
 		return err
@@ -937,62 +990,17 @@ func (o *DiagnosticLogV1) UnmarshalYAML(unmarshal func(interface{}) error) error
 	return safejson.Unmarshal(jsonBytes, *&o)
 }
 
-// Definition of the event.2 format.
-type EventLogV2 struct {
-	Type string            `json:"type"`
-	Time datetime.DateTime `json:"time"`
-	// Dot-delimited name of event, e.g. `com.foundry.compass.api.Compass.http.ping.failures`
-	EventName string `json:"eventName" conjure-docs:"Dot-delimited name of event, e.g. \"com.foundry.compass.api.Compass.http.ping.failures\"\n"`
-	// Observations, measurements and context associated with the event
-	Values map[string]interface{} `json:"values" conjure-docs:"Observations, measurements and context associated with the event\n"`
-	// User id (if available)
-	Uid *UserId `json:"uid" conjure-docs:"User id (if available)\n"`
-	// Session id (if available)
-	Sid *SessionId `json:"sid" conjure-docs:"Session id (if available)\n"`
-	// API token id (if available)
-	TokenId *TokenId `json:"tokenId" conjure-docs:"API token id (if available)\n"`
-	// Zipkin trace id (if available)
-	TraceId *TraceId `json:"traceId" conjure-docs:"Zipkin trace id (if available)\n"`
-	// Unsafe metadata describing the event
-	UnsafeParams map[string]interface{} `json:"unsafeParams" conjure-docs:"Unsafe metadata describing the event\n"`
-	// Additional dimensions that describe the instance of the log event
-	Tags map[string]string `json:"tags" conjure-docs:"Additional dimensions that describe the instance of the log event"`
+// Wraps a log entry with entity information.
+type WrappedLogV1 struct {
+	// "wrapped.1"
+	Type    string              `json:"type" conjure-docs:"\"wrapped.1\""`
+	Payload WrappedLogV1Payload `json:"payload"`
+	// Artifact part of entity's maven coordinate
+	EntityName    string `json:"entityName" conjure-docs:"Artifact part of entity's maven coordinate"`
+	EntityVersion string `json:"entityVersion"`
 }
 
-func (o EventLogV2) MarshalJSON() ([]byte, error) {
-	if o.Values == nil {
-		o.Values = make(map[string]interface{}, 0)
-	}
-	if o.UnsafeParams == nil {
-		o.UnsafeParams = make(map[string]interface{}, 0)
-	}
-	if o.Tags == nil {
-		o.Tags = make(map[string]string, 0)
-	}
-	type EventLogV2Alias EventLogV2
-	return safejson.Marshal(EventLogV2Alias(o))
-}
-
-func (o *EventLogV2) UnmarshalJSON(data []byte) error {
-	type EventLogV2Alias EventLogV2
-	var rawEventLogV2 EventLogV2Alias
-	if err := safejson.Unmarshal(data, &rawEventLogV2); err != nil {
-		return err
-	}
-	if rawEventLogV2.Values == nil {
-		rawEventLogV2.Values = make(map[string]interface{}, 0)
-	}
-	if rawEventLogV2.UnsafeParams == nil {
-		rawEventLogV2.UnsafeParams = make(map[string]interface{}, 0)
-	}
-	if rawEventLogV2.Tags == nil {
-		rawEventLogV2.Tags = make(map[string]string, 0)
-	}
-	*o = EventLogV2(rawEventLogV2)
-	return nil
-}
-
-func (o EventLogV2) MarshalYAML() (interface{}, error) {
+func (o WrappedLogV1) MarshalYAML() (interface{}, error) {
 	jsonBytes, err := safejson.Marshal(o)
 	if err != nil {
 		return nil, err
@@ -1000,7 +1008,7 @@ func (o EventLogV2) MarshalYAML() (interface{}, error) {
 	return safeyaml.JSONtoYAMLMapSlice(jsonBytes)
 }
 
-func (o *EventLogV2) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (o *WrappedLogV1) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	jsonBytes, err := safeyaml.UnmarshalerToJSONBytes(unmarshal)
 	if err != nil {
 		return err

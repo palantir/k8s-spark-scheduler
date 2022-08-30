@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/palantir/witchcraft-go-logging/wlog"
-	"github.com/palantir/witchcraft-go-logging/wlog-zap/internal/marshalers"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -66,12 +65,8 @@ func (e *zapLogEntry) IntValue(key string, value int32) {
 }
 
 func (e *zapLogEntry) ObjectValue(k string, v interface{}, marshalerType reflect.Type) {
-	if field, ok := marshalers.FieldForType(marshalerType, k, v); ok {
-		e.fields[k] = &field
-	} else {
-		s := zap.Reflect(k, v)
-		e.fields[k] = &s
-	}
+	s := zap.Reflect(k, v)
+	e.fields[k] = &s
 }
 
 func (e *zapLogEntry) Fields() []zapcore.Field {
@@ -118,7 +113,7 @@ func (e *zapLogEntry) Fields() []zapcore.Field {
 
 type zapLogger struct {
 	logger *zap.Logger
-	level  *zap.AtomicLevel
+	*wlog.AtomicLogLevel
 }
 
 func (l *zapLogger) Log(params ...wlog.Param) {
@@ -126,29 +121,34 @@ func (l *zapLogger) Log(params ...wlog.Param) {
 }
 
 func (l *zapLogger) Debug(msg string, params ...wlog.Param) {
-	logOutput(l.logger.Debug, msg, params)
+	if l.Enabled(wlog.DebugLevel) {
+		logOutput(l.logger.Debug, msg, params)
+	}
 }
 
 func (l *zapLogger) Info(msg string, params ...wlog.Param) {
-	logOutput(l.logger.Info, msg, params)
+	if l.Enabled(wlog.InfoLevel) {
+		logOutput(l.logger.Info, msg, params)
+	}
 }
 
 func (l *zapLogger) Warn(msg string, params ...wlog.Param) {
-	logOutput(l.logger.Warn, msg, params)
+	if l.Enabled(wlog.WarnLevel) {
+		logOutput(l.logger.Warn, msg, params)
+	}
 }
 
 func (l *zapLogger) Error(msg string, params ...wlog.Param) {
-	logOutput(l.logger.Error, msg, params)
-}
-
-func (l *zapLogger) SetLevel(level wlog.LogLevel) {
-	l.level.SetLevel(toZapLevel(level))
+	if l.Enabled(wlog.ErrorLevel) {
+		logOutput(l.logger.Error, msg, params)
+	}
 }
 
 func logOutput(logFn func(string, ...zap.Field), msg string, params []wlog.Param) {
 	entry := newZapLogEntry()
-	wlog.ApplyParams(entry, params)
-	logFn(msg, entry.Fields()...)
+	wlog.ApplyParams(entry, wlog.ParamsWithMessage(msg, params))
+	// Empty string is used for the "message" because the message is added to params above if present
+	logFn("", entry.Fields()...)
 }
 
 func encodeField(key string, value interface{}, enc zapcore.ObjectEncoder) error {

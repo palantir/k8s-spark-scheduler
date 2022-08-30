@@ -3,8 +3,15 @@
 package health
 
 import (
+	"regexp"
 	"strings"
+
+	"github.com/palantir/conjure-go-runtime/v2/conjure-go-contract/errors"
+	werror "github.com/palantir/witchcraft-go-error"
+	wparams "github.com/palantir/witchcraft-go-params"
 )
+
+var enumValuePattern = regexp.MustCompile("^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$")
 
 type HealthState string
 
@@ -23,13 +30,29 @@ const (
 	HealthStateError HealthState = "ERROR"
 	// The service node has entered an unrecoverable state. All nodes of the service should be stopped and no automated attempt to restart the node should be made. Ex: a service fails to migrate to a new schema and is left in an unrecoverable state.
 	HealthStateTerminal HealthState = "TERMINAL"
-	HealthStateUnknown  HealthState = "UNKNOWN"
 )
 
+// HealthState_Values returns all known variants of HealthState.
+func HealthState_Values() []HealthState {
+	return []HealthState{HealthStateHealthy, HealthStateDeferring, HealthStateSuspended, HealthStateRepairing, HealthStateWarning, HealthStateError, HealthStateTerminal}
+}
+
+// IsUnknown returns false for all known variants of HealthState and true otherwise.
+func (e HealthState) IsUnknown() bool {
+	switch e {
+	case HealthStateHealthy, HealthStateDeferring, HealthStateSuspended, HealthStateRepairing, HealthStateWarning, HealthStateError, HealthStateTerminal:
+		return false
+	}
+	return true
+}
+
 func (e *HealthState) UnmarshalText(data []byte) error {
-	switch strings.ToUpper(string(data)) {
+	switch v := strings.ToUpper(string(data)); v {
 	default:
-		*e = HealthStateUnknown
+		if !enumValuePattern.MatchString(v) {
+			return werror.Convert(errors.NewInvalidArgument(wparams.NewSafeAndUnsafeParamStorer(map[string]interface{}{"enumType": "HealthState", "message": "enum value must match pattern ^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$"}, map[string]interface{}{"enumValue": string(data)})))
+		}
+		*e = HealthState(v)
 	case "HEALTHY":
 		*e = HealthStateHealthy
 	case "DEFERRING":

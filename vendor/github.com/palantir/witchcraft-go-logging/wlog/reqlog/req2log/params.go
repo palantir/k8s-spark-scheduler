@@ -20,59 +20,59 @@ import (
 )
 
 type LoggerCreatorParam interface {
-	apply(*defaultLoggerBuilder)
+	Apply(builder LoggerBuilder)
 }
 
-type loggerCreatorParamFunc func(*defaultLoggerBuilder)
+type loggerCreatorParamFunc func(builder LoggerBuilder)
 
-func (f loggerCreatorParamFunc) apply(logger *defaultLoggerBuilder) {
-	f(logger)
+func (f loggerCreatorParamFunc) Apply(builder LoggerBuilder) {
+	f(builder)
 }
 
 func Creator(creator wlog.LoggerCreator) LoggerCreatorParam {
-	return loggerCreatorParamFunc(func(logger *defaultLoggerBuilder) {
-		logger.loggerCreator = creator
+	return loggerCreatorParamFunc(func(builder LoggerBuilder) {
+		builder.LoggerCreator(creator)
 	})
 }
 
 func Extractor(extractor extractor.IDsFromRequest) LoggerCreatorParam {
-	return loggerCreatorParamFunc(func(logger *defaultLoggerBuilder) {
-		logger.idsExtractor = extractor
+	return loggerCreatorParamFunc(func(builder LoggerBuilder) {
+		builder.IdsExtractor(extractor)
 	})
 }
 
 func SafePathParams(safeParams ...string) LoggerCreatorParam {
-	return loggerCreatorParamFunc(func(logger *defaultLoggerBuilder) {
-		logger.safePathParams = append(logger.safePathParams, safeParams...)
+	return loggerCreatorParamFunc(func(builder LoggerBuilder) {
+		builder.SafePathParams(safeParams)
 	})
 }
 
 func ForbiddenPathParams(forbiddenParams ...string) LoggerCreatorParam {
-	return loggerCreatorParamFunc(func(logger *defaultLoggerBuilder) {
-		logger.forbiddenPathParams = append(logger.forbiddenPathParams, forbiddenParams...)
+	return loggerCreatorParamFunc(func(builder LoggerBuilder) {
+		builder.ForbiddenPathParams(forbiddenParams)
 	})
 }
 
 func SafeQueryParams(safeParams ...string) LoggerCreatorParam {
-	return loggerCreatorParamFunc(func(logger *defaultLoggerBuilder) {
-		logger.safeQueryParams = append(logger.safeQueryParams, safeParams...)
+	return loggerCreatorParamFunc(func(builder LoggerBuilder) {
+		builder.SafeQueryParams(safeParams)
 	})
 }
 
 func ForbiddenQueryParams(forbiddenParams ...string) LoggerCreatorParam {
-	return loggerCreatorParamFunc(func(logger *defaultLoggerBuilder) {
-		logger.forbiddenQueryParams = append(logger.forbiddenQueryParams, forbiddenParams...)
+	return loggerCreatorParamFunc(func(builder LoggerBuilder) {
+		builder.ForbiddenQueryParams(forbiddenParams)
 	})
 }
 
 func SafeHeaderParams(safeParams ...string) LoggerCreatorParam {
-	return loggerCreatorParamFunc(func(logger *defaultLoggerBuilder) {
-		logger.safeHeaderParams = append(logger.safeHeaderParams, safeParams...)
+	return loggerCreatorParamFunc(func(builder LoggerBuilder) {
+		builder.SafeHeaderParams(safeParams)
 	})
 }
 
 func ForbiddenHeaderParams(forbiddenParams ...string) LoggerCreatorParam {
-	return loggerCreatorParamFunc(func(logger *defaultLoggerBuilder) {
-		logger.forbiddenHeaderParams = append(logger.forbiddenHeaderParams, forbiddenParams...)
+	return loggerCreatorParamFunc(func(builder LoggerBuilder) {
+		builder.ForbiddenHeaderParams(forbiddenParams)
 	})
 }

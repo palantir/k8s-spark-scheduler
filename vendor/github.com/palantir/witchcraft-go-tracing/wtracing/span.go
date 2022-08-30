@@ -25,6 +25,11 @@ type SpanID string
 type Span interface {
 	Context() SpanContext
 
+	// Tag sets Tag with given key and value to the Span. If key already exists in
+	// the Span the value will be overridden except for error tags where the first
+	// value is persisted.
+	Tag(key string, value string)
+
 	// Finish the Span and send to Reporter.
 	Finish()
 }
@@ -38,6 +43,7 @@ type SpanModel struct {
 	Duration       time.Duration
 	LocalEndpoint  *Endpoint
 	RemoteEndpoint *Endpoint
+	Tags           map[string]string
 }
 
 type SpanContext struct {
@@ -74,6 +80,7 @@ type SpanOptionImpl struct {
 	RemoteEndpoint *Endpoint
 	ParentSpan     *SpanContext
 	Kind           Kind
+	Tags           map[string]string
 }
 
 func WithKind(kind Kind) SpanOption {
@@ -106,5 +113,16 @@ func WithParentSpanContext(parentCtx SpanContext) SpanOption {
 func WithRemoteEndpoint(endpoint *Endpoint) SpanOption {
 	return spanOptionFn(func(impl *SpanOptionImpl) {
 		impl.RemoteEndpoint = endpoint
+	})
+}
+
+// WithSpanTag adds the tag indexed by name with the value specified to the set of tags defined for this span.
+// If the same name is seen multiple times the most recent will prevail.
+func WithSpanTag(name, value string) SpanOption {
+	return spanOptionFn(func(impl *SpanOptionImpl) {
+		if impl.Tags == nil {
+			impl.Tags = make(map[string]string)
+		}
+		impl.Tags[name] = value
 	})
 }
