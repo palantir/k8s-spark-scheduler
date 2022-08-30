@@ -99,10 +99,12 @@ require (
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
-// k8s.io/kubernetes sets these to v0.0.0, replace them with the current
-// k8s.io/kubernetes version to be able to depend on it.
 replace (
+	// k8s.io/apiserver has transitive dependency on "naming" package of google.golang.org/grpc module, which isn't
+	// available in newer versions of grpc.
 	google.golang.org/grpc => google.golang.org/grpc v1.26.0
+	// k8s.io/kubernetes sets these to v0.0.0, replace them with the current
+	// k8s.io/kubernetes version to be able to depend on it.
 	k8s.io/api => k8s.io/api v0.18.8
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.18.8
 	k8s.io/apimachinery => k8s.io/apimachinery v0.18.8
