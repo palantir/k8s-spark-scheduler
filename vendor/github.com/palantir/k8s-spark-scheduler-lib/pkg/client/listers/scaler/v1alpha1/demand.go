@@ -10,8 +10,10 @@ import (
 )
 
 // DemandLister helps list Demands.
+// All objects returned here must be treated as read-only.
 type DemandLister interface {
 	// List lists all Demands in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.Demand, err error)
 	// Demands returns an object that can list and get Demands.
 	Demands(namespace string) DemandNamespaceLister
@@ -42,10 +44,13 @@ func (s *demandLister) Demands(namespace string) DemandNamespaceLister {
 }
 
 // DemandNamespaceLister helps list and get Demands.
+// All objects returned here must be treated as read-only.
 type DemandNamespaceLister interface {
 	// List lists all Demands in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.Demand, err error)
 	// Get retrieves the Demand from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1alpha1.Demand, error)
 	DemandNamespaceListerExpansion
 }

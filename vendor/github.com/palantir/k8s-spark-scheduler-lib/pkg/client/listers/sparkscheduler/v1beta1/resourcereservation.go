@@ -10,8 +10,10 @@ import (
 )
 
 // ResourceReservationLister helps list ResourceReservations.
+// All objects returned here must be treated as read-only.
 type ResourceReservationLister interface {
 	// List lists all ResourceReservations in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1beta1.ResourceReservation, err error)
 	// ResourceReservations returns an object that can list and get ResourceReservations.
 	ResourceReservations(namespace string) ResourceReservationNamespaceLister
@@ -42,10 +44,13 @@ func (s *resourceReservationLister) ResourceReservations(namespace string) Resou
 }
 
 // ResourceReservationNamespaceLister helps list and get ResourceReservations.
+// All objects returned here must be treated as read-only.
 type ResourceReservationNamespaceLister interface {
 	// List lists all ResourceReservations in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1beta1.ResourceReservation, err error)
 	// Get retrieves the ResourceReservation from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1beta1.ResourceReservation, error)
 	ResourceReservationNamespaceListerExpansion
 }
