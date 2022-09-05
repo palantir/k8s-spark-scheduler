@@ -16,7 +16,6 @@ package extender
 
 import (
 	"context"
-	"k8s.io/apimachinery/pkg/labels"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
@@ -32,6 +31,7 @@ import (
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	"k8s.io/apimachinery/pkg/labels"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
