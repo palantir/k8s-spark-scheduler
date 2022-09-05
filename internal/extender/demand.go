@@ -55,6 +55,7 @@ func (s *SparkSchedulerExtender) updatePodStatus(ctx context.Context, pod *v1.Po
 	}
 }
 
+// TODO(cbattarbee): Update this function with the zone to schedule the new demand
 func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources) {
 	if !s.demands.CRDExists() {
 		return

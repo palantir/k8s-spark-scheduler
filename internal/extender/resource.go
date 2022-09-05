@@ -16,6 +16,7 @@ package extender
 
 import (
 	"context"
+	"k8s.io/apimachinery/pkg/labels"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
@@ -415,6 +416,63 @@ func (s *SparkSchedulerExtender) getNodes(ctx context.Context, nodeNames []strin
 	return availableNodes
 }
 
+func filterNodesToZone(ctx context.Context, initialNodes []*v1.Node, zone string) ([]*v1.Node, error) {
+	nodes := make([]*v1.Node, 0, len(initialNodes))
+	for _, node := range initialNodes {
+		zoneLabel, ok := node.Labels[v1.LabelTopologyZone]
+		if !ok {
+			return nil, werror.ErrorWithContextParams(ctx, "Could not read zone label from node, unable to make scheduling decisions based on AZ")
+		}
+
+		if zoneLabel == zone {
+			nodes = append(nodes)
+		}
+	}
+	return nodes, nil
+}
+
+func (s *SparkSchedulerExtender) getCommonZoneForExecutorsApplication(ctx context.Context, executor *v1.Pod) (string, error) {
+	executorSparkLabel, ok := executor.Labels[common.SparkAppIDLabel]
+	if !ok {
+		return "", werror.ErrorWithContextParams(ctx, "executor does not have a spark app id label, could not create label selector")
+	}
+	applicationPods, err := s.podLister.Pods(executor.Namespace).List(labels.Set(map[string]string{common.SparkAppIDLabel: executorSparkLabel}).AsSelector())
+	if err != nil {
+		return "", err
+	}
+
+	// Filter to scheduled pods
+	scheduledPods := make([]*v1.Pod, 0, len(applicationPods))
+	for _, pod := range applicationPods {
+		if pod.Status.Phase == v1.PodPending {
+			continue
+		}
+		scheduledPods = append(scheduledPods, pod)
+	}
+
+	azs := utils.NewStringSet(len(scheduledPods))
+	// Get all node AZs where pods are running
+	for _, pod := range scheduledPods {
+		nodeName := pod.Spec.NodeName
+		node, err := s.nodeLister.Get(nodeName)
+		if err != nil {
+			return "", err
+		}
+		zoneLabel, ok := node.Labels[v1.LabelTopologyZone]
+		if !ok {
+			return "", werror.ErrorWithContextParams(ctx, "Could not read zone label from node, unable to make scheduling decisions based on AZ")
+		}
+		azs.Add(zoneLabel)
+	}
+	if azs.Size() > 1 {
+		return "", werror.ErrorWithContextParams(ctx, "Application has pods in multiple AZs", werror.SafeParam("azs", azs.ToSlice()))
+	}
+	if azs.Size() == 0 {
+		return "", werror.ErrorWithContextParams(ctx, "Application has no scheduled pods, can't make scheduling decisions based on AZ")
+	}
+	return azs.ToSlice()[0], nil
+}
+
 func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executor *v1.Pod, nodeNames []string, isExtraExecutor bool) (string, string, error) {
 	driver, err := s.podLister.getDriverPodForExecutor(ctx, executor)
 	if err != nil {
@@ -426,6 +484,17 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	}
 	executorResources := &resources.Resources{CPU: sparkResources.executorResources.CPU, Memory: sparkResources.executorResources.Memory, NvidiaGPU: sparkResources.executorResources.NvidiaGPU}
 	availableNodes := s.getNodes(ctx, nodeNames)
+	if doesBinpackingScheduleInSingleAz(s.binpacker) {
+		zone, err := s.getCommonZoneForExecutorsApplication(ctx, executor)
+		if err != nil {
+			// It possible (and expected) to get here when the version of scheduler containing dynamic executor pods in the same zone is rolled out as previously scheduled applications may have executors in different AZs
+			svc1log.FromContext(ctx).Info("Single AZ scheduling is enabled but application is not entirely in the same AZ, not attempting to schedule executor in the same AZ")
+		}
+		availableNodes, err = filterNodesToZone(ctx, availableNodes, zone)
+		if err != nil {
+			return "", failureInternal, err
+		}
+	}
 	usages := s.resourceReservationManager.GetReservedResources()
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
 	availableResources := resources.AvailableForNodes(availableNodes, usages)
@@ -436,10 +505,6 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 			}
 			return name, successRescheduled, nil
 		}
-	}
-
-	if isExtraExecutor {
-		return "", failureFitExtraExecutor, werror.ErrorWithContextParams(ctx, "not enough capacity to schedule the extra executor")
 	}
 
 	s.createDemandForExecutor(ctx, executor, executorResources)
