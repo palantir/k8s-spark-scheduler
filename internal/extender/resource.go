@@ -424,7 +424,7 @@ func filterNodesToZone(ctx context.Context, initialNodes []*v1.Node, zone string
 		}
 
 		if zoneLabel == zone {
-			nodes = append(nodes)
+			nodes = append(nodes, node)
 		}
 	}
 	svc1log.FromContext(ctx).Info("Filtered nodes in zone", svc1log.SafeParam("zone", zone), svc1log.SafeParam("nodes", nodes))
