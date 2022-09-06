@@ -437,7 +437,11 @@ func (s *SparkSchedulerExtender) getCommonZoneForExecutorsApplication(ctx contex
 		return "", werror.ErrorWithContextParams(ctx, "executor does not have a spark app id label, could not create label selector")
 	}
 	applicationPods, err := s.podLister.Pods(executor.Namespace).List(labels.Set(map[string]string{common.SparkAppIDLabel: executorSparkLabel}).AsSelector())
-	svc1log.FromContext(ctx).Info("Found existing application pods", svc1log.SafeParam("applicationPods", applicationPods))
+	applicationPodNames := make([]string, 0, len(applicationPods))
+	for _, pod := range applicationPods {
+		applicationPodNames = append(applicationPodNames, pod.Name)
+	}
+	svc1log.FromContext(ctx).Info("Found existing application pods", svc1log.SafeParam("applicationPodNames", applicationPodNames))
 	if err != nil {
 		return "", err
 	}
@@ -450,7 +454,11 @@ func (s *SparkSchedulerExtender) getCommonZoneForExecutorsApplication(ctx contex
 		}
 		scheduledPods = append(scheduledPods, pod)
 	}
-	svc1log.FromContext(ctx).Info("Filtered to scheduled application pods", svc1log.SafeParam("scheduledApplicationPods", scheduledPods))
+	scheduledPodNames := make([]string, 0, len(scheduledPods))
+	for _, pod := range scheduledPods {
+		scheduledPodNames = append(scheduledPodNames, pod.Name)
+	}
+	svc1log.FromContext(ctx).Info("Filtered to scheduled application pods", svc1log.SafeParam("scheduledApplicationPods", scheduledPodNames))
 
 	azs := utils.NewStringSet(len(scheduledPods))
 	// Get all node AZs where pods are running
@@ -492,6 +500,10 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 		svc1log.FromContext(ctx).Info("Only considering nodes from the zone",
 			svc1log.SafeParam("zone", zone))
 		availableNodes, err = filterNodesToZone(ctx, availableNodes, zone)
+		nodeNames = make([]string, 0, len(availableNodes))
+		for _, node := range availableNodes {
+			nodeNames = append(nodeNames, node.Name)
+		}
 		if err != nil {
 			return "", failureInternal, err
 		}
