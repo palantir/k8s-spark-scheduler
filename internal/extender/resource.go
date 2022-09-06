@@ -483,19 +483,17 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	}
 	executorResources := &resources.Resources{CPU: sparkResources.executorResources.CPU, Memory: sparkResources.executorResources.Memory, NvidiaGPU: sparkResources.executorResources.NvidiaGPU}
 	availableNodes := s.getNodes(ctx, nodeNames)
-	if doesBinpackingScheduleInSingleAz(s.binpacker) {
-		zone, err := s.getCommonZoneForExecutorsApplication(ctx, executor)
+	zone, err := s.getZoneIfShouldScheduleInSingleAz(ctx, executor)
+	if err == nil {
+		svc1log.FromContext(ctx).Info("Only considering nodes from the zone",
+			svc1log.SafeParam("zone", zone))
+		availableNodes, err = filterNodesToZone(ctx, availableNodes, zone)
 		if err != nil {
-			// It possible (and expected) to get here when the version of scheduler containing dynamic executor pods in the same zone is rolled out as previously scheduled applications may have executors in different AZs
-			svc1log.FromContext(ctx).Info("Single AZ scheduling is enabled but application is not entirely in the same AZ, not attempting to schedule executor in the same AZ")
-		} else {
-			svc1log.FromContext(ctx).Info("Only considering nodes from the zone",
-				svc1log.SafeParam("zone", zone))
-			availableNodes, err = filterNodesToZone(ctx, availableNodes, zone)
-			if err != nil {
-				return "", failureInternal, err
-			}
+			return "", failureInternal, err
 		}
+	} else {
+		// It possible (and expected) to get here when the version of scheduler containing dynamic executor pods in the same zone is rolled out as previously scheduled applications may have executors in different AZs
+		svc1log.FromContext(ctx).Info("Single AZ scheduling is enabled but application is not entirely in the same AZ, not attempting to schedule executor in the same AZ")
 	}
 	usages := s.resourceReservationManager.GetReservedResources()
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
@@ -508,17 +506,22 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 			return name, successRescheduled, nil
 		}
 	}
-	if doesBinpackingScheduleInSingleAz(s.binpacker) {
-		zone, err := s.getCommonZoneForExecutorsApplication(ctx, executor)
-		if err == nil {
-			s.createDemandForExecutorInSpecificZone(ctx, executor, executorResources, zone)
-		} else {
-			// It possible (and expected) to get here when the version of scheduler containing dynamic executor pods in the same zone is rolled out as previously scheduled applications may have executors in different AZs
-			svc1log.FromContext(ctx).Info("Single AZ scheduling is enabled but application is not entirely in the same AZ, not attempting to create demand in specific AZ")
-			s.createDemandForExecutorInAnyZone(ctx, executor, executorResources)
-		}
+	zone, err = s.getZoneIfShouldScheduleInSingleAz(ctx, executor)
+	if err == nil {
+		s.createDemandForExecutorInSpecificZone(ctx, executor, executorResources, zone)
+	} else {
+		// It possible (and expected) to get here when the version of scheduler containing dynamic executor pods in the same zone is rolled out as previously scheduled applications may have executors in different AZs
+		svc1log.FromContext(ctx).Info("Single AZ scheduling is enabled but application is not entirely in the same AZ, not attempting to create demand in specific AZ")
+		s.createDemandForExecutorInAnyZone(ctx, executor, executorResources)
 	}
 	return "", failureFit, werror.ErrorWithContextParams(ctx, "not enough capacity to reschedule the executor")
+}
+
+func (s *SparkSchedulerExtender) getZoneIfShouldScheduleInSingleAz(ctx context.Context, executor *v1.Pod) (string, error) {
+	if !doesBinpackingScheduleInSingleAz(s.binpacker) {
+		return "", werror.ErrorWithContextParams(ctx, "Not using single Az scheduling")
+	}
+	return s.getCommonZoneForExecutorsApplication(ctx, executor)
 }
 
 func (s *SparkSchedulerExtender) isSuccessOutcome(outcome string) bool {
