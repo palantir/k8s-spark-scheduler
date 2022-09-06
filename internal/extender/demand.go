@@ -55,11 +55,11 @@ func (s *SparkSchedulerExtender) updatePodStatus(ctx context.Context, pod *v1.Po
 	}
 }
 
-// TODO(cbattarbee): Update this function with the zone to schedule the new demand
-func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources) {
+func (s *SparkSchedulerExtender) createDemandForExecutorInAnyZone(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources) {
 	if !s.demands.CRDExists() {
 		return
 	}
+	svc1log.FromContext(ctx).Info("Creating demand for pod in any AZ", svc1log.SafeParam("podName", executorPod.Name))
 	units := []demandapi.DemandUnit{
 		{
 			Count: 1,
@@ -70,8 +70,26 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 			},
 		},
 	}
-	// We do not force rescheduled executors to be in the same AZ because we have no mechanism to create a demand in
-	// a specific AZ and this should happen infrequently enough that we prefer making progress
+	s.createDemand(ctx, executorPod, units)
+}
+
+func (s *SparkSchedulerExtender) createDemandForExecutorInSpecificZone(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources, zone string) {
+	if !s.demands.CRDExists() {
+		return
+	}
+	svc1log.FromContext(ctx).Info("Would create demand in specific zone if CRD was updated, instead creating a demand in any AZ", svc1log.SafeParam("podName", executorPod.Name),
+		svc1log.SafeParam("zone", zone))
+	units := []demandapi.DemandUnit{
+		{
+			Count: 1,
+			Resources: demandapi.ResourceList{
+				demandapi.ResourceCPU:       executorResources.CPU,
+				demandapi.ResourceMemory:    executorResources.Memory,
+				demandapi.ResourceNvidiaGPU: executorResources.NvidiaGPU,
+				// TODO: Set zone when the demand CRD has been updated
+			},
+		},
+	}
 	s.createDemand(ctx, executorPod, units)
 }
 

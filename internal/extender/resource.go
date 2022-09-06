@@ -48,7 +48,6 @@ const (
 	successRescheduled            = "success-rescheduled"
 	successAlreadyBound           = "success-already-bound"
 	successScheduledExtraExecutor = "success-scheduled-extra-executor"
-	failureFitExtraExecutor       = "failure-fit-extra-executor"
 	// TODO: make this configurable
 	// leaderElectionInterval is the default LeaseDuration for core clients.
 	// obtained from k8s.io/component-base/config/v1alpha1
@@ -489,10 +488,13 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 		if err != nil {
 			// It possible (and expected) to get here when the version of scheduler containing dynamic executor pods in the same zone is rolled out as previously scheduled applications may have executors in different AZs
 			svc1log.FromContext(ctx).Info("Single AZ scheduling is enabled but application is not entirely in the same AZ, not attempting to schedule executor in the same AZ")
-		}
-		availableNodes, err = filterNodesToZone(ctx, availableNodes, zone)
-		if err != nil {
-			return "", failureInternal, err
+		} else {
+			svc1log.FromContext(ctx).Info("Only considering nodes from the zone",
+				svc1log.SafeParam("zone", zone))
+			availableNodes, err = filterNodesToZone(ctx, availableNodes, zone)
+			if err != nil {
+				return "", failureInternal, err
+			}
 		}
 	}
 	usages := s.resourceReservationManager.GetReservedResources()
@@ -506,8 +508,16 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 			return name, successRescheduled, nil
 		}
 	}
-
-	s.createDemandForExecutor(ctx, executor, executorResources)
+	if doesBinpackingScheduleInSingleAz(s.binpacker) {
+		zone, err := s.getCommonZoneForExecutorsApplication(ctx, executor)
+		if err == nil {
+			s.createDemandForExecutorInSpecificZone(ctx, executor, executorResources, zone)
+		} else {
+			// It possible (and expected) to get here when the version of scheduler containing dynamic executor pods in the same zone is rolled out as previously scheduled applications may have executors in different AZs
+			svc1log.FromContext(ctx).Info("Single AZ scheduling is enabled but application is not entirely in the same AZ, not attempting to create demand in specific AZ")
+			s.createDemandForExecutorInAnyZone(ctx, executor, executorResources)
+		}
+	}
 	return "", failureFit, werror.ErrorWithContextParams(ctx, "not enough capacity to reschedule the executor")
 }
 
