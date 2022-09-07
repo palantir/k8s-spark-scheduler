@@ -436,43 +436,14 @@ func (s *SparkSchedulerExtender) getCommonZoneForExecutorsApplication(ctx contex
 	if !ok {
 		return "", werror.ErrorWithContextParams(ctx, "executor does not have a spark app id label, could not create label selector")
 	}
-	applicationPods, err := s.podLister.Pods(executor.Namespace).List(labels.Set(map[string]string{common.SparkAppIDLabel: executorSparkLabel}).AsSelector())
-	applicationPodNames := make([]string, 0, len(applicationPods))
-	for _, pod := range applicationPods {
-		applicationPodNames = append(applicationPodNames, pod.Name)
-	}
-	svc1log.FromContext(ctx).Info("Found existing application pods", svc1log.SafeParam("applicationPodNames", applicationPodNames))
+	applicationPods, err := s.getSparkApplicationPodsForExecutor(ctx, executor, executorSparkLabel)
 	if err != nil {
 		return "", err
 	}
-
-	// Filter to scheduled pods
-	scheduledPods := make([]*v1.Pod, 0, len(applicationPods))
-	for _, pod := range applicationPods {
-		if pod.Status.Phase == v1.PodPending {
-			continue
-		}
-		scheduledPods = append(scheduledPods, pod)
-	}
-	scheduledPodNames := make([]string, 0, len(scheduledPods))
-	for _, pod := range scheduledPods {
-		scheduledPodNames = append(scheduledPodNames, pod.Name)
-	}
-	svc1log.FromContext(ctx).Info("Filtered to scheduled application pods", svc1log.SafeParam("scheduledApplicationPods", scheduledPodNames))
-
-	azs := utils.NewStringSet(len(scheduledPods))
-	// Get all node AZs where pods are running
-	for _, pod := range scheduledPods {
-		nodeName := pod.Spec.NodeName
-		node, err := s.nodeLister.Get(nodeName)
-		if err != nil {
-			return "", err
-		}
-		zoneLabel, ok := node.Labels[v1.LabelTopologyZone]
-		if !ok {
-			return "", werror.ErrorWithContextParams(ctx, "Could not read zone label from node, unable to make scheduling decisions based on AZ")
-		}
-		azs.Add(zoneLabel)
+	scheduledPods := filterToRunningPods(ctx, applicationPods)
+	azs, err := filterToAZs(ctx, scheduledPods, s)
+	if err != nil {
+		return "", err
 	}
 	svc1log.FromContext(ctx).Info("Pods are scheduled in zones", svc1log.SafeParam("zones", azs.ToSlice()))
 	if azs.Size() > 1 {
@@ -482,6 +453,56 @@ func (s *SparkSchedulerExtender) getCommonZoneForExecutorsApplication(ctx contex
 		return "", werror.ErrorWithContextParams(ctx, "Application has no scheduled pods, can't make scheduling decisions based on AZ")
 	}
 	return azs.ToSlice()[0], nil
+}
+
+func filterToAZs(ctx context.Context, runningPods []*v1.Pod, s *SparkSchedulerExtender) (utils.StringSet, error) {
+	azs := utils.NewStringSet(len(runningPods))
+	// Get all node AZs where pods are running
+	for _, pod := range runningPods {
+		nodeName := pod.Spec.NodeName
+		node, err := s.nodeLister.Get(nodeName)
+		if err != nil {
+			return nil, err
+		}
+		zoneLabel, ok := node.Labels[v1.LabelTopologyZone]
+		if !ok {
+			return nil, werror.ErrorWithContextParams(ctx, "Could not read zone label from node, unable to make scheduling decisions based on AZ")
+		}
+		azs.Add(zoneLabel)
+	}
+	return azs, nil
+}
+
+func filterToRunningPods(ctx context.Context, applicationPods []*v1.Pod) []*v1.Pod {
+	scheduledPods := make([]*v1.Pod, 0, len(applicationPods))
+	for _, pod := range applicationPods {
+		if pod.Status.Phase == v1.PodRunning {
+			scheduledPods = append(scheduledPods, pod)
+		}
+	}
+	logRunningPods(ctx, scheduledPods)
+	return scheduledPods
+}
+
+func logRunningPods(ctx context.Context, scheduledPods []*v1.Pod) {
+	scheduledPodNames := make([]string, 0, len(scheduledPods))
+	for _, pod := range scheduledPods {
+		scheduledPodNames = append(scheduledPodNames, pod.Name)
+	}
+	svc1log.FromContext(ctx).Info("Filtered to running application pods", svc1log.SafeParam("scheduledApplicationPods", scheduledPodNames))
+}
+
+func (s *SparkSchedulerExtender) getSparkApplicationPodsForExecutor(ctx context.Context, executor *v1.Pod, executorSparkLabel string) ([]*v1.Pod, error) {
+	applicationPods, err := s.podLister.Pods(executor.Namespace).List(labels.Set(map[string]string{common.SparkAppIDLabel: executorSparkLabel}).AsSelector())
+	if err != nil {
+		return nil, err
+	}
+	applicationPodNames := make([]string, 0, len(applicationPods))
+	for _, pod := range applicationPods {
+		applicationPodNames = append(applicationPodNames, pod.Name)
+	}
+	svc1log.FromContext(ctx).Info("Found existing application pods", svc1log.SafeParam("applicationPodNames", applicationPodNames))
+	return applicationPods, nil
 }
 
 func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executor *v1.Pod, nodeNames []string, isExtraExecutor bool) (string, string, error) {
@@ -496,7 +517,8 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	executorResources := &resources.Resources{CPU: sparkResources.executorResources.CPU, Memory: sparkResources.executorResources.Memory, NvidiaGPU: sparkResources.executorResources.NvidiaGPU}
 	availableNodes := s.getNodes(ctx, nodeNames)
 	zone, err := s.getZoneIfShouldScheduleInSingleAz(ctx, executor)
-	if err == nil {
+	shouldScheduleInSingleAz := err == nil
+	if shouldScheduleInSingleAz {
 		svc1log.FromContext(ctx).Info("Only considering nodes from the zone",
 			svc1log.SafeParam("zone", zone))
 		availableNodes, err = filterNodesToZone(ctx, availableNodes, zone)
@@ -509,7 +531,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 		}
 	} else {
 		// It possible (and expected) to get here when the version of scheduler containing dynamic executor pods in the same zone is rolled out as previously scheduled applications may have executors in different AZs
-		svc1log.FromContext(ctx).Info("Single AZ scheduling is enabled but application is not entirely in the same AZ, not attempting to schedule executor in the same AZ")
+		svc1log.FromContext(ctx).Info("Single AZ scheduling is enabled but could not locate a common AZ.", svc1log.SafeParam("error", err))
 	}
 	usages := s.resourceReservationManager.GetReservedResources()
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
@@ -522,12 +544,10 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 			return name, successRescheduled, nil
 		}
 	}
-	zone, err = s.getZoneIfShouldScheduleInSingleAz(ctx, executor)
-	if err == nil {
+	if shouldScheduleInSingleAz {
 		s.createDemandForExecutorInSpecificZone(ctx, executor, executorResources, zone)
 	} else {
 		// It possible (and expected) to get here when the version of scheduler containing dynamic executor pods in the same zone is rolled out as previously scheduled applications may have executors in different AZs
-		svc1log.FromContext(ctx).Info("Single AZ scheduling is enabled but application is not entirely in the same AZ, not attempting to create demand in specific AZ")
 		s.createDemandForExecutorInAnyZone(ctx, executor, executorResources)
 	}
 	return "", failureFit, werror.ErrorWithContextParams(ctx, "not enough capacity to reschedule the executor")
