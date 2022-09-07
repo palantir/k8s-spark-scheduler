@@ -16,6 +16,7 @@ package extender
 
 import (
 	"context"
+	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
@@ -297,7 +298,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		}
 		ok := s.fitEarlierDrivers(ctx, queuedDrivers, driverNodeNames, executorNodeNames, availableNodesSchedulingMetadata)
 		if !ok {
-			s.createDemandForApplication(ctx, driver, applicationResources)
+			s.createDemandForApplicationInAnyZone(ctx, driver, applicationResources)
 			return "", failureEarlierDriver, werror.Error("earlier drivers do not fit to the cluster")
 		}
 	}
@@ -322,7 +323,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		svc1log.SafeParam("executorNodes", executorNodes),
 		svc1log.SafeParam("binpacker", s.binpacker.Name))
 	if !hasCapacity {
-		s.createDemandForApplication(ctx, driver, applicationResources)
+		s.createDemandForApplicationInAnyZone(ctx, driver, applicationResources)
 		return "", failureFit, werror.Error("application does not fit to the cluster")
 	}
 	s.removeDemandIfExists(ctx, driver)
@@ -545,7 +546,8 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 		}
 	}
 	if shouldScheduleInSingleAz {
-		s.createDemandForExecutorInSpecificZone(ctx, executor, executorResources, zone)
+		demandZone := demandapi.Zone(zone)
+		s.createDemandForExecutorInSpecificZone(ctx, executor, executorResources, &demandZone)
 	} else {
 		// It possible (and expected) to get here when the version of scheduler containing dynamic executor pods in the same zone is rolled out as previously scheduled applications may have executors in different AZs
 		s.createDemandForExecutorInAnyZone(ctx, executor, executorResources)

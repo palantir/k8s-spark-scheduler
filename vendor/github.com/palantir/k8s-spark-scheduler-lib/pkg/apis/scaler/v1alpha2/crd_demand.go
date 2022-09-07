@@ -71,6 +71,9 @@ var (
 							"enforce-single-zone-scheduling": {
 								Type: "boolean",
 							},
+							"zone": {
+								Type: "string",
+							},
 							"units": {
 								Type: "array",
 								Items: &v1.JSONSchemaPropsOrArray{
@@ -116,6 +119,11 @@ var (
 			Type:        "boolean",
 			JSONPath:    ".spec.enforce-single-zone-scheduling",
 			Description: "The zone distribution description of the Demand request",
+		}, {
+			Name:        "zone",
+			Type:        "string",
+			JSONPath:    ".spec.zone",
+			Description: "The zone where the demand should be fulfilled if specified",
 		}, {
 			Name:        "fulfilled zone",
 			Type:        "boolean",
