@@ -63,8 +63,6 @@ func (s *SparkSchedulerExtender) createDemandForExecutorInSpecificZone(ctx conte
 	if !s.demands.CRDExists() {
 		return
 	}
-	svc1log.FromContext(ctx).Info("Would create demand in specific zone if CRD was updated, instead creating a demand in any AZ", svc1log.SafeParam("podName", executorPod.Name),
-		svc1log.SafeParam("zone", zone))
 	units := []demandapi.DemandUnit{
 		{
 			Count: 1,

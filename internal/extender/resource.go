@@ -435,7 +435,7 @@ func filterNodesToZone(ctx context.Context, initialNodes []*v1.Node, zone string
 func (s *SparkSchedulerExtender) getCommonZoneForExecutorsApplication(ctx context.Context, executor *v1.Pod) (string, error) {
 	executorSparkLabel, ok := executor.Labels[common.SparkAppIDLabel]
 	if !ok {
-		return "", werror.ErrorWithContextParams(ctx, "executor does not have a spark app id label, could not create label selector")
+		return "", werror.ErrorWithContextParams(ctx, "Executor does not have a Spark app id label, could not create label selector")
 	}
 	applicationPods, err := s.getSparkApplicationPodsForExecutor(ctx, executor, executorSparkLabel)
 	if err != nil {
@@ -517,6 +517,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	}
 	executorResources := &resources.Resources{CPU: sparkResources.executorResources.CPU, Memory: sparkResources.executorResources.Memory, NvidiaGPU: sparkResources.executorResources.NvidiaGPU}
 	availableNodes := s.getNodes(ctx, nodeNames)
+
 	zone, err := s.getZoneIfShouldScheduleInSingleAz(ctx, executor)
 	shouldScheduleInSingleAz := err == nil
 	if shouldScheduleInSingleAz {
