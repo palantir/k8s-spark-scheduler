@@ -71,6 +71,9 @@ func (s *SparkSchedulerExtender) createDemandForExecutorInSpecificZone(ctx conte
 				demandapi.ResourceMemory:    executorResources.Memory,
 				demandapi.ResourceNvidiaGPU: executorResources.NvidiaGPU,
 			},
+			PodNamesByNamespace: map[string][]string{
+				executorPod.GetNamespace(): {executorPod.Name},
+			},
 		},
 	}
 	s.createDemand(ctx, executorPod, units, zone)
