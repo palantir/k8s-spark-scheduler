@@ -23,6 +23,9 @@ import (
 // DemandPhase type declares that the value is a Demands phase
 type DemandPhase string
 
+// Zone type declares an availability zone
+type Zone string
+
 const (
 	// DemandPhaseEmpty is the state of a demand object when it is first created
 	DemandPhaseEmpty DemandPhase = ""
@@ -88,6 +91,9 @@ type DemandSpec struct {
 	// EnforceSingleZoneScheduling indicates this demand must
 	// be satisfied in a single zone.
 	EnforceSingleZoneScheduling bool `json:"enforce-single-zone-scheduling"`
+	// Zone indicates the zone where the Demand should be fulfilled.
+	// If this parameter is not set, the Demand can be fulfilled in any zone.
+	Zone *Zone `json:"zone,omitempty"`
 }
 
 // DemandStatus represents the status a demand object is in
@@ -110,6 +116,10 @@ type ResourceList map[corev1.ResourceName]resource.Quantity
 type DemandUnit struct {
 	Resources ResourceList `json:"resources"`
 	Count     int          `json:"count"`
+	// PodNamesByNamespace contains the name and namespace of the pods that will occupy the space requested by
+	// the demand object.
+	// This field is optional and used for deduplication.
+	PodNamesByNamespace map[string][]string `json:"pod-names-by-namespace,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
