@@ -275,9 +275,9 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 			svc1log.SafeParam("nodeNames", nodeNames))
 		return driverReservedNode, success, nil
 	}
-	availableNodes, err := utils.ListWithPredicate(s.nodeLister, func(node *v1.Node) bool {
-		match, _ := v1affinityhelper.GetRequiredNodeAffinity(driver).Match(node)
-		return match
+	availableNodes, err := utils.ListWithPredicate(s.nodeLister, func(node *v1.Node) (bool, error) {
+		match, error := v1affinityhelper.GetRequiredNodeAffinity(driver).Match(node)
+		return match, error
 	})
 	if err != nil {
 		return "", failureInternal, err

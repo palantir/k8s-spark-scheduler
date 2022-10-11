@@ -121,9 +121,9 @@ func (u *UnschedulablePodMarker) scanForUnschedulablePods(ctx context.Context) {
 
 // DoesPodExceedClusterCapacity checks if the provided driver pod could ever fit to the cluster
 func (u *UnschedulablePodMarker) DoesPodExceedClusterCapacity(ctx context.Context, driver *v1.Pod) (bool, error) {
-	nodes, err := utils.ListWithPredicate(u.nodeLister, func(node *v1.Node) bool {
-		match, _ := v1affinityhelper.GetRequiredNodeAffinity(driver).Match(node)
-		return match
+	nodes, err := utils.ListWithPredicate(u.nodeLister, func(node *v1.Node) (bool, error) {
+		match, err := v1affinityhelper.GetRequiredNodeAffinity(driver).Match(node)
+		return match, err
 	})
 	if err != nil {
 		return false, err
