@@ -28,8 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
+	v1affinityhelper "k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
 )
 
 const (
@@ -122,7 +122,8 @@ func (u *UnschedulablePodMarker) scanForUnschedulablePods(ctx context.Context) {
 // DoesPodExceedClusterCapacity checks if the provided driver pod could ever fit to the cluster
 func (u *UnschedulablePodMarker) DoesPodExceedClusterCapacity(ctx context.Context, driver *v1.Pod) (bool, error) {
 	nodes, err := utils.ListWithPredicate(u.nodeLister, func(node *v1.Node) bool {
-		return helper.PodMatchesNodeSelectorAndAffinityTerms(driver, node)
+		match, _ := v1affinityhelper.GetRequiredNodeAffinity(driver).Match(node)
+		return match
 	})
 	if err != nil {
 		return false, err

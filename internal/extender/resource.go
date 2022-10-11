@@ -33,8 +33,8 @@ import (
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
+	v1affinityhelper "k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
 )
 
 const (
@@ -276,7 +276,8 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		return driverReservedNode, success, nil
 	}
 	availableNodes, err := utils.ListWithPredicate(s.nodeLister, func(node *v1.Node) bool {
-		return helper.PodMatchesNodeSelectorAndAffinityTerms(driver, node)
+		match, _ := v1affinityhelper.GetRequiredNodeAffinity(driver).Match(node)
+		return match
 	})
 	if err != nil {
 		return "", failureInternal, err
