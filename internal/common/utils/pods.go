@@ -104,7 +104,7 @@ func isPodScheduled(pod *v1.Pod) bool {
 
 // NodeConditionPredicate is a function that indicates whether the given node's conditions meet
 // some set of criteria defined by the function.
-type NodeConditionPredicate func(node *v1.Node) bool
+type NodeConditionPredicate func(node *v1.Node) (bool, error)
 
 // ListWithPredicate gets nodes that matches predicate function.
 func ListWithPredicate(nodeLister corelisters.NodeLister, predicate NodeConditionPredicate) ([]*v1.Node, error) {
@@ -115,7 +115,11 @@ func ListWithPredicate(nodeLister corelisters.NodeLister, predicate NodeConditio
 
 	var filtered []*v1.Node
 	for i := range nodes {
-		if predicate(nodes[i]) {
+		matches, err := predicate(nodes[i])
+		if err != nil {
+			return nil, err
+		}
+		if matches {
 			filtered = append(filtered, nodes[i])
 		}
 	}
