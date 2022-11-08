@@ -101,7 +101,7 @@ func (c *FakeDemands) UpdateStatus(ctx context.Context, demand *v1alpha1.Demand,
 // Delete takes name of the demand and deletes it. Returns an error if one occurs.
 func (c *FakeDemands) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(demandsResource, c.ns, name), &v1alpha1.Demand{})
+		Invokes(testing.NewDeleteActionWithOptions(demandsResource, c.ns, name, opts), &v1alpha1.Demand{})
 
 	return err
 }
