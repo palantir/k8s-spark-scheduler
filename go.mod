@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/palantir/go-metrics v1.1.1
-	github.com/palantir/k8s-spark-scheduler-lib v0.10.0-rc2
+	github.com/palantir/k8s-spark-scheduler-lib v0.10.0-rc3
 	github.com/palantir/pkg/cobracli v1.0.1
 	github.com/palantir/pkg/metrics v1.2.0
 	github.com/palantir/pkg/retry v1.1.1
@@ -14,6 +14,8 @@ require (
 	github.com/palantir/witchcraft-go-server v1.30.0
 	github.com/spf13/cobra v1.2.1
 	go.uber.org/atomic v1.7.0
+	// Pin for CVE-2022-27664
+	golang.org/x/net v0.0.0-20220906165146-f3363e06e74c // indirect
 	k8s.io/api v0.23.11
 	k8s.io/apiextensions-apiserver v0.23.11
 	k8s.io/apimachinery v0.23.11
@@ -58,10 +60,9 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect
-	golang.org/x/net v0.0.0-20211209124913-491a49abca63 // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f // indirect
 	golang.org/x/sys v0.0.0-20220823224334-20c2bfdbfe24 // indirect
-	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b // indirect
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	google.golang.org/appengine v1.6.7 // indirect
