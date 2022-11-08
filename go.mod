@@ -1,6 +1,6 @@
 module github.com/palantir/k8s-spark-scheduler
 
-go 1.18
+go 1.19
 
 require (
 	github.com/palantir/go-metrics v1.1.1
