@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/palantir/go-metrics v1.1.1
-	github.com/palantir/k8s-spark-scheduler-lib v0.10.0
+	github.com/palantir/k8s-spark-scheduler-lib v0.11.0
 	github.com/palantir/pkg/cobracli v1.0.1
 	github.com/palantir/pkg/metrics v1.2.0
 	github.com/palantir/pkg/retry v1.1.1
@@ -91,7 +91,6 @@ require (
 )
 
 replace (
-	github.com/palantir/k8s-spark-scheduler-lib => /Volumes/git/programming/go/src/github.com/palantir/k8s-spark-scheduler-lib
 	// k8s.io/apiserver has transitive dependency on "naming" package of google.golang.org/grpc module, which isn't
 	// available in newer versions of grpc.
 	google.golang.org/grpc => google.golang.org/grpc v1.26.0
