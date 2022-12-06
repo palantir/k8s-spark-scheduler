@@ -105,7 +105,7 @@ github.com/palantir/go-encrypted-config-value/encryption
 # github.com/palantir/go-metrics v1.1.1
 ## explicit; go 1.13
 github.com/palantir/go-metrics
-# github.com/palantir/k8s-spark-scheduler-lib v0.10.0 => /Volumes/git/programming/go/src/github.com/palantir/k8s-spark-scheduler-lib
+# github.com/palantir/k8s-spark-scheduler-lib v0.11.0
 ## explicit; go 1.19
 github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha1
 github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2
@@ -769,7 +769,6 @@ sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.3.0
 ## explicit; go 1.12
 sigs.k8s.io/yaml
-# github.com/palantir/k8s-spark-scheduler-lib => /Volumes/git/programming/go/src/github.com/palantir/k8s-spark-scheduler-lib
 # google.golang.org/grpc => google.golang.org/grpc v1.26.0
 # k8s.io/api => k8s.io/api v0.24.7
 # k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.24.7
