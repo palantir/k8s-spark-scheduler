@@ -33,9 +33,8 @@ import (
 )
 
 const (
-	podExceedsClusterCapacity       v1.PodConditionType = "PodExceedsClusterCapacity"
-	unschedulablePollingInterval    time.Duration       = time.Minute
-	unschedulableInClusterThreshold time.Duration       = 10 * time.Minute
+	podExceedsClusterCapacity    v1.PodConditionType = "PodExceedsClusterCapacity"
+	unschedulablePollingInterval time.Duration       = time.Minute
 )
 
 // UnschedulablePodMarker checks for spark scheduler managed pending driver pods
@@ -47,6 +46,7 @@ type UnschedulablePodMarker struct {
 	coreClient       corev1.CoreV1Interface
 	overheadComputer *OverheadComputer
 	binpacker        *Binpacker
+	timeoutDuration  time.Duration
 }
 
 // NewUnschedulablePodMarker creates a new UnschedulablePodMarker
@@ -55,13 +55,20 @@ func NewUnschedulablePodMarker(
 	podLister corelisters.PodLister,
 	coreClient corev1.CoreV1Interface,
 	overheadComputer *OverheadComputer,
-	binpacker *Binpacker) *UnschedulablePodMarker {
+	binpacker *Binpacker,
+	timeoutDuration time.Duration) *UnschedulablePodMarker {
+
+	if timeoutDuration == 0 {
+		timeoutDuration = 10 * time.Minute
+	}
+
 	return &UnschedulablePodMarker{
 		nodeLister:       nodeLister,
 		podLister:        podLister,
 		coreClient:       coreClient,
 		overheadComputer: overheadComputer,
 		binpacker:        binpacker,
+		timeoutDuration:  timeoutDuration,
 	}
 }
 
@@ -94,7 +101,7 @@ func (u *UnschedulablePodMarker) scanForUnschedulablePods(ctx context.Context) {
 			len(pod.Spec.NodeName) == 0 &&
 			pod.DeletionTimestamp == nil &&
 			pod.Labels[common.SparkRoleLabel] == common.Driver &&
-			pod.CreationTimestamp.Time.Add(unschedulableInClusterThreshold).Before(now) {
+			pod.CreationTimestamp.Time.Add(u.timeoutDuration).Before(now) {
 
 			ctx = svc1log.WithLoggerParams(
 				ctx,

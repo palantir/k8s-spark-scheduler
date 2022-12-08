@@ -232,6 +232,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		kubeClient.CoreV1(),
 		overheadComputer,
 		binpacker,
+		install.UnschedulablePodTimeoutDuration,
 	)
 
 	resourceReservationCache.Run(ctx)
