@@ -68,7 +68,7 @@ func NewUnschedulablePodMarker(
 		coreClient:       coreClient,
 		overheadComputer: overheadComputer,
 		binpacker:        binpacker,
-		timeoutDuration:  10 * time.Minute,
+		timeoutDuration:  timeoutDuration,
 	}
 }
 
