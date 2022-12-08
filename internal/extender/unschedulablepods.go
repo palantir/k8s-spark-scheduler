@@ -106,7 +106,8 @@ func (u *UnschedulablePodMarker) scanForUnschedulablePods(ctx context.Context) {
 			ctx = svc1log.WithLoggerParams(
 				ctx,
 				svc1log.SafeParam("podName", pod.Name),
-				svc1log.SafeParam("podNamespace", pod.Namespace))
+				svc1log.SafeParam("podNamespace", pod.Namespace),
+				svc1log.SafeParam("timeoutDuration", u.timeoutDuration))
 
 			exceedsCapacity, err := u.DoesPodExceedClusterCapacity(ctx, pod)
 			if err != nil {
