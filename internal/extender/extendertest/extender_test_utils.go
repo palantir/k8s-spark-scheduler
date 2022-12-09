@@ -156,7 +156,8 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		podLister,
 		fakeKubeClient.CoreV1(),
 		overheadComputer,
-		binpacker)
+		binpacker,
+		installConfig.UnschedulablePodTimeoutDuration)
 
 	return &Harness{
 		Extender:                 sparkSchedulerExtender,
