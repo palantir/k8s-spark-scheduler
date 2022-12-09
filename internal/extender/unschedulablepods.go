@@ -58,7 +58,7 @@ func NewUnschedulablePodMarker(
 	binpacker *Binpacker,
 	timeoutDuration time.Duration) *UnschedulablePodMarker {
 
-	if timeoutDuration == 0 {
+	if timeoutDuration <= 0 {
 		timeoutDuration = 10 * time.Minute
 	}
 
