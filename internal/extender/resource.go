@@ -126,8 +126,10 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 	if !success {
 		instanceGroup = ""
 	}
+	sparkAppID := args.Pod.Labels[common.SparkAppIDLabel]
 	params["podSparkRole"] = role
 	params["instanceGroup"] = instanceGroup
+	params["sparkAppID"] = sparkAppID
 
 	timer := metrics.NewScheduleTimer(ctx, instanceGroup, args.Pod)
 	logger.Info("starting scheduling pod")
