@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/palantir/go-metrics v1.1.1
-	github.com/palantir/k8s-spark-scheduler-lib v0.11.0
+	github.com/palantir/k8s-spark-scheduler-lib v0.12.0-rc1
 	github.com/palantir/pkg/cobracli v1.0.1
 	github.com/palantir/pkg/metrics v1.2.0
 	github.com/palantir/pkg/retry v1.1.1

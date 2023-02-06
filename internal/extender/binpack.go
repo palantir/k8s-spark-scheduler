@@ -26,6 +26,10 @@ const (
 	// Note that single-az-tightly-pack does not guarantee that ALL pods will be scheduled in the same AZ, please see
 	// the SingleAzTightlyPack docs for more information
 	singleAZTightlyPack string = "single-az-tightly-pack"
+
+	packFewestBins string = "pack-fewest-bins"
+	// Same caveat as for singleAZTightlyPack applies
+	singleAZPackFewestBins string = "single-az-pack-fewest-bins"
 )
 
 // Binpacker is a BinpackFunc with a known name
@@ -35,10 +39,12 @@ type Binpacker struct {
 }
 
 var binpackFunctions = map[string]*Binpacker{
-	tightlyPack:         {tightlyPack, binpack.TightlyPack},
-	distributeEvenly:    {distributeEvenly, binpack.DistributeEvenly},
-	azAwareTightlyPack:  {azAwareTightlyPack, binpack.AzAwareTightlyPack},
-	singleAZTightlyPack: {singleAZTightlyPack, binpack.SingleAZTightlyPack},
+	tightlyPack:            {tightlyPack, binpack.TightlyPack},
+	distributeEvenly:       {distributeEvenly, binpack.DistributeEvenly},
+	azAwareTightlyPack:     {azAwareTightlyPack, binpack.AzAwareTightlyPack},
+	singleAZTightlyPack:    {singleAZTightlyPack, binpack.SingleAZTightlyPack},
+	packFewestBins:         {singleAZTightlyPack, binpack.PackFewestBins},
+	singleAZPackFewestBins: {singleAZPackFewestBins, binpack.SingleAzPackFewestBins},
 }
 
 // SelectBinpacker selects the binpack function from the given name
