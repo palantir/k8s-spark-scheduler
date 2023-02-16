@@ -238,3 +238,119 @@ func TestLabelPrioritySorting(t *testing.T) {
 	}
 
 }
+
+func TestNodeSorter_PotentialNodes(t *testing.T) {
+	tests := []struct {
+		name                             string
+		availableNodesSchedulingMetadata resources.NodeGroupSchedulingMetadata
+		nodeNames                        []string
+		wantDriverNodes                  []string
+		wantExecutorNodes                []string
+	}{
+		{
+			name: "When we have all nodes in the same AZ, we order by the least available resources",
+			availableNodesSchedulingMetadata: resources.NodeGroupSchedulingMetadata{
+				"node1": {
+					AvailableResources: &resources.Resources{
+						CPU:    *resource.NewScaledQuantity(500, resource.Milli),
+						Memory: *resource.NewScaledQuantity(1000, resource.Milli),
+					},
+					CreationTimestamp: time.Time{},
+					ZoneLabel:         "az1",
+					AllLabels:         nil,
+					Unschedulable:     false,
+					Ready:             true,
+				},
+				"node2": {
+					AvailableResources: &resources.Resources{
+						CPU:    *resource.NewScaledQuantity(500, resource.Milli),
+						Memory: *resource.NewScaledQuantity(100, resource.Milli),
+					},
+					CreationTimestamp: time.Time{},
+					ZoneLabel:         "az1",
+					AllLabels:         nil,
+					Unschedulable:     false,
+					Ready:             true,
+				},
+				"node3": {
+					AvailableResources: &resources.Resources{
+						CPU:    *resource.NewScaledQuantity(500, resource.Milli),
+						Memory: *resource.NewScaledQuantity(10, resource.Milli),
+					},
+					CreationTimestamp: time.Time{},
+					ZoneLabel:         "az1",
+					AllLabels:         nil,
+					Unschedulable:     false,
+					Ready:             true,
+				},
+			},
+			nodeNames:         []string{"node2", "node1", "node3"},
+			wantDriverNodes:   []string{"node3", "node2", "node1"},
+			wantExecutorNodes: []string{"node3", "node2", "node1"},
+		},
+		{
+			name: "When we have 2 AZs and one has more spare resources than the other, we still pick the nodes with most utilization",
+			availableNodesSchedulingMetadata: resources.NodeGroupSchedulingMetadata{
+				"node1": {
+					AvailableResources: &resources.Resources{
+						CPU:    *resource.NewScaledQuantity(500, resource.Milli),
+						Memory: *resource.NewScaledQuantity(1000, resource.Milli),
+					},
+					CreationTimestamp: time.Time{},
+					ZoneLabel:         "az1",
+					AllLabels:         nil,
+					Unschedulable:     false,
+					Ready:             true,
+				},
+				"node2": {
+					AvailableResources: &resources.Resources{
+						CPU:    *resource.NewScaledQuantity(500, resource.Milli),
+						Memory: *resource.NewScaledQuantity(100, resource.Milli),
+					},
+					CreationTimestamp: time.Time{},
+					ZoneLabel:         "az1",
+					AllLabels:         nil,
+					Unschedulable:     false,
+					Ready:             true,
+				},
+				"node3": {
+					AvailableResources: &resources.Resources{
+						CPU:    *resource.NewScaledQuantity(500, resource.Milli),
+						Memory: *resource.NewScaledQuantity(10, resource.Milli),
+					},
+					CreationTimestamp: time.Time{},
+					ZoneLabel:         "az2",
+					AllLabels:         nil,
+					Unschedulable:     false,
+					Ready:             true,
+				},
+				"node4": {
+					AvailableResources: &resources.Resources{
+						CPU:    *resource.NewScaledQuantity(500, resource.Milli),
+						Memory: *resource.NewScaledQuantity(10000, resource.Milli),
+					},
+					CreationTimestamp: time.Time{},
+					ZoneLabel:         "az2",
+					AllLabels:         nil,
+					Unschedulable:     false,
+					Ready:             true,
+				},
+			},
+			nodeNames:         []string{"node2", "node1", "node3", "node4"},
+			wantDriverNodes:   []string{"node3", "node2", "node1", "node4"},
+			wantExecutorNodes: []string{"node3", "node2", "node1", "node4"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			n := NewNodeSorter(nil, nil)
+			gotDriverNodes, gotExecutorNodes := n.PotentialNodes(tt.availableNodesSchedulingMetadata, tt.nodeNames)
+			if !reflect.DeepEqual(gotDriverNodes, tt.wantDriverNodes) {
+				t.Errorf("PotentialNodes() gotDriverNodes = %v, want %v", gotDriverNodes, tt.wantDriverNodes)
+			}
+			if !reflect.DeepEqual(gotExecutorNodes, tt.wantExecutorNodes) {
+				t.Errorf("PotentialNodes() gotExecutorNodes = %v, want %v", gotExecutorNodes, tt.wantExecutorNodes)
+			}
+		})
+	}
+}
