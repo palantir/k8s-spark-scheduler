@@ -3,6 +3,7 @@ server:
   management-port: 8484
   context-path: /spark-scheduler
 fifo: true
+unschedulable-pod-timeout-duration: 10m
 logging:
   level: info
   output: STDOUT

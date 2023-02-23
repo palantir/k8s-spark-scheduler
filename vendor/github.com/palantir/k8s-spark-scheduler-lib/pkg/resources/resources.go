@@ -167,7 +167,7 @@ func Zero() *Resources {
 	}
 }
 
-//AddFromReservation modifies the receiver in place.
+// AddFromReservation modifies the receiver in place.
 func (r *Resources) AddFromReservation(reservation *v1beta2.Reservation) {
 	r.CPU.Add(*reservation.Resources.CPU())
 	r.Memory.Add(*reservation.Resources.Memory())
@@ -183,14 +183,14 @@ func (r *Resources) Copy() *Resources {
 	}
 }
 
-//Add modifies the receiver in place.
+// Add modifies the receiver in place.
 func (r *Resources) Add(other *Resources) {
 	r.CPU.Add(other.CPU)
 	r.Memory.Add(other.Memory)
 	r.NvidiaGPU.Add(other.NvidiaGPU)
 }
 
-//Sub modifies the receiver in place
+// Sub modifies the receiver in place
 func (r *Resources) Sub(other *Resources) {
 	r.CPU.Sub(other.CPU)
 	r.Memory.Sub(other.Memory)

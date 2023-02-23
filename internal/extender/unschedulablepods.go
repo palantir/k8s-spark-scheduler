@@ -28,14 +28,13 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
+	v1affinityhelper "k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
 )
 
 const (
-	podExceedsClusterCapacity       v1.PodConditionType = "PodExceedsClusterCapacity"
-	unschedulablePollingInterval    time.Duration       = time.Minute
-	unschedulableInClusterThreshold time.Duration       = 10 * time.Minute
+	podExceedsClusterCapacity    v1.PodConditionType = "PodExceedsClusterCapacity"
+	unschedulablePollingInterval time.Duration       = time.Minute
 )
 
 // UnschedulablePodMarker checks for spark scheduler managed pending driver pods
@@ -47,6 +46,7 @@ type UnschedulablePodMarker struct {
 	coreClient       corev1.CoreV1Interface
 	overheadComputer *OverheadComputer
 	binpacker        *Binpacker
+	timeoutDuration  time.Duration
 }
 
 // NewUnschedulablePodMarker creates a new UnschedulablePodMarker
@@ -55,13 +55,20 @@ func NewUnschedulablePodMarker(
 	podLister corelisters.PodLister,
 	coreClient corev1.CoreV1Interface,
 	overheadComputer *OverheadComputer,
-	binpacker *Binpacker) *UnschedulablePodMarker {
+	binpacker *Binpacker,
+	timeoutDuration time.Duration) *UnschedulablePodMarker {
+
+	if timeoutDuration <= 0 {
+		timeoutDuration = 10 * time.Minute
+	}
+
 	return &UnschedulablePodMarker{
 		nodeLister:       nodeLister,
 		podLister:        podLister,
 		coreClient:       coreClient,
 		overheadComputer: overheadComputer,
 		binpacker:        binpacker,
+		timeoutDuration:  timeoutDuration,
 	}
 }
 
@@ -94,12 +101,13 @@ func (u *UnschedulablePodMarker) scanForUnschedulablePods(ctx context.Context) {
 			len(pod.Spec.NodeName) == 0 &&
 			pod.DeletionTimestamp == nil &&
 			pod.Labels[common.SparkRoleLabel] == common.Driver &&
-			pod.CreationTimestamp.Time.Add(unschedulableInClusterThreshold).Before(now) {
+			pod.CreationTimestamp.Time.Add(u.timeoutDuration).Before(now) {
 
 			ctx = svc1log.WithLoggerParams(
 				ctx,
 				svc1log.SafeParam("podName", pod.Name),
-				svc1log.SafeParam("podNamespace", pod.Namespace))
+				svc1log.SafeParam("podNamespace", pod.Namespace),
+				svc1log.SafeParam("timeUntilTimeout", pod.CreationTimestamp.Time.Add(u.timeoutDuration).Sub(now)))
 
 			exceedsCapacity, err := u.DoesPodExceedClusterCapacity(ctx, pod)
 			if err != nil {
@@ -121,8 +129,9 @@ func (u *UnschedulablePodMarker) scanForUnschedulablePods(ctx context.Context) {
 
 // DoesPodExceedClusterCapacity checks if the provided driver pod could ever fit to the cluster
 func (u *UnschedulablePodMarker) DoesPodExceedClusterCapacity(ctx context.Context, driver *v1.Pod) (bool, error) {
-	nodes, err := utils.ListWithPredicate(u.nodeLister, func(node *v1.Node) bool {
-		return helper.PodMatchesNodeSelectorAndAffinityTerms(driver, node)
+	nodes, err := utils.ListWithPredicate(u.nodeLister, func(node *v1.Node) (bool, error) {
+		match, err := v1affinityhelper.GetRequiredNodeAffinity(driver).Match(node)
+		return match, err
 	})
 	if err != nil {
 		return false, err

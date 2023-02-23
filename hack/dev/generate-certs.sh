@@ -10,7 +10,7 @@ mkdir -p $TMP_DIR
 openssl genrsa -out "${TMP_DIR}/rootCA.key" 2048
 
 # Generate the root ca cert from the key
-openssl req -batch -x509 -sha256 -new -nodes -key ${TMP_DIR}/rootCA.key -days 3650 -out ${TMP_DIR}/rootCA.crt
+openssl req -batch -x509 -sha256 -new -nodes -key ${TMP_DIR}/rootCA.key -days 3650 -out ${TMP_DIR}/rootCA.crt -config ${SCRIPT_DIR}/cert.conf
 
 # Generate the signing request for the witchcraft ssl cert as well as the private key
 openssl req -new -nodes -newkey rsa:2048 -keyout ${TMP_DIR}/spark-scheduler.key -out ${TMP_DIR}/spark-scheduler.csr -config ${SCRIPT_DIR}/cert.conf -extensions 'v3_req'

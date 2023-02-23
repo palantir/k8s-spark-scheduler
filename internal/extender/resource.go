@@ -35,8 +35,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
+	v1affinityhelper "k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
 )
 
 const (
@@ -127,8 +127,10 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 	if !success {
 		instanceGroup = ""
 	}
+	sparkAppID := args.Pod.Labels[common.SparkAppIDLabel]
 	params["podSparkRole"] = role
 	params["instanceGroup"] = instanceGroup
+	params["sparkAppID"] = sparkAppID
 
 	timer := metrics.NewScheduleTimer(ctx, instanceGroup, args.Pod)
 	logger.Info("starting scheduling pod")
@@ -276,8 +278,9 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 			svc1log.SafeParam("nodeNames", nodeNames))
 		return driverReservedNode, success, nil
 	}
-	availableNodes, err := utils.ListWithPredicate(s.nodeLister, func(node *v1.Node) bool {
-		return helper.PodMatchesNodeSelectorAndAffinityTerms(driver, node)
+	availableNodes, err := utils.ListWithPredicate(s.nodeLister, func(node *v1.Node) (bool, error) {
+		match, error := v1affinityhelper.GetRequiredNodeAffinity(driver).Match(node)
+		return match, error
 	})
 	if err != nil {
 		return "", failureInternal, err

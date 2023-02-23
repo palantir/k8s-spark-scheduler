@@ -101,7 +101,7 @@ func (c *FakeResourceReservations) UpdateStatus(ctx context.Context, resourceRes
 // Delete takes name of the resourceReservation and deletes it. Returns an error if one occurs.
 func (c *FakeResourceReservations) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(resourcereservationsResource, c.ns, name), &v1beta1.ResourceReservation{})
+		Invokes(testing.NewDeleteActionWithOptions(resourcereservationsResource, c.ns, name, opts), &v1beta1.ResourceReservation{})
 
 	return err
 }
