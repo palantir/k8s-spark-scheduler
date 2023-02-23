@@ -34,18 +34,42 @@ var SingleAZTightlyPack = SparkBinPackFunction(func(
 	driverNodePriorityOrderByZone := groupNodesByZone(driverNodePriorityOrder, nodesSchedulingMetadata)
 	executorNodePriorityOrderByZone := groupNodesByZone(executorNodePriorityOrder, nodesSchedulingMetadata)
 
+	postBinpackNodeSpaceByAz := make(map[string]*resources.Resources)
 	for zone, driverNodePriorityOrderForZone := range driverNodePriorityOrderByZone {
 		executorNodePriorityOrderForZone, ok := executorNodePriorityOrderByZone[zone]
 		if !ok {
 			continue
 		}
 		driverNode, executorNodes, hasCapacity := SparkBinPack(ctx, driverResources, executorResources, executorCount, driverNodePriorityOrderForZone, executorNodePriorityOrderForZone, nodesSchedulingMetadata, tightlyPackExecutors)
-		if hasCapacity {
-			return driverNode, executorNodes, hasCapacity
+		if !hasCapacity {
+			continue
 		}
+
+		postBinpackNodeSpaceByAz[zone] = nodeSpacePostBinPack(nodesSchedulingMetadata, driverNode, driverResources, executorNodes, executorResources, executorCount)
+
+
 	}
+
+	return driverNode, executorNodes, hasCapacity
+
 	return "", nil, false
 })
+
+func nodeSpacePostBinPack(nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata,
+	driverNode string, driverResources *resources.Resources,
+	executorNodes []string, executorResources *resources.Resources, executorCount int) *resources.Resources {
+	remainingDriverResources := nodesSchedulingMetadata[driverNode].AvailableResources.Copy()
+	remainingDriverResources.Sub(driverResources)
+	remainingExecutorResources := resources.Zero()
+	for _, execNode := range executorNodes {
+		remainingExecutorResources.Add(nodesSchedulingMetadata[execNode].AvailableResources)
+	}
+	for i := 0; i < executorCount; i++ {
+		remainingExecutorResources.Sub(executorResources)
+	}
+	remainingDriverResources.Add(remainingExecutorResources)
+	return remainingExecutorResources
+}
 
 func groupNodesByZone(nodeNames []string, nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) map[string][]string {
 	nodeNamesByZone := make(map[string][]string)
