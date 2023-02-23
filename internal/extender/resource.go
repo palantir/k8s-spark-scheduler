@@ -437,8 +437,9 @@ func filterNodesToZone(ctx context.Context, initialNodes []*v1.Node, zone string
 
 // Return tuple contains the following elements:
 // ( String of the AZ in which the application is running if the application is running in a single AZ,
-//   Bool: True if the application is running in a single AZ, false otherwise
-//   Error: Non nil if we were unable to determine if the application was running in a single AZ )
+//
+//	Bool: True if the application is running in a single AZ, false otherwise
+//	Error: Non nil if we were unable to determine if the application was running in a single AZ )
 func (s *SparkSchedulerExtender) getCommonZoneForExecutorsApplication(ctx context.Context, executor *v1.Pod) (string, bool, error) {
 	executorSparkLabel, ok := executor.Labels[common.SparkAppIDLabel]
 	if !ok {
