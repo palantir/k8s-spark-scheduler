@@ -97,7 +97,7 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 			executor(1): "node1",
 		},
 	}, {
-		name:           "soft reservation are created on full nodes first",
+		name:           "soft reservations are created on full nodes first",
 		podsToSchedule: extendertest.DynamicAllocationSparkPods("dynamic-allocation-app", 1, 2),
 		scenario: func(harness *extendertest.Harness, podsToSchedule []v1.Pod, nodeNames []string) {
 			harness.Schedule(t, podsToSchedule[0], nodeNames[1:])
