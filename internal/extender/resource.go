@@ -70,12 +70,13 @@ type SparkSchedulerExtender struct {
 	demands             *cache.SafeDemandCache
 	apiExtensionsClient apiextensionsclientset.Interface
 
-	isFIFO             bool
-	fifoConfig         config.FifoConfig
-	binpacker          *Binpacker
-	overheadComputer   *OverheadComputer
-	lastRequest        time.Time
-	instanceGroupLabel string
+	isFIFO                                              bool
+	fifoConfig                                          config.FifoConfig
+	binpacker                                           *Binpacker
+	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ bool
+	overheadComputer                                    *OverheadComputer
+	lastRequest                                         time.Time
+	instanceGroupLabel                                  string
 
 	wasteMetricsReporter *metrics.WasteMetricsReporter
 }
@@ -93,6 +94,7 @@ func NewExtender(
 	isFIFO bool,
 	fifoConfig config.FifoConfig,
 	binpacker *Binpacker,
+	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ bool,
 	overheadComputer *OverheadComputer,
 	instanceGroupLabel string,
 	nodeSorter *sort.NodeSorter,
@@ -109,10 +111,11 @@ func NewExtender(
 		isFIFO:                     isFIFO,
 		fifoConfig:                 fifoConfig,
 		binpacker:                  binpacker,
-		overheadComputer:           overheadComputer,
-		instanceGroupLabel:         instanceGroupLabel,
-		nodeSorter:                 nodeSorter,
-		wasteMetricsReporter:       wasteMetricsReporter,
+		shouldScheduleDynamicallyAllocatedExecutorsInSameAZ: shouldScheduleDynamicallyAllocatedExecutorsInSameAZ,
+		overheadComputer:     overheadComputer,
+		instanceGroupLabel:   instanceGroupLabel,
+		nodeSorter:           nodeSorter,
+		wasteMetricsReporter: wasteMetricsReporter,
 	}
 }
 
@@ -528,8 +531,8 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 
 	shouldScheduleIntoSingleAZ := false
 	singleAzZone := ""
-	if doesBinpackingScheduleInSingleAz(s.binpacker) {
-		svc1log.FromContext(ctx).Info("Single AZ scheduling enabled, attempting to get zone to schedule into.")
+	if doesBinpackingScheduleInSingleAz(s.binpacker) && s.shouldScheduleDynamicallyAllocatedExecutorsInSameAZ {
+		svc1log.FromContext(ctx).Info("Dynamic Allocation single AZ scheduling enabled, attempting to get zone to schedule into.")
 		zone, allPodsInSameAz, err := s.getCommonZoneForExecutorsApplication(ctx, executor)
 		if err != nil {
 			return "", "", err

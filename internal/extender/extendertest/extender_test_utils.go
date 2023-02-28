@@ -130,6 +130,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 	isFIFO := true
 	fifoConfig := config.FifoConfig{}
 	binpacker := extender.SelectBinpacker("tightly-pack")
+	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ := false
 
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
 
@@ -145,6 +146,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		isFIFO,
 		fifoConfig,
 		binpacker,
+		shouldScheduleDynamicallyAllocatedExecutorsInSameAZ,
 		overheadComputer,
 		instanceGroupLabel,
 		sort.NewNodeSorter(nil, nil),

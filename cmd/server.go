@@ -199,6 +199,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		install.FIFO,
 		install.FifoConfig,
 		binpacker,
+		install.ShouldScheduleDynamicallyAllocatedExecutorsInSameAZ,
 		overheadComputer,
 		instanceGroupLabel,
 		sort.NewNodeSorter(
