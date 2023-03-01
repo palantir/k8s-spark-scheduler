@@ -510,12 +510,16 @@ func (s *SparkSchedulerExtender) getSparkApplicationPodsForExecutor(ctx context.
 	if err != nil {
 		return nil, err
 	}
+	logApplicationPods(ctx, applicationPods)
+	return applicationPods, nil
+}
+
+func logApplicationPods(ctx context.Context, applicationPods []*v1.Pod) {
 	applicationPodNames := make([]string, 0, len(applicationPods))
 	for _, pod := range applicationPods {
 		applicationPodNames = append(applicationPodNames, pod.Name)
 	}
 	svc1log.FromContext(ctx).Info("Found existing application pods", svc1log.SafeParam("applicationPodNames", applicationPodNames))
-	return applicationPods, nil
 }
 
 func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executor *v1.Pod, nodeNames []string, isExtraExecutor bool) (string, string, error) {
