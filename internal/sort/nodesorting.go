@@ -78,17 +78,20 @@ func resourcesLessThan(left *resources.Resources, right *resources.Resources) bo
 	return left.CPU.Cmp(right.CPU) == -1
 }
 
-// Sort first by AZ priority and then by resources on the node
-func scheduleContextLessThan(sc map[string]scheduleContext, left, right string) bool {
-	if sc[left].azPriority != sc[right].azPriority {
-		return sc[left].azPriority < sc[right].azPriority
+// Sort first by AZ priority, then by resources on the node, then by node name
+func scheduleContextLessThan(scheduleContexts map[string]scheduleContext, left, right string) bool {
+	leftSc := scheduleContexts[left]
+	rightSc := scheduleContexts[right]
+
+	if leftSc.azPriority != rightSc.azPriority {
+		return leftSc.azPriority < rightSc.azPriority
 	}
 
-	if sc[left].nodeResources.Eq(sc[right].nodeResources) {
-		return left < right
+	if !leftSc.nodeResources.Eq(rightSc.nodeResources) {
+		return resourcesLessThan(leftSc.nodeResources, rightSc.nodeResources)
 	}
 
-	return resourcesLessThan(sc[left].nodeResources, sc[right].nodeResources)
+	return left < right
 }
 
 func getNodeNamesInPriorityOrder(nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) []string {
