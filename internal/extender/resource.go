@@ -542,6 +542,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 			svc1log.FromContext(ctx).Info("Only considering nodes from the zone",
 				svc1log.SafeParam("zone", zone))
 
+			// It's gauranteed that there is a zone here
 			availableNodes, err = filterNodesToZone(ctx, availableNodes, zone)
 			if err != nil {
 				return "", failureInternal, err
