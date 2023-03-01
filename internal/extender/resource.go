@@ -432,7 +432,10 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	usages := s.resourceReservationManager.GetReservedResources()
 	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
 	availableResources := resources.AvailableForNodes(availableNodes, usages)
-	for _, name := range nodeNames {
+	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usages)
+	_, executorNodeNames := s.nodeSorter.PotentialNodes(availableNodesSchedulingMetadata, nodeNames)
+
+	for _, name := range executorNodeNames {
 		if !executorResources.GreaterThan(availableResources[name]) {
 			if isExtraExecutor {
 				return name, successScheduledExtraExecutor, nil

@@ -70,11 +70,11 @@ func TestScheduler(t *testing.T) {
 
 func TestDynamicAllocationScheduling(t *testing.T) {
 	tests := []struct {
-		name                     string
-		podsToSchedule           []v1.Pod
-		scenario                 func(harness *extendertest.Harness, podsToSchedule []v1.Pod, nodeNames []string)
-		expectedReservations     []string
-		expectedSoftReservations []string
+		name                                 string
+		podsToSchedule                       []v1.Pod
+		scenario                             func(harness *extendertest.Harness, podsToSchedule []v1.Pod, nodeNames []string)
+		expectedReservations                 []string
+		expectedPodToNodeSoftReservationsMap map[string]string
 	}{{
 		name:           "creates a reservation when under min executor count",
 		podsToSchedule: extendertest.DynamicAllocationSparkPods("dynamic-allocation-app", 1, 3),
@@ -82,8 +82,8 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 			harness.Schedule(t, podsToSchedule[0], nodeNames)
 			harness.Schedule(t, podsToSchedule[1], nodeNames)
 		},
-		expectedReservations:     []string{executor(0)},
-		expectedSoftReservations: []string{},
+		expectedReservations:                 []string{executor(0)},
+		expectedPodToNodeSoftReservationsMap: map[string]string{},
 	}, {
 		name:           "creates a soft reservation for an executor over min executor count",
 		podsToSchedule: extendertest.DynamicAllocationSparkPods("dynamic-allocation-app", 1, 3),
@@ -92,8 +92,22 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 			harness.Schedule(t, podsToSchedule[1], nodeNames)
 			harness.Schedule(t, podsToSchedule[2], nodeNames)
 		},
-		expectedReservations:     []string{executor(0)},
-		expectedSoftReservations: []string{executor(1)},
+		expectedReservations: []string{executor(0)},
+		expectedPodToNodeSoftReservationsMap: map[string]string{
+			executor(1): "node1",
+		},
+	}, {
+		name:           "soft reservations are created on full nodes first",
+		podsToSchedule: extendertest.DynamicAllocationSparkPods("dynamic-allocation-app", 1, 2),
+		scenario: func(harness *extendertest.Harness, podsToSchedule []v1.Pod, nodeNames []string) {
+			harness.Schedule(t, podsToSchedule[0], nodeNames[1:])
+			harness.Schedule(t, podsToSchedule[1], nodeNames[1:])
+			harness.Schedule(t, podsToSchedule[2], nodeNames)
+		},
+		expectedReservations: []string{executor(0)},
+		expectedPodToNodeSoftReservationsMap: map[string]string{
+			executor(1): "node2",
+		},
 	}, {
 		name:           "does not create any reservation for an executor over the max",
 		podsToSchedule: extendertest.DynamicAllocationSparkPods("dynamic-allocation-app", 1, 3),
@@ -103,8 +117,11 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 			}
 			harness.Schedule(t, podsToSchedule[3], nodeNames) // should not have any reservation
 		},
-		expectedReservations:     []string{executor(0)},
-		expectedSoftReservations: []string{executor(1), executor(2)},
+		expectedReservations: []string{executor(0)},
+		expectedPodToNodeSoftReservationsMap: map[string]string{
+			executor(1): "node1",
+			executor(2): "node1",
+		},
 	}, {
 		name:           "replaces a dead executor's resource reservation before adding a new soft reservation",
 		podsToSchedule: extendertest.DynamicAllocationSparkPods("dynamic-allocation-app", 1, 3),
@@ -118,8 +135,10 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 			}
 			harness.Schedule(t, podsToSchedule[3], nodeNames) // executor-2 should have a resource reservation
 		},
-		expectedReservations:     []string{executor(2)},
-		expectedSoftReservations: []string{executor(1)},
+		expectedReservations: []string{executor(2)},
+		expectedPodToNodeSoftReservationsMap: map[string]string{
+			executor(1): "node1",
+		},
 	},
 	}
 
@@ -166,26 +185,32 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 			}
 
 			// Compare expected and actual soft reservations
-			expectedSoftReservations := make(map[string]bool)
-			for _, expectedRes := range test.expectedSoftReservations {
-				expectedSoftReservations[expectedRes] = true
+			expectedSoftReservationPodToNode := make(map[string]string)
+			for podName, nodeName := range test.expectedPodToNodeSoftReservationsMap {
+				expectedSoftReservationPodToNode[podName] = nodeName
 			}
-			extraSoftReservations := make(map[string]bool)
-			for _, softReservation := range testHarness.SoftReservationStore.GetAllSoftReservationsCopy() {
-				for podName := range softReservation.Reservations {
-					if _, exists := expectedSoftReservations[podName]; exists {
-						delete(expectedSoftReservations, podName)
+			unexpectedSoftReservationPodToNode := make(map[string]string)
+
+			for _, actualSoftReservations := range testHarness.SoftReservationStore.GetAllSoftReservationsCopy() {
+				for actualPodName, actualSoftReservation := range actualSoftReservations.Reservations {
+					if expectedNodeName, ok := expectedSoftReservationPodToNode[actualPodName]; ok {
+						if expectedNodeName == actualSoftReservation.Node {
+							delete(expectedSoftReservationPodToNode, actualPodName)
+						} else {
+							// we expected an actualSoftReservation, but for a different node
+							unexpectedSoftReservationPodToNode[actualPodName] = actualSoftReservation.Node
+						}
 					} else {
-						extraSoftReservations[podName] = true
+						unexpectedSoftReservationPodToNode[actualPodName] = actualSoftReservation.Node
 					}
 				}
 			}
 
-			if len(expectedSoftReservations) > 0 {
-				t.Errorf("expected the following executors to have soft reservations, but did not: %v", expectedSoftReservations)
+			if len(expectedSoftReservationPodToNode) > 0 {
+				t.Errorf("expected the following executors to have soft reservations, but did not: %v", expectedSoftReservationPodToNode)
 			}
-			if len(extraSoftReservations) > 0 {
-				t.Errorf("following executors had soft reservations, but were not supposed to: %v", extraSoftReservations)
+			if len(unexpectedSoftReservationPodToNode) > 0 {
+				t.Errorf("following executors had soft reservations, but were not supposed to: %v", unexpectedSoftReservationPodToNode)
 			}
 		})
 	}
