@@ -21,8 +21,8 @@ import (
 )
 
 func TestUnschedulablePodMarker(t *testing.T) {
-	node1 := extendertest.NewNode("node1")
-	node2 := extendertest.NewNode("node2")
+	node1 := extendertest.NewNode("node1", "zone1")
+	node2 := extendertest.NewNode("node2", "zone1")
 
 	testHarness, err := extendertest.NewTestExtender(
 		&node1,
@@ -51,8 +51,8 @@ func TestUnschedulablePodMarker(t *testing.T) {
 }
 
 func TestSchedulerFailsToScheduleWhenNotEnoughNvidiaGPUs(t *testing.T) {
-	node1 := extendertest.NewNode("node1")
-	node2 := extendertest.NewNode("node2")
+	node1 := extendertest.NewNode("node1", "zone1")
+	node2 := extendertest.NewNode("node2", "zone1")
 	nodeNames := []string{node1.Name, node2.Name}
 	podsToSchedule := extendertest.StaticAllocationSparkPodsWithExecutorGPUs("2-executor-app", 2)
 

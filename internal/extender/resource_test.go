@@ -24,8 +24,8 @@ import (
 )
 
 func TestScheduler(t *testing.T) {
-	node1 := extendertest.NewNode("node1")
-	node2 := extendertest.NewNode("node2")
+	node1 := extendertest.NewNode("node1", "zone1")
+	node2 := extendertest.NewNode("node2", "zone1")
 	nodeNames := []string{node1.Name, node2.Name}
 	podsToSchedule := extendertest.StaticAllocationSparkPods("2-executor-app", 2)
 
@@ -72,59 +72,80 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 	tests := []struct {
 		name                                 string
 		podsToSchedule                       []v1.Pod
+		nodesToScheduleTo                    []v1.Node
 		scenario                             func(harness *extendertest.Harness, podsToSchedule []v1.Pod, nodeNames []string)
 		expectedReservations                 []string
 		expectedPodToNodeSoftReservationsMap map[string]string
 	}{{
 		name:           "creates a reservation when under min executor count",
 		podsToSchedule: extendertest.DynamicAllocationSparkPods("dynamic-allocation-app", 1, 3),
+		nodesToScheduleTo: []v1.Node{
+			extendertest.NewNode("node1", "zone1"),
+			extendertest.NewNode("node2", "zone1"),
+		},
 		scenario: func(harness *extendertest.Harness, podsToSchedule []v1.Pod, nodeNames []string) {
 			harness.Schedule(t, podsToSchedule[0], nodeNames)
 			harness.Schedule(t, podsToSchedule[1], nodeNames)
 		},
-		expectedReservations:                 []string{executor(0)},
+		expectedReservations:                 []string{executor("dynamic-allocation-app", 0)},
 		expectedPodToNodeSoftReservationsMap: map[string]string{},
 	}, {
 		name:           "creates a soft reservation for an executor over min executor count",
 		podsToSchedule: extendertest.DynamicAllocationSparkPods("dynamic-allocation-app", 1, 3),
+		nodesToScheduleTo: []v1.Node{
+			extendertest.NewNode("node1", "zone1"),
+			extendertest.NewNode("node2", "zone1"),
+		},
 		scenario: func(harness *extendertest.Harness, podsToSchedule []v1.Pod, nodeNames []string) {
 			harness.Schedule(t, podsToSchedule[0], nodeNames)
 			harness.Schedule(t, podsToSchedule[1], nodeNames)
 			harness.Schedule(t, podsToSchedule[2], nodeNames)
 		},
-		expectedReservations: []string{executor(0)},
+		expectedReservations: []string{executor("dynamic-allocation-app", 0)},
 		expectedPodToNodeSoftReservationsMap: map[string]string{
-			executor(1): "node1",
+			executor("dynamic-allocation-app", 1): "node1",
 		},
 	}, {
 		name:           "soft reservations are created on full nodes first",
 		podsToSchedule: extendertest.DynamicAllocationSparkPods("dynamic-allocation-app", 1, 2),
+		nodesToScheduleTo: []v1.Node{
+			extendertest.NewNode("node1", "zone1"),
+			extendertest.NewNode("node2", "zone1"),
+		},
 		scenario: func(harness *extendertest.Harness, podsToSchedule []v1.Pod, nodeNames []string) {
 			harness.Schedule(t, podsToSchedule[0], nodeNames[1:])
 			harness.Schedule(t, podsToSchedule[1], nodeNames[1:])
 			harness.Schedule(t, podsToSchedule[2], nodeNames)
 		},
-		expectedReservations: []string{executor(0)},
+		expectedReservations: []string{executor("dynamic-allocation-app", 0)},
 		expectedPodToNodeSoftReservationsMap: map[string]string{
-			executor(1): "node2",
+			executor("dynamic-allocation-app", 1): "node2",
 		},
 	}, {
 		name:           "does not create any reservation for an executor over the max",
 		podsToSchedule: extendertest.DynamicAllocationSparkPods("dynamic-allocation-app", 1, 3),
+		nodesToScheduleTo: []v1.Node{
+			extendertest.NewNode("node1", "zone1"),
+			extendertest.NewNode("node2", "zone1"),
+		},
 		scenario: func(harness *extendertest.Harness, podsToSchedule []v1.Pod, nodeNames []string) {
 			for _, pod := range podsToSchedule {
 				harness.Schedule(t, pod, nodeNames)
 			}
 			harness.Schedule(t, podsToSchedule[3], nodeNames) // should not have any reservation
 		},
-		expectedReservations: []string{executor(0)},
+		expectedReservations: []string{executor("dynamic-allocation-app", 0)},
 		expectedPodToNodeSoftReservationsMap: map[string]string{
-			executor(1): "node1",
-			executor(2): "node1",
+			executor("dynamic-allocation-app", 1): "node1",
+			executor("dynamic-allocation-app", 2): "node1",
 		},
 	}, {
 		name:           "replaces a dead executor's resource reservation before adding a new soft reservation",
 		podsToSchedule: extendertest.DynamicAllocationSparkPods("dynamic-allocation-app", 1, 3),
+		nodesToScheduleTo: []v1.Node{
+			extendertest.NewNode("node1", "zone1"),
+			extendertest.NewNode("node2", "zone1"),
+		},
 		scenario: func(harness *extendertest.Harness, podsToSchedule []v1.Pod, nodeNames []string) {
 			harness.Schedule(t, podsToSchedule[0], nodeNames) // driver
 			harness.Schedule(t, podsToSchedule[1], nodeNames) // executor-0 with a resource reservation
@@ -135,20 +156,53 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 			}
 			harness.Schedule(t, podsToSchedule[3], nodeNames) // executor-2 should have a resource reservation
 		},
-		expectedReservations: []string{executor(2)},
+		expectedReservations: []string{executor("dynamic-allocation-app", 2)},
 		expectedPodToNodeSoftReservationsMap: map[string]string{
-			executor(1): "node1",
+			executor("dynamic-allocation-app", 1): "node1",
 		},
 	},
+		{
+			name: "schedules an executor only in the same AZ as the original application",
+			podsToSchedule: func() []v1.Pod {
+				// We first schedule a statically allocated application to zone1 to make it more desirable as there is less space
+				pods := make([]v1.Pod, 0)
+				for _, pod := range extendertest.StaticAllocationSparkPods("static-allocation-app", 1) {
+					pods = append(pods, pod)
+				}
+				for _, pod := range extendertest.DynamicAllocationSparkPods("dynamic-allocation-app", 0, 2) {
+					pods = append(pods, pod)
+				}
+				return pods
+			}(),
+			nodesToScheduleTo: []v1.Node{
+				extendertest.NewNode("node1", "zone1"),
+				extendertest.NewNode("node2", "zone2"),
+			},
+			scenario: func(harness *extendertest.Harness, podsToSchedule []v1.Pod, nodeNames []string) {
+				harness.Schedule(t, podsToSchedule[0], nodeNames[:1]) // driver scheduled to node1 zone1
+				harness.Schedule(t, podsToSchedule[1], nodeNames[:1]) // driver scheduled to node1 zone1
+				harness.Schedule(t, podsToSchedule[2], nodeNames[1:]) // driver scheduled to node2 zone2
+				harness.Schedule(t, podsToSchedule[3], nodeNames)     // executor-0 with a soft reservation
+				harness.Schedule(t, podsToSchedule[4], nodeNames)     // executor-1 with a soft reservation
+			},
+			expectedReservations: []string{executor("static-allocation-app", 0)},
+			expectedPodToNodeSoftReservationsMap: map[string]string{
+				executor("dynamic-allocation-app", 0): "node2",
+				executor("dynamic-allocation-app", 1): "node2",
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			node1 := extendertest.NewNode("node1")
-			node2 := extendertest.NewNode("node2")
-			nodeNames := []string{node1.Name, node2.Name}
-			harnessArgs := make([]runtime.Object, 0, len(test.podsToSchedule)+2)
-			harnessArgs = append(harnessArgs, &node1, &node2)
+			nodeNames := make([]string, 0)
+			for _, node := range test.nodesToScheduleTo {
+				nodeNames = append(nodeNames, node.Name)
+			}
+			harnessArgs := make([]runtime.Object, 0, len(test.podsToSchedule)+len(test.nodesToScheduleTo))
+			for i := range test.nodesToScheduleTo {
+				harnessArgs = append(harnessArgs, &test.nodesToScheduleTo[i])
+			}
 			for i := range test.podsToSchedule {
 				harnessArgs = append(harnessArgs, &test.podsToSchedule[i])
 			}
@@ -216,6 +270,6 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 	}
 }
 
-func executor(i int) string {
-	return fmt.Sprintf("spark-exec-%d", i)
+func executor(sparkApplicationId string, i int) string {
+	return fmt.Sprintf("%s-spark-exec-%d", sparkApplicationId, i)
 }
