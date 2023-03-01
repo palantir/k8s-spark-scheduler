@@ -453,7 +453,7 @@ func (s *SparkSchedulerExtender) getCommonZoneForExecutorsApplication(ctx contex
 		return "", false, err
 	}
 	scheduledPods := filterToRunningPods(ctx, applicationPods)
-	azs, err := filterToAZs(ctx, scheduledPods, s)
+	azs, err := getAzsOfPods(ctx, scheduledPods, s)
 	if err != nil {
 		return "", false, err
 	}
@@ -467,7 +467,7 @@ func (s *SparkSchedulerExtender) getCommonZoneForExecutorsApplication(ctx contex
 	return azs.ToSlice()[0], true, nil
 }
 
-func filterToAZs(ctx context.Context, runningPods []*v1.Pod, s *SparkSchedulerExtender) (utils.StringSet, error) {
+func getAzsOfPods(ctx context.Context, runningPods []*v1.Pod, s *SparkSchedulerExtender) (utils.StringSet, error) {
 	azs := utils.NewStringSet(len(runningPods))
 	// Get all node AZs where pods are running
 	for _, pod := range runningPods {
