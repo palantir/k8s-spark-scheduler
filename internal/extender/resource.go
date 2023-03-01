@@ -485,6 +485,7 @@ func filterToAZs(ctx context.Context, runningPods []*v1.Pod, s *SparkSchedulerEx
 	return azs, nil
 }
 
+// Filtering to running pods as pods in other states are not assigned to a node
 func filterToRunningPods(ctx context.Context, applicationPods []*v1.Pod) []*v1.Pod {
 	scheduledPods := make([]*v1.Pod, 0, len(applicationPods))
 	for _, pod := range applicationPods {
