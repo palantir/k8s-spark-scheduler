@@ -89,7 +89,7 @@ func TestScheduleContextSorting(t *testing.T) {
 		t.Error("If AZ priority is equal, nodes should be sorted by the available resources, ascending")
 	}
 
-	if scheduleContextLessThan(scheduleContexts, "base", "same") || !scheduleContextLessThan(scheduleContexts, "same", "base") {
+	if scheduleContextLessThan(scheduleContexts, "same", "base") || !scheduleContextLessThan(scheduleContexts, "base", "same") {
 		t.Error("If everything is equal, nodes should be sorted by node name, ascending")
 	}
 }
