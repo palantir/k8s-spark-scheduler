@@ -78,11 +78,7 @@ func resourcesLessThan(left *resources.Resources, right *resources.Resources) bo
 	return left.CPU.Cmp(right.CPU) == -1
 }
 
-// Sort first by AZ priority and then by resources on the node
 func scheduleContextLessThan(left scheduleContext, right scheduleContext) bool {
-	if left.azPriority != right.azPriority {
-		return left.azPriority < right.azPriority
-	}
 	return resourcesLessThan(left.nodeResources, right.nodeResources)
 }
 
