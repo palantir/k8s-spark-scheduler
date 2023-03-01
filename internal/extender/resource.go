@@ -226,13 +226,13 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 				svc1log.SafeParam("reason", err.Error))
 			continue
 		}
-		driverNode, executorNodes, hasCapacity := s.binpacker.BinpackFunc(
+		packingResult := s.binpacker.BinpackFunc(
 			ctx,
 			applicationResources.driverResources,
 			applicationResources.executorResources,
 			applicationResources.minExecutorCount,
 			nodeNames, executorNodeNames, availableNodesSchedulingMetadata)
-		if !hasCapacity {
+		if !packingResult.HasCapacity {
 			if s.shouldSkipDriverFifo(driver) {
 				svc1log.FromContext(ctx).Debug("Skipping non-fitting driver from FIFO consideration because it is not too old yet",
 					svc1log.SafeParam("earlierDriverName", driver.Name))
@@ -242,6 +242,7 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 				svc1log.SafeParam("earlierDriverName", driver.Name))
 			return false
 		}
+		driverNode, executorNodes := packingResult.DriverNode, packingResult.ExecutorNodes
 		availableNodesSchedulingMetadata.SubtractUsageIfExists(sparkResourceUsage(
 			applicationResources.driverResources,
 			applicationResources.executorResources,
@@ -285,9 +286,10 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		return "", failureInternal, err
 	}
 
-	usages := s.resourceReservationManager.GetReservedResources()
-	usages.Add(s.overheadComputer.GetOverhead(ctx, availableNodes))
-	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usages)
+	usage := s.resourceReservationManager.GetReservedResources()
+	overhead := s.overheadComputer.GetOverhead(ctx, availableNodes)
+
+	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usage, overhead)
 	driverNodeNames, executorNodeNames := s.nodeSorter.PotentialNodes(availableNodesSchedulingMetadata, nodeNames)
 	applicationResources, err := sparkResources(ctx, driver)
 	if err != nil {
@@ -304,7 +306,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 			return "", failureEarlierDriver, werror.Error("earlier drivers do not fit to the cluster")
 		}
 	}
-	driverNode, executorNodes, hasCapacity := s.binpacker.BinpackFunc(
+	packingResult := s.binpacker.BinpackFunc(
 		ctx,
 		applicationResources.driverResources,
 		applicationResources.executorResources,
@@ -312,6 +314,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		driverNodeNames,
 		executorNodeNames,
 		availableNodesSchedulingMetadata)
+	driverNode, executorNodes, hasCapacity := packingResult.DriverNode, packingResult.ExecutorNodes, packingResult.HasCapacity
 	svc1log.FromContext(ctx).Debug("binpacking result",
 		svc1log.SafeParam("availableNodesSchedulingMetadata", availableNodesSchedulingMetadata),
 		svc1log.SafeParam("driverResources", applicationResources.driverResources),

@@ -145,12 +145,14 @@ func (u *UnschedulablePodMarker) DoesPodExceedClusterCapacity(ctx context.Contex
 			svc1log.SafeParam("nodeSelector", driver.Spec.NodeSelector))
 	}
 
-	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(nodes, u.overheadComputer.GetNonSchedulableOverhead(ctx, nodes))
+	usage := zeroUsage(nodes)
+	overhead := u.overheadComputer.GetNonSchedulableOverhead(ctx, nodes)
+	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(nodes, usage, overhead)
 	applicationResources, err := sparkResources(ctx, driver)
 	if err != nil {
 		return false, err
 	}
-	_, _, hasCapacity := u.binpacker.BinpackFunc(
+	packingResult := u.binpacker.BinpackFunc(
 		ctx,
 		applicationResources.driverResources,
 		applicationResources.executorResources,
@@ -158,6 +160,7 @@ func (u *UnschedulablePodMarker) DoesPodExceedClusterCapacity(ctx context.Contex
 		nodeNames,
 		nodeNames,
 		availableNodesSchedulingMetadata)
+	hasCapacity := packingResult.HasCapacity
 
 	return !hasCapacity, nil
 }
@@ -174,4 +177,14 @@ func (u *UnschedulablePodMarker) markPodClusterCapacityStatus(ctx context.Contex
 
 	_, err := u.coreClient.Pods(driver.Namespace).UpdateStatus(ctx, driver, metav1.UpdateOptions{})
 	return err
+}
+
+func zeroUsage(nodes []*v1.Node) resources.NodeGroupResources {
+	zeroUsage := resources.NodeGroupResources{}
+
+	for _, node := range nodes {
+		zeroUsage[node.Name] = resources.Zero()
+	}
+
+	return zeroUsage
 }
