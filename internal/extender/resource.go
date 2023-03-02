@@ -306,7 +306,9 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 			return "", failureEarlierDriver, werror.Error("earlier drivers do not fit to the cluster")
 		}
 	}
-	packingResult := s.binpacker.BinpackFunc(
+
+	// run binpack with the configured function, usually AZ tight pack
+	packingResultDefault := s.binpacker.BinpackFunc(
 		ctx,
 		applicationResources.driverResources,
 		applicationResources.executorResources,
@@ -314,7 +316,17 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		driverNodeNames,
 		executorNodeNames,
 		availableNodesSchedulingMetadata)
-	driverNode, executorNodes, hasCapacity := packingResult.DriverNode, packingResult.ExecutorNodes, packingResult.HasCapacity
+	driverNode, executorNodes, hasCapacity := packingResultDefault.DriverNode, packingResultDefault.ExecutorNodes, packingResultDefault.HasCapacity
+	// as an experiment, binpack with tight pack (report in metrics but don't use this result)
+	packingResultTight := SelectBinpacker("tightlyPack").BinpackFunc(
+		ctx,
+		applicationResources.driverResources,
+		applicationResources.executorResources,
+		applicationResources.minExecutorCount,
+		driverNodeNames,
+		executorNodeNames,
+		availableNodesSchedulingMetadata)
+
 	svc1log.FromContext(ctx).Debug("binpacking result",
 		svc1log.SafeParam("availableNodesSchedulingMetadata", availableNodesSchedulingMetadata),
 		svc1log.SafeParam("driverResources", applicationResources.driverResources),
@@ -331,6 +343,10 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		s.createDemandForApplication(ctx, driver, applicationResources)
 		return "", failureFit, werror.Error("application does not fit to the cluster")
 	}
+
+	metrics.ReportPackingEfficiency(ctx, s.binpacker.Name, *packingResultDefault)
+	metrics.ReportPackingEfficiency(ctx, "tightlyPack", *packingResultTight)
+
 	s.removeDemandIfExists(ctx, driver)
 	metrics.ReportCrossZoneMetric(ctx, driverNode, executorNodes, availableNodes)
 

@@ -14,6 +14,14 @@
 
 package metrics
 
+import (
+	"context"
+	"math"
+
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/binpack"
+	"github.com/palantir/pkg/metrics"
+)
+
 const (
 	packingEfficiencyMetricName = "foundry.spark.scheduler.packing_efficiency"
 
@@ -21,41 +29,54 @@ const (
 	cpuTagValue           = "CPU"
 	memoryTagValue        = "Memory"
 	gpuTagValue           = "GPU"
+	maxTagValue           = "Max"
+
+	packingEfficiencyFunctionNameTagKey = "foundry.spark.scheduler.packing_function"
+
+	// non-existing node to explicitly report average packing efficiency
+	avgEfficiencyNodeName = "average"
 )
 
-/*
-
-const (
-	scaleUpRateLimitBurstMetricName = "deployability.scaler.scale_up_rate_limit_burst"
-	packingEfficiencyMetricName     = "deployability.scaler.packing_efficiency"
-
-	scaleOperationTagKey = "deployability.scaler.scale_operation"
-	scaleUpTagValue      = "scaleUp"
-	scaleDownTagValue    = "scaleDown"
-
-	binUIDTagKey          = "deployability.scaler.bin_uid"
-	binUIDTagDefaultValue = "default"
-
-	zoneTagKey          = "deployability.scaler.zone"
-	zoneTagDefaultValue = "default"
-
-	packingResourceTagKey = "deployability.scaler.packing_resource"
-	cpuTagValue           = "CPU"
-	memoryTagValue        = "Memory"
-	gpuTagValue           = "GPU"
+var (
+	cpuTag    = metrics.MustNewTag(packingResourceTagKey, cpuTagValue)
+	memoryTag = metrics.MustNewTag(packingResourceTagKey, memoryTagValue)
+	gpuTag    = metrics.MustNewTag(packingResourceTagKey, gpuTagValue)
+	// represents higher of CPU and Memory packing efficiencies. GPU is explicitly excluded for now
+	maxTag = metrics.MustNewTag(packingResourceTagKey, maxTagValue)
 )
 
-func packingEfficiency(ctx context.Context, bins []binpack.Bin, operationTag metrics.Tag) {
+// ReportPackingEfficiency report packing efficiency metrics for a single packing result.
+func ReportPackingEfficiency(
+	ctx context.Context,
+	packingFunctionName string,
+	packingResult binpack.PackingResult) {
+
 	contextTags := metrics.TagsFromContext(ctx)
 	registry := metrics.NewRootMetricsRegistry()
-	for _, bin := range bins {
-		binTag := metrics.NewTagWithFallbackValue(binUIDTagKey, bin.UID, binUIDTagDefaultValue)
-		zoneTag := metrics.NewTagWithFallbackValue(zoneTagKey, string(bin.Zone), zoneTagDefaultValue)
-		efficiency := binpack.CalculateEfficiency(bin)
-		registry.GaugeFloat64(packingEfficiencyMetricName, append(contextTags, binTag, zoneTag, operationTag, cpuTag)...).Update(efficiency.CPU)
-		registry.GaugeFloat64(packingEfficiencyMetricName, append(contextTags, binTag, zoneTag, operationTag, memoryTag)...).Update(efficiency.Memory)
-		registry.GaugeFloat64(packingEfficiencyMetricName, append(contextTags, binTag, zoneTag, operationTag, gpuTag)...).Update(efficiency.GPU)
+
+	packingFunctionTag := metrics.MustNewTag(packingEfficiencyFunctionNameTagKey, packingFunctionName)
+
+	// report packing efficiencies per node
+	for _, efficiency := range packingResult.PackingEfficiencies {
+		hostTag := HostTag(ctx, efficiency.NodeName)
+		emitMetrics(registry, contextTags, hostTag, packingFunctionTag, efficiency)
 	}
-	emitAllMetrics(ctx, registry)
+
+	// report avg packing efficiency for all nodes at once
+	efficiency := packingResult.AvgPackingEfficiency
+	avgHostTag := HostTag(ctx, avgEfficiencyNodeName)
+	emitMetrics(registry, contextTags, avgHostTag, packingFunctionTag, &efficiency)
 }
-*/
+
+func emitMetrics(
+	registry metrics.RootRegistry,
+	contextTags metrics.Tags,
+	hostTag metrics.Tag,
+	packingFunctionTag metrics.Tag,
+	efficiency *binpack.PackingEfficiency) {
+
+	registry.GaugeFloat64(packingEfficiencyMetricName, append(contextTags, hostTag, packingFunctionTag, cpuTag)...).Update(efficiency.CPU)
+	registry.GaugeFloat64(packingEfficiencyMetricName, append(contextTags, hostTag, packingFunctionTag, memoryTag)...).Update(efficiency.Memory)
+	registry.GaugeFloat64(packingEfficiencyMetricName, append(contextTags, hostTag, packingFunctionTag, gpuTag)...).Update(efficiency.GPU)
+	registry.GaugeFloat64(packingEfficiencyMetricName, append(contextTags, hostTag, packingFunctionTag, maxTag)...).Update(math.Max(efficiency.CPU, efficiency.Memory))
+}
