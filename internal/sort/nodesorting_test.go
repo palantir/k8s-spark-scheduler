@@ -75,21 +75,21 @@ func TestScheduleContextSorting(t *testing.T) {
 	}
 
 	scheduleContexts := map[string]scheduleContext{
-		"base":  base,
-		"same":  base,
+		"base1": base,
+		"base2": base,
 		"lower": lowerAzPriority,
 		"more":  moreNodeResources,
 	}
 
-	if scheduleContextLessThan(scheduleContexts, "lower", "base") || !scheduleContextLessThan(scheduleContexts, "base", "lower") {
+	if scheduleContextLessThan(scheduleContexts, "lower", "base1") || !scheduleContextLessThan(scheduleContexts, "base1", "lower") {
 		t.Error("Nodes should be sorted by the priority of the AZ they belong to, ascending")
 	}
 
-	if scheduleContextLessThan(scheduleContexts, "more", "base") || !scheduleContextLessThan(scheduleContexts, "base", "more") {
+	if scheduleContextLessThan(scheduleContexts, "more", "base1") || !scheduleContextLessThan(scheduleContexts, "base1", "more") {
 		t.Error("If AZ priority is equal, nodes should be sorted by the available resources, ascending")
 	}
 
-	if scheduleContextLessThan(scheduleContexts, "same", "base") || !scheduleContextLessThan(scheduleContexts, "base", "same") {
+	if scheduleContextLessThan(scheduleContexts, "base2", "base1") || !scheduleContextLessThan(scheduleContexts, "base1", "base2") {
 		t.Error("If everything is equal, nodes should be sorted by node name, ascending")
 	}
 }
