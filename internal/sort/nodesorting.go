@@ -67,6 +67,7 @@ type scheduleContext struct {
 	// Lower value of priority indicates that the AZ has less resources
 	azPriority    int
 	nodeResources *resources.Resources
+	nodeName      string
 }
 
 // Sort by available resources ascending, with RAM usage more important.
@@ -78,12 +79,17 @@ func resourcesLessThan(left *resources.Resources, right *resources.Resources) bo
 	return left.CPU.Cmp(right.CPU) == -1
 }
 
-// Sort first by AZ priority and then by resources on the node
-func scheduleContextLessThan(left scheduleContext, right scheduleContext) bool {
+// Sort first by AZ priority, then by resources on the node, then by node name
+func scheduleContextLessThan(left, right scheduleContext) bool {
 	if left.azPriority != right.azPriority {
 		return left.azPriority < right.azPriority
 	}
-	return resourcesLessThan(left.nodeResources, right.nodeResources)
+
+	if !left.nodeResources.Eq(right.nodeResources) {
+		return resourcesLessThan(left.nodeResources, right.nodeResources)
+	}
+
+	return left.nodeName < right.nodeName
 }
 
 func getNodeNamesInPriorityOrder(nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) []string {
@@ -103,6 +109,7 @@ func getNodeNamesInPriorityOrder(nodesSchedulingMetadata resources.NodeGroupSche
 			scheduleContexts[nodeName] = scheduleContext{
 				azPriority,
 				nodesSchedulingMetadata[nodeName].AvailableResources,
+				nodeName,
 			}
 		}
 	}
