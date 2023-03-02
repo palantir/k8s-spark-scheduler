@@ -22,17 +22,18 @@ import (
 
 // Install contains the install time configuration of the server and kubernetes dependency
 type Install struct {
-	config.Install                  `yaml:",inline"`
-	config.Runtime                  `yaml:",inline"`
-	Kubeconfig                      string            `yaml:"kube-config,omitempty"`
-	FIFO                            bool              `yaml:"fifo,omitempty"`
-	FifoConfig                      FifoConfig        `yaml:"fifo-config,omitempty"`
-	QPS                             float32           `yaml:"qps,omitempty"`
-	Burst                           int               `yaml:"burst,omitempty"`
-	BinpackAlgo                     string            `yaml:"binpack,omitempty"`
-	InstanceGroupLabel              string            `yaml:"instance-group-label,omitempty"`
-	AsyncClientConfig               AsyncClientConfig `yaml:"async-client-config,omitempty"`
-	UnschedulablePodTimeoutDuration time.Duration     `yaml:"unschedulable-pod-timeout-duration,omitempty"`
+	config.Install                                      `yaml:",inline"`
+	config.Runtime                                      `yaml:",inline"`
+	Kubeconfig                                          string            `yaml:"kube-config,omitempty"`
+	FIFO                                                bool              `yaml:"fifo,omitempty"`
+	FifoConfig                                          FifoConfig        `yaml:"fifo-config,omitempty"`
+	QPS                                                 float32           `yaml:"qps,omitempty"`
+	Burst                                               int               `yaml:"burst,omitempty"`
+	BinpackAlgo                                         string            `yaml:"binpack,omitempty"`
+	ShouldScheduleDynamicallyAllocatedExecutorsInSameAZ bool              `yaml:"should-schedule-dynamically-allocated-executors-in-same-az,omitempty"`
+	InstanceGroupLabel                                  string            `yaml:"instance-group-label,omitempty"`
+	AsyncClientConfig                                   AsyncClientConfig `yaml:"async-client-config,omitempty"`
+	UnschedulablePodTimeoutDuration                     time.Duration     `yaml:"unschedulable-pod-timeout-duration,omitempty"`
 
 	// Deprecated: assumed true, value not used
 	UseExperimentalHostPriorities bool `yaml:"use-experimental-host-priorities,omitempty"`
