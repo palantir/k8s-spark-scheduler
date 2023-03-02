@@ -67,6 +67,7 @@ type scheduleContext struct {
 	// Lower value of priority indicates that the AZ has less resources
 	azPriority    int
 	nodeResources *resources.Resources
+	nodeName      string
 }
 
 // Sort by available resources ascending, with RAM usage more important.
@@ -79,19 +80,16 @@ func resourcesLessThan(left *resources.Resources, right *resources.Resources) bo
 }
 
 // Sort first by AZ priority, then by resources on the node, then by node name
-func scheduleContextLessThan(scheduleContexts map[string]scheduleContext, left, right string) bool {
-	leftSc := scheduleContexts[left]
-	rightSc := scheduleContexts[right]
-
-	if leftSc.azPriority != rightSc.azPriority {
-		return leftSc.azPriority < rightSc.azPriority
+func scheduleContextLessThan(left, right scheduleContext) bool {
+	if left.azPriority != right.azPriority {
+		return left.azPriority < right.azPriority
 	}
 
-	if !leftSc.nodeResources.Eq(rightSc.nodeResources) {
-		return resourcesLessThan(leftSc.nodeResources, rightSc.nodeResources)
+	if !left.nodeResources.Eq(right.nodeResources) {
+		return resourcesLessThan(left.nodeResources, right.nodeResources)
 	}
 
-	return left < right
+	return left.nodeName < right.nodeName
 }
 
 func getNodeNamesInPriorityOrder(nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) []string {
@@ -111,12 +109,13 @@ func getNodeNamesInPriorityOrder(nodesSchedulingMetadata resources.NodeGroupSche
 			scheduleContexts[nodeName] = scheduleContext{
 				azPriority,
 				nodesSchedulingMetadata[nodeName].AvailableResources,
+				nodeName,
 			}
 		}
 	}
 
 	sort.Slice(nodeNames, func(i, j int) bool {
-		return scheduleContextLessThan(scheduleContexts, nodeNames[i], nodeNames[j])
+		return scheduleContextLessThan(scheduleContexts[nodeNames[i]], scheduleContexts[nodeNames[j]])
 	})
 
 	return nodeNames
