@@ -19,8 +19,31 @@ import (
 	"math"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/binpack"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/pkg/metrics"
 )
+
+type reportableEfficiency struct {
+	CPU    float64
+	Memory float64
+	GPU    float64
+}
+
+func reportableEfficiencyFromPackingEfficiency(efficiency *binpack.PackingEfficiency) reportableEfficiency {
+	return reportableEfficiency{
+		CPU:    efficiency.CPU,
+		Memory: efficiency.Memory,
+		GPU:    efficiency.GPU,
+	}
+}
+
+func reportableEfficiencyFromAvgPackingEfficiency(efficiency *binpack.AvgPackingEfficiency) reportableEfficiency {
+	return reportableEfficiency{
+		CPU:    efficiency.CPU,
+		Memory: efficiency.Memory,
+		GPU:    efficiency.GPU,
+	}
+}
 
 const (
 	packingEfficiencyMetricName = "foundry.spark.scheduler.packing_efficiency"
@@ -49,7 +72,8 @@ var (
 func ReportPackingEfficiency(
 	ctx context.Context,
 	packingFunctionName string,
-	packingResult binpack.PackingResult) {
+	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata,
+	packingResult *binpack.PackingResult) {
 
 	contextTags := metrics.TagsFromContext(ctx)
 	registry := metrics.NewRootMetricsRegistry()
@@ -59,13 +83,24 @@ func ReportPackingEfficiency(
 	// report packing efficiencies per node
 	for _, efficiency := range packingResult.PackingEfficiencies {
 		hostTag := HostTag(ctx, efficiency.NodeName)
-		emitMetrics(registry, contextTags, hostTag, packingFunctionTag, efficiency)
+		emitMetrics(registry, contextTags, hostTag, packingFunctionTag, reportableEfficiencyFromPackingEfficiency(efficiency))
 	}
 
 	// report avg packing efficiency for all nodes at once
-	efficiency := packingResult.AvgPackingEfficiency
+	efficiency := computeAvgPackingEfficiencyForResult(nodesSchedulingMetadata, packingResult)
 	avgHostTag := HostTag(ctx, avgEfficiencyNodeName)
-	emitMetrics(registry, contextTags, avgHostTag, packingFunctionTag, &efficiency)
+	emitMetrics(registry, contextTags, avgHostTag, packingFunctionTag, reportableEfficiencyFromAvgPackingEfficiency(&efficiency))
+}
+
+func computeAvgPackingEfficiencyForResult(
+	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata,
+	packingResult *binpack.PackingResult) binpack.AvgPackingEfficiency {
+
+	packingEfficienciesDefault := make([]*binpack.PackingEfficiency, 0)
+	for _, packingEfficiency := range packingResult.PackingEfficiencies {
+		packingEfficienciesDefault = append(packingEfficienciesDefault, packingEfficiency)
+	}
+	return binpack.ComputeAvgPackingEfficiency(nodesSchedulingMetadata, packingEfficienciesDefault)
 }
 
 func emitMetrics(
@@ -73,7 +108,7 @@ func emitMetrics(
 	contextTags metrics.Tags,
 	hostTag metrics.Tag,
 	packingFunctionTag metrics.Tag,
-	efficiency *binpack.PackingEfficiency) {
+	efficiency reportableEfficiency) {
 
 	registry.GaugeFloat64(packingEfficiencyMetricName, append(contextTags, hostTag, packingFunctionTag, cpuTag)...).Update(efficiency.CPU)
 	registry.GaugeFloat64(packingEfficiencyMetricName, append(contextTags, hostTag, packingFunctionTag, memoryTag)...).Update(efficiency.Memory)

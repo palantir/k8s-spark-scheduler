@@ -344,8 +344,8 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		return "", failureFit, werror.Error("application does not fit to the cluster")
 	}
 
-	metrics.ReportPackingEfficiency(ctx, s.binpacker.Name, *packingResultDefault)
-	metrics.ReportPackingEfficiency(ctx, "tightlyPack", *packingResultTight)
+	metrics.ReportPackingEfficiency(ctx, s.binpacker.Name, availableNodesSchedulingMetadata, packingResultDefault)
+	metrics.ReportPackingEfficiency(ctx, "tightlyPack", availableNodesSchedulingMetadata, packingResultTight)
 
 	s.removeDemandIfExists(ctx, driver)
 	metrics.ReportCrossZoneMetric(ctx, driverNode, executorNodes, availableNodes)
