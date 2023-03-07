@@ -15,6 +15,7 @@
 package resources
 
 import (
+	"math"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
@@ -54,14 +55,26 @@ func AvailableForNodes(nodes []*corev1.Node, currentUsage NodeGroupResources) No
 	return res
 }
 
-// NodeSchedulingMetadataForNodes calculate available resources by subtracting current usage from allocatable per node
-func NodeSchedulingMetadataForNodes(nodes []*corev1.Node, currentUsage NodeGroupResources) NodeGroupSchedulingMetadata {
+// NodeSchedulingMetadataForNodes calculate available and schedulable resources. Available resources are computed by
+// subtracting current and overhead usage from allocatable per node. Schedulable resources are computed by subtracting
+// overhead usage from allocatable per node.
+func NodeSchedulingMetadataForNodes(
+	nodes []*corev1.Node,
+	currentUsage NodeGroupResources,
+	overheadUsage NodeGroupResources) NodeGroupSchedulingMetadata {
+
 	nodeGroupSchedulingMetadata := make(NodeGroupSchedulingMetadata, len(nodes))
 	for _, node := range nodes {
+		currentOverheadForNode, ok := overheadUsage[node.Name]
+		if !ok {
+			currentOverheadForNode = Zero()
+		}
 		currentUsageForNode, ok := currentUsage[node.Name]
 		if !ok {
 			currentUsageForNode = Zero()
 		}
+		currentUsageForNode.Add(currentOverheadForNode)
+
 		zoneLabel, ok := node.Labels[corev1.LabelZoneFailureDomain]
 		if !ok {
 			zoneLabel = zoneLabelPlaceholder
@@ -74,12 +87,13 @@ func NodeSchedulingMetadataForNodes(nodes []*corev1.Node, currentUsage NodeGroup
 			}
 		}
 		nodeGroupSchedulingMetadata[node.Name] = &NodeSchedulingMetadata{
-			AvailableResources: subtractFromResourceList(node.Status.Allocatable, currentUsageForNode),
-			CreationTimestamp:  node.CreationTimestamp.Time,
-			ZoneLabel:          zoneLabel,
-			AllLabels:          node.Labels,
-			Unschedulable:      node.Spec.Unschedulable,
-			Ready:              nodeReady,
+			AvailableResources:   subtractFromResourceList(node.Status.Allocatable, currentUsageForNode),
+			SchedulableResources: subtractFromResourceList(node.Status.Allocatable, currentOverheadForNode),
+			CreationTimestamp:    node.CreationTimestamp.Time,
+			ZoneLabel:            zoneLabel,
+			AllLabels:            node.Labels,
+			Unschedulable:        node.Spec.Unschedulable,
+			Ready:                nodeReady,
 		}
 	}
 	return nodeGroupSchedulingMetadata
@@ -142,12 +156,13 @@ type Resources struct {
 
 // NodeSchedulingMetadata represents various parameters of a node that are considered in scheduling decisions
 type NodeSchedulingMetadata struct {
-	AvailableResources *Resources
-	CreationTimestamp  time.Time
-	ZoneLabel          string
-	AllLabels          map[string]string
-	Unschedulable      bool
-	Ready              bool
+	AvailableResources   *Resources
+	SchedulableResources *Resources
+	CreationTimestamp    time.Time
+	ZoneLabel            string
+	AllLabels            map[string]string
+	Unschedulable        bool
+	Ready                bool
 }
 
 func getResourcesFromResourceList(resourceList corev1.ResourceList) Resources {
@@ -228,4 +243,37 @@ func (r *Resources) GreaterThan(other *Resources) bool {
 // Eq returns true if all of CPU, Memory and NvidiaGPU quantities are equal between this Resources object and other
 func (r *Resources) Eq(other *Resources) bool {
 	return r.CPU.Cmp(other.CPU) == 0 && r.Memory.Cmp(other.Memory) == 0 && r.NvidiaGPU.Cmp(other.NvidiaGPU) == 0
+}
+
+// CreateResources creates a new Resources struct with given specs.
+func CreateResources(cpu, memory, nvidiaGpus int64) *Resources {
+	return &Resources{
+		CPU:       *resource.NewQuantity(cpu, resource.DecimalSI),
+		Memory:    *resource.NewQuantity(memory, resource.BinarySI),
+		NvidiaGPU: *resource.NewQuantity(nvidiaGpus, resource.DecimalSI),
+	}
+}
+
+// CreateSchedulingMetadata creates a new NodeSchedulingMetadata struct with provided specs as the
+// available capacity. Total capacity is set to infinity. When total capacity is relevant use
+// CreateSchedulingMetadataWithTotals instead.
+func CreateSchedulingMetadata(cpu, memory, nvidiaGPU int64, zoneLabel string) *NodeSchedulingMetadata {
+	return &NodeSchedulingMetadata{
+		AvailableResources:   CreateResources(cpu, memory, nvidiaGPU),
+		SchedulableResources: CreateResources(math.MaxInt64, math.MaxInt64, math.MaxInt64),
+		ZoneLabel:            zoneLabel,
+	}
+}
+
+// CreateSchedulingMetadataWithTotals creates a new NodeSchedulingMetadata struct with the provided
+// usage and total capacity specs.
+func CreateSchedulingMetadataWithTotals(
+	availableCPU, cpuTotal, availableMemory, memoryTotal, availableNvidiaGPU, nvidiaGPUTotal int64,
+	zoneLabel string) *NodeSchedulingMetadata {
+
+	return &NodeSchedulingMetadata{
+		AvailableResources:   CreateResources(availableCPU, availableMemory, availableNvidiaGPU),
+		SchedulableResources: CreateResources(cpuTotal, memoryTotal, nvidiaGPUTotal),
+		ZoneLabel:            zoneLabel,
+	}
 }

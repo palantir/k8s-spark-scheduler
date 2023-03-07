@@ -29,10 +29,10 @@ var AzAwareTightlyPack = SparkBinPackFunction(func(
 	driverResources, executorResources *resources.Resources,
 	executorCount int,
 	driverNodePriorityOrder, executorNodePriorityOrder []string,
-	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) (string, []string, bool) {
-	driverNode, executorNodes, hasCapacity := SingleAZTightlyPack(ctx, driverResources, executorResources, executorCount, driverNodePriorityOrder, executorNodePriorityOrder, nodesSchedulingMetadata)
-	if hasCapacity {
-		return driverNode, executorNodes, hasCapacity
+	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) *PackingResult {
+	packingResult := SingleAZTightlyPack(ctx, driverResources, executorResources, executorCount, driverNodePriorityOrder, executorNodePriorityOrder, nodesSchedulingMetadata)
+	if packingResult.HasCapacity {
+		return packingResult
 	}
 	return SparkBinPack(ctx, driverResources, executorResources, executorCount, driverNodePriorityOrder, executorNodePriorityOrder, nodesSchedulingMetadata, tightlyPackExecutors)
 })
