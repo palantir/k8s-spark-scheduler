@@ -46,7 +46,7 @@ func reportableEfficiencyFromAvgPackingEfficiency(efficiency *binpack.AvgPacking
 }
 
 const (
-	packingEfficiencyMetricName = "foundry.spark.scheduler.packing_efficiency"
+	packingEfficiencyMetricName = "foundry.spark.scheduler.packingefficiency"
 
 	packingResourceTagKey = "foundry.spark.scheduler.packing_resource"
 	cpuTagValue           = "CPU"
@@ -54,7 +54,7 @@ const (
 	gpuTagValue           = "GPU"
 	maxTagValue           = "Max"
 
-	packingEfficiencyFunctionNameTagKey = "foundry.spark.scheduler.packing_function"
+	packingEfficiencyFunctionNameTagKey = "foundry.spark.scheduler.packingfunction"
 
 	// non-existing node to explicitly report average packing efficiency
 	avgEfficiencyNodeName = "average"
