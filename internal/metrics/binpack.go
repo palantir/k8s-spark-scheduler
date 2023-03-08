@@ -55,9 +55,6 @@ const (
 	maxTagValue           = "Max"
 
 	packingEfficiencyFunctionNameTagKey = "foundry.spark.scheduler.packingfunction"
-
-	// non-existing node to explicitly report average packing efficiency
-	avgEfficiencyNodeName = "average"
 )
 
 var (
@@ -75,21 +72,11 @@ func ReportPackingEfficiency(
 	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata,
 	packingResult *binpack.PackingResult) {
 
-	contextTags := metrics.TagsFromContext(ctx)
-	registry := metrics.NewRootMetricsRegistry()
-
 	packingFunctionTag := metrics.MustNewTag(packingEfficiencyFunctionNameTagKey, packingFunctionName)
-
-	// report packing efficiencies per node
-	for _, efficiency := range packingResult.PackingEfficiencies {
-		hostTag := HostTag(ctx, efficiency.NodeName)
-		emitMetrics(registry, contextTags, hostTag, packingFunctionTag, reportableEfficiencyFromPackingEfficiency(efficiency))
-	}
 
 	// report avg packing efficiency for all nodes at once
 	efficiency := computeAvgPackingEfficiencyForResult(nodesSchedulingMetadata, packingResult)
-	avgHostTag := HostTag(ctx, avgEfficiencyNodeName)
-	emitMetrics(registry, contextTags, avgHostTag, packingFunctionTag, reportableEfficiencyFromAvgPackingEfficiency(&efficiency))
+	emitMetrics(ctx, packingFunctionTag, reportableEfficiencyFromAvgPackingEfficiency(&efficiency))
 }
 
 func computeAvgPackingEfficiencyForResult(
@@ -104,14 +91,12 @@ func computeAvgPackingEfficiencyForResult(
 }
 
 func emitMetrics(
-	registry metrics.RootRegistry,
-	contextTags metrics.Tags,
-	hostTag metrics.Tag,
+	ctx context.Context,
 	packingFunctionTag metrics.Tag,
 	efficiency reportableEfficiency) {
 
-	registry.GaugeFloat64(packingEfficiencyMetricName, append(contextTags, hostTag, packingFunctionTag, cpuTag)...).Update(efficiency.CPU)
-	registry.GaugeFloat64(packingEfficiencyMetricName, append(contextTags, hostTag, packingFunctionTag, memoryTag)...).Update(efficiency.Memory)
-	registry.GaugeFloat64(packingEfficiencyMetricName, append(contextTags, hostTag, packingFunctionTag, gpuTag)...).Update(efficiency.GPU)
-	registry.GaugeFloat64(packingEfficiencyMetricName, append(contextTags, hostTag, packingFunctionTag, maxTag)...).Update(math.Max(efficiency.CPU, efficiency.Memory))
+	metrics.FromContext(ctx).GaugeFloat64(packingEfficiencyMetricName, packingFunctionTag, cpuTag).Update(efficiency.CPU)
+	metrics.FromContext(ctx).GaugeFloat64(packingEfficiencyMetricName, packingFunctionTag, memoryTag).Update(efficiency.Memory)
+	metrics.FromContext(ctx).GaugeFloat64(packingEfficiencyMetricName, packingFunctionTag, gpuTag).Update(efficiency.GPU)
+	metrics.FromContext(ctx).GaugeFloat64(packingEfficiencyMetricName, packingFunctionTag, maxTag).Update(math.Max(efficiency.CPU, efficiency.Memory))
 }
