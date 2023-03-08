@@ -19,6 +19,7 @@ import (
 	"time"
 
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/binpack"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal"
@@ -246,6 +247,7 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 				svc1log.SafeParam("earlierDriverName", driver.Name))
 			return false
 		}
+
 		availableNodesSchedulingMetadata.SubtractUsageIfExists(sparkResourceUsage(
 			applicationResources.driverResources,
 			applicationResources.executorResources,
@@ -292,6 +294,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 
 	usage := s.resourceReservationManager.GetReservedResources()
 	overhead := s.overheadComputer.GetOverhead(ctx, availableNodes)
+
 	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usage, overhead)
 	driverNodeNames, executorNodeNames := s.nodeSorter.PotentialNodes(availableNodesSchedulingMetadata, nodeNames)
 	applicationResources, err := sparkResources(ctx, driver)
@@ -309,6 +312,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 			return "", failureEarlierDriver, werror.Error("earlier drivers do not fit to the cluster")
 		}
 	}
+
 	packingResult := s.binpacker.BinpackFunc(
 		ctx,
 		applicationResources.driverResources,
@@ -317,6 +321,8 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		driverNodeNames,
 		executorNodeNames,
 		availableNodesSchedulingMetadata)
+	efficiency := computeAvgPackingEfficiencyForResult(availableNodesSchedulingMetadata, packingResult)
+
 	svc1log.FromContext(ctx).Debug("binpacking result",
 		svc1log.SafeParam("availableNodesSchedulingMetadata", availableNodesSchedulingMetadata),
 		svc1log.SafeParam("driverResources", applicationResources.driverResources),
@@ -328,11 +334,18 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		svc1log.SafeParam("candidateExecutorNodes", executorNodeNames),
 		svc1log.SafeParam("driverNode", packingResult.DriverNode),
 		svc1log.SafeParam("executorNodes", packingResult.ExecutorNodes),
+		svc1log.SafeParam("avg packing efficiency CPU", efficiency.CPU),
+		svc1log.SafeParam("avg packing efficiency Memory", efficiency.Memory),
+		svc1log.SafeParam("avg packing efficiency GPU", efficiency.GPU),
+		svc1log.SafeParam("avg packing efficiency Max", efficiency.Max),
 		svc1log.SafeParam("binpacker", s.binpacker.Name))
 	if !packingResult.HasCapacity {
 		s.createDemandForApplicationInAnyZone(ctx, driver, applicationResources)
 		return "", failureFit, werror.Error("application does not fit to the cluster")
 	}
+
+	metrics.ReportPackingEfficiency(ctx, s.binpacker.Name, efficiency)
+
 	s.removeDemandIfExists(ctx, driver)
 	metrics.ReportCrossZoneMetric(ctx, packingResult.DriverNode, packingResult.ExecutorNodes, availableNodes)
 
@@ -347,6 +360,17 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		return "", failureInternal, err
 	}
 	return packingResult.DriverNode, success, nil
+}
+
+func computeAvgPackingEfficiencyForResult(
+	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata,
+	packingResult *binpack.PackingResult) binpack.AvgPackingEfficiency {
+
+	packingEfficienciesDefault := make([]*binpack.PackingEfficiency, 0)
+	for _, packingEfficiency := range packingResult.PackingEfficiencies {
+		packingEfficienciesDefault = append(packingEfficienciesDefault, packingEfficiency)
+	}
+	return binpack.ComputeAvgPackingEfficiency(nodesSchedulingMetadata, packingEfficienciesDefault)
 }
 
 func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executor *v1.Pod, nodeNames []string) (string, string, error) {
@@ -576,8 +600,10 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	usage := s.resourceReservationManager.GetReservedResources()
 	overhead := s.overheadComputer.GetOverhead(ctx, availableNodes)
 	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usage, overhead)
+
 	usage.Add(overhead)
 	availableResources := resources.AvailableForNodes(availableNodes, usage)
+
 	_, executorNodeNames := s.nodeSorter.PotentialNodes(availableNodesSchedulingMetadata, nodeNames)
 
 	for _, name := range executorNodeNames {

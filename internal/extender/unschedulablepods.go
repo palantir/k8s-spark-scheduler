@@ -179,6 +179,7 @@ func (u *UnschedulablePodMarker) markPodClusterCapacityStatus(ctx context.Contex
 }
 
 func zeroUsage(nodes []*v1.Node) resources.NodeGroupResources {
+
 	zeroUsageNodeGroupResources := resources.NodeGroupResources{}
 	for _, node := range nodes {
 		zeroUsageNodeGroupResources[node.Name] = resources.Zero()
