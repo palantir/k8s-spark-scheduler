@@ -307,7 +307,6 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		}
 	}
 
-	// run binpack with the configured function, usually AZ tight pack
 	packingResultDefault := s.binpacker.BinpackFunc(
 		ctx,
 		applicationResources.driverResources,
@@ -317,15 +316,6 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		executorNodeNames,
 		availableNodesSchedulingMetadata)
 	driverNode, executorNodes, hasCapacity := packingResultDefault.DriverNode, packingResultDefault.ExecutorNodes, packingResultDefault.HasCapacity
-	// as an experiment, binpack with tight pack (report in metrics but don't use this result)
-	packingResultTight := SelectBinpacker("tightlyPack").BinpackFunc(
-		ctx,
-		applicationResources.driverResources,
-		applicationResources.executorResources,
-		applicationResources.minExecutorCount,
-		driverNodeNames,
-		executorNodeNames,
-		availableNodesSchedulingMetadata)
 
 	svc1log.FromContext(ctx).Debug("binpacking result",
 		svc1log.SafeParam("availableNodesSchedulingMetadata", availableNodesSchedulingMetadata),
@@ -345,7 +335,6 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 	}
 
 	metrics.ReportPackingEfficiency(ctx, s.binpacker.Name, availableNodesSchedulingMetadata, packingResultDefault)
-	metrics.ReportPackingEfficiency(ctx, "tightlyPack", availableNodesSchedulingMetadata, packingResultTight)
 
 	s.removeDemandIfExists(ctx, driver)
 	metrics.ReportCrossZoneMetric(ctx, driverNode, executorNodes, availableNodes)
