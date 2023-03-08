@@ -615,6 +615,8 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 		}
 	}
 	if shouldScheduleIntoSingleAZ {
+		svc1log.FromContext(ctx).Info("Failed to find space in zone for additional executor, creating a demand", svc1log.SafeParam("zone", singleAzZone))
+		metrics.IncrementSingleAzDynamicAllocationPackFailure(ctx)
 		demandZone := demandapi.Zone(singleAzZone)
 		s.createDemandForExecutorInSpecificZone(ctx, executor, executorResources, &demandZone)
 	} else {
