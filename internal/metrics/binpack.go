@@ -19,9 +19,7 @@ import (
 	"math"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/binpack"
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/pkg/metrics"
-	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 )
 
 const (
@@ -48,32 +46,10 @@ var (
 func ReportPackingEfficiency(
 	ctx context.Context,
 	packingFunctionName string,
-	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata,
-	packingResult *binpack.PackingResult) {
+	efficiency binpack.AvgPackingEfficiency) {
 
 	packingFunctionTag := metrics.MustNewTag(packingEfficiencyFunctionNameTagKey, packingFunctionName)
-
-	// report avg packing efficiency for all nodes at once
-	efficiency := computeAvgPackingEfficiencyForResult(nodesSchedulingMetadata, packingResult)
-
-	svc1log.FromContext(ctx).Debug("avg binpacking efficiency across all nodes",
-		svc1log.SafeParam("CPU", efficiency.CPU),
-		svc1log.SafeParam("Memory", efficiency.Memory),
-		svc1log.SafeParam("GPU", efficiency.GPU),
-		svc1log.SafeParam("Max", efficiency.Max))
-
 	emitMetrics(ctx, packingFunctionTag, efficiency)
-}
-
-func computeAvgPackingEfficiencyForResult(
-	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata,
-	packingResult *binpack.PackingResult) binpack.AvgPackingEfficiency {
-
-	packingEfficienciesDefault := make([]*binpack.PackingEfficiency, 0)
-	for _, packingEfficiency := range packingResult.PackingEfficiencies {
-		packingEfficienciesDefault = append(packingEfficienciesDefault, packingEfficiency)
-	}
-	return binpack.ComputeAvgPackingEfficiency(nodesSchedulingMetadata, packingEfficienciesDefault)
 }
 
 func emitMetrics(
