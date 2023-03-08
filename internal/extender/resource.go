@@ -18,6 +18,7 @@ import (
 	"context"
 	"time"
 
+	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal"
@@ -31,6 +32,7 @@ import (
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	"k8s.io/apimachinery/pkg/labels"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	v1affinityhelper "k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
@@ -47,7 +49,6 @@ const (
 	successRescheduled            = "success-rescheduled"
 	successAlreadyBound           = "success-already-bound"
 	successScheduledExtraExecutor = "success-scheduled-extra-executor"
-	failureFitExtraExecutor       = "failure-fit-extra-executor"
 	// TODO: make this configurable
 	// leaderElectionInterval is the default LeaseDuration for core clients.
 	// obtained from k8s.io/component-base/config/v1alpha1
@@ -69,12 +70,13 @@ type SparkSchedulerExtender struct {
 	demands             *cache.SafeDemandCache
 	apiExtensionsClient apiextensionsclientset.Interface
 
-	isFIFO             bool
-	fifoConfig         config.FifoConfig
-	binpacker          *Binpacker
-	overheadComputer   *OverheadComputer
-	lastRequest        time.Time
-	instanceGroupLabel string
+	isFIFO                                              bool
+	fifoConfig                                          config.FifoConfig
+	binpacker                                           *Binpacker
+	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ bool
+	overheadComputer                                    *OverheadComputer
+	lastRequest                                         time.Time
+	instanceGroupLabel                                  string
 
 	wasteMetricsReporter *metrics.WasteMetricsReporter
 }
@@ -92,6 +94,7 @@ func NewExtender(
 	isFIFO bool,
 	fifoConfig config.FifoConfig,
 	binpacker *Binpacker,
+	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ bool,
 	overheadComputer *OverheadComputer,
 	instanceGroupLabel string,
 	nodeSorter *sort.NodeSorter,
@@ -108,10 +111,11 @@ func NewExtender(
 		isFIFO:                     isFIFO,
 		fifoConfig:                 fifoConfig,
 		binpacker:                  binpacker,
-		overheadComputer:           overheadComputer,
-		instanceGroupLabel:         instanceGroupLabel,
-		nodeSorter:                 nodeSorter,
-		wasteMetricsReporter:       wasteMetricsReporter,
+		shouldScheduleDynamicallyAllocatedExecutorsInSameAZ: shouldScheduleDynamicallyAllocatedExecutorsInSameAZ,
+		overheadComputer:     overheadComputer,
+		instanceGroupLabel:   instanceGroupLabel,
+		nodeSorter:           nodeSorter,
+		wasteMetricsReporter: wasteMetricsReporter,
 	}
 }
 
@@ -242,11 +246,12 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 				svc1log.SafeParam("earlierDriverName", driver.Name))
 			return false
 		}
-		driverNode, executorNodes := packingResult.DriverNode, packingResult.ExecutorNodes
+
 		availableNodesSchedulingMetadata.SubtractUsageIfExists(sparkResourceUsage(
 			applicationResources.driverResources,
 			applicationResources.executorResources,
-			driverNode, executorNodes))
+			packingResult.DriverNode,
+			packingResult.ExecutorNodes))
 	}
 	return true
 }
@@ -302,12 +307,12 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		}
 		ok := s.fitEarlierDrivers(ctx, queuedDrivers, driverNodeNames, executorNodeNames, availableNodesSchedulingMetadata)
 		if !ok {
-			s.createDemandForApplication(ctx, driver, applicationResources)
+			s.createDemandForApplicationInAnyZone(ctx, driver, applicationResources)
 			return "", failureEarlierDriver, werror.Error("earlier drivers do not fit to the cluster")
 		}
 	}
 
-	packingResultDefault := s.binpacker.BinpackFunc(
+	packingResult := s.binpacker.BinpackFunc(
 		ctx,
 		applicationResources.driverResources,
 		applicationResources.executorResources,
@@ -315,7 +320,6 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		driverNodeNames,
 		executorNodeNames,
 		availableNodesSchedulingMetadata)
-	driverNode, executorNodes, hasCapacity := packingResultDefault.DriverNode, packingResultDefault.ExecutorNodes, packingResultDefault.HasCapacity
 
 	svc1log.FromContext(ctx).Debug("binpacking result",
 		svc1log.SafeParam("availableNodesSchedulingMetadata", availableNodesSchedulingMetadata),
@@ -323,27 +327,33 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		svc1log.SafeParam("executorResources", applicationResources.executorResources),
 		svc1log.SafeParam("minExecutorCount", applicationResources.minExecutorCount),
 		svc1log.SafeParam("maxExecutorCount", applicationResources.maxExecutorCount),
-		svc1log.SafeParam("hasCapacity", hasCapacity),
+		svc1log.SafeParam("hasCapacity", packingResult.HasCapacity),
 		svc1log.SafeParam("candidateDriverNodes", nodeNames),
 		svc1log.SafeParam("candidateExecutorNodes", executorNodeNames),
-		svc1log.SafeParam("driverNode", driverNode),
-		svc1log.SafeParam("executorNodes", executorNodes),
+		svc1log.SafeParam("driverNode", packingResult.DriverNode),
+		svc1log.SafeParam("executorNodes", packingResult.ExecutorNodes),
 		svc1log.SafeParam("binpacker", s.binpacker.Name))
-	if !hasCapacity {
-		s.createDemandForApplication(ctx, driver, applicationResources)
+	if !packingResult.HasCapacity {
+		s.createDemandForApplicationInAnyZone(ctx, driver, applicationResources)
 		return "", failureFit, werror.Error("application does not fit to the cluster")
 	}
 
-	metrics.ReportPackingEfficiency(ctx, s.binpacker.Name, availableNodesSchedulingMetadata, packingResultDefault)
+	metrics.ReportPackingEfficiency(ctx, s.binpacker.Name, availableNodesSchedulingMetadata, packingResult)
 
 	s.removeDemandIfExists(ctx, driver)
-	metrics.ReportCrossZoneMetric(ctx, driverNode, executorNodes, availableNodes)
+	metrics.ReportCrossZoneMetric(ctx, packingResult.DriverNode, packingResult.ExecutorNodes, availableNodes)
 
-	_, err = s.resourceReservationManager.CreateReservations(ctx, driver, applicationResources, driverNode, executorNodes)
+	_, err = s.resourceReservationManager.CreateReservations(
+		ctx,
+		driver,
+		applicationResources,
+		packingResult.DriverNode,
+		packingResult.ExecutorNodes,
+	)
 	if err != nil {
 		return "", failureInternal, err
 	}
-	return driverNode, success, nil
+	return packingResult.DriverNode, success, nil
 }
 
 func (s *SparkSchedulerExtender) selectExecutorNode(ctx context.Context, executor *v1.Pod, nodeNames []string) (string, string, error) {
@@ -426,6 +436,106 @@ func (s *SparkSchedulerExtender) getNodes(ctx context.Context, nodeNames []strin
 	return availableNodes
 }
 
+func filterNodesToZone(ctx context.Context, initialNodes []*v1.Node, zone string) ([]*v1.Node, error) {
+	nodes := make([]*v1.Node, 0, len(initialNodes))
+	for _, node := range initialNodes {
+		zoneLabel, ok := node.Labels[v1.LabelTopologyZone]
+		if !ok {
+			return nil, werror.ErrorWithContextParams(ctx, "Could not read zone label from node, unable to make scheduling decisions based on AZ")
+		}
+
+		if zoneLabel == zone {
+			nodes = append(nodes, node)
+		}
+	}
+	svc1log.FromContext(ctx).Info("Filtered nodes in zone", svc1log.SafeParam("zone", zone), svc1log.SafeParam("nodes", nodes))
+	return nodes, nil
+}
+
+// Return tuple contains the following elements:
+// ( String of the AZ in which the application is running if the application is running in a single AZ,
+//
+//	Bool: True if the application is running in a single AZ, false otherwise
+//	Error: Non nil if we were unable to determine if the application was running in a single AZ )
+func (s *SparkSchedulerExtender) getCommonZoneForExecutorsApplication(ctx context.Context, executor *v1.Pod) (string, bool, error) {
+	executorSparkLabel, ok := executor.Labels[common.SparkAppIDLabel]
+	if !ok {
+		return "", false, werror.ErrorWithContextParams(ctx, "Executor does not have a Spark app id label, could not create label selector")
+	}
+	applicationPods, err := s.getSparkApplicationPodsForExecutor(ctx, executor, executorSparkLabel)
+	if err != nil {
+		return "", false, err
+	}
+	scheduledPods := filterToRunningPods(ctx, applicationPods)
+	azs, err := getAzsOfPods(ctx, scheduledPods, s)
+	if err != nil {
+		return "", false, err
+	}
+	svc1log.FromContext(ctx).Info("Pods are scheduled in zones", svc1log.SafeParam("zones", azs.ToSlice()))
+	if azs.Size() > 1 {
+		return "", false, nil
+	}
+	if azs.Size() == 0 {
+		return "", false, werror.ErrorWithContextParams(ctx, "Application has no scheduled pods, can't make scheduling decisions based on AZ")
+	}
+	return azs.ToSlice()[0], true, nil
+}
+
+func getAzsOfPods(ctx context.Context, runningPods []*v1.Pod, s *SparkSchedulerExtender) (utils.StringSet, error) {
+	azs := utils.NewStringSet(len(runningPods))
+	// Get all node AZs where pods are running
+	for _, pod := range runningPods {
+		nodeName := pod.Spec.NodeName
+		node, err := s.nodeLister.Get(nodeName)
+		if err != nil {
+			return nil, err
+		}
+		zoneLabel, ok := node.Labels[v1.LabelTopologyZone]
+		if !ok {
+			return nil, werror.ErrorWithContextParams(ctx, "Could not read zone label from node, unable to make scheduling decisions based on AZ")
+		}
+		azs.Add(zoneLabel)
+	}
+	return azs, nil
+}
+
+// Filtering to running pods as pods in other states are not assigned to a node
+func filterToRunningPods(ctx context.Context, applicationPods []*v1.Pod) []*v1.Pod {
+	scheduledPods := make([]*v1.Pod, 0, len(applicationPods))
+	for _, pod := range applicationPods {
+		if pod.Status.Phase == v1.PodRunning {
+			scheduledPods = append(scheduledPods, pod)
+		}
+	}
+	logRunningPods(ctx, scheduledPods)
+	return scheduledPods
+}
+
+func logRunningPods(ctx context.Context, scheduledPods []*v1.Pod) {
+	scheduledPodNames := make([]string, 0, len(scheduledPods))
+	for _, pod := range scheduledPods {
+		scheduledPodNames = append(scheduledPodNames, pod.Name)
+	}
+	svc1log.FromContext(ctx).Info("Filtered to running application pods", svc1log.SafeParam("scheduledApplicationPods", scheduledPodNames))
+}
+
+func (s *SparkSchedulerExtender) getSparkApplicationPodsForExecutor(ctx context.Context, executor *v1.Pod, executorSparkLabel string) ([]*v1.Pod, error) {
+	applicationPods, err := s.podLister.Pods(executor.Namespace).List(labels.Set(map[string]string{common.SparkAppIDLabel: executorSparkLabel}).AsSelector())
+	if err != nil {
+		return nil, err
+	}
+	logApplicationPods(ctx, applicationPods)
+	return applicationPods, nil
+}
+
+func logApplicationPods(ctx context.Context, applicationPods []*v1.Pod) {
+	applicationPodNames := make([]string, 0, len(applicationPods))
+	for _, pod := range applicationPods {
+		applicationPodNames = append(applicationPodNames, pod.Name)
+	}
+	svc1log.FromContext(ctx).Info("Found existing application pods", svc1log.SafeParam("applicationPodNames", applicationPodNames))
+}
+
 func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executor *v1.Pod, nodeNames []string, isExtraExecutor bool) (string, string, error) {
 	driver, err := s.podLister.getDriverPodForExecutor(ctx, executor)
 	if err != nil {
@@ -438,11 +548,45 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	executorResources := &resources.Resources{CPU: sparkResources.executorResources.CPU, Memory: sparkResources.executorResources.Memory, NvidiaGPU: sparkResources.executorResources.NvidiaGPU}
 	availableNodes := s.getNodes(ctx, nodeNames)
 
+	shouldScheduleIntoSingleAZ := false
+	singleAzZone := ""
+	if doesBinpackingScheduleInSingleAz(s.binpacker) && s.shouldScheduleDynamicallyAllocatedExecutorsInSameAZ {
+		svc1log.FromContext(ctx).Info("Dynamic Allocation single AZ scheduling enabled, attempting to get zone to schedule into.")
+		zone, allPodsInSameAz, err := s.getCommonZoneForExecutorsApplication(ctx, executor)
+		if err != nil {
+			return "", "", err
+		}
+		if allPodsInSameAz {
+			svc1log.FromContext(ctx).Info("Only considering nodes from the zone",
+				svc1log.SafeParam("zone", zone))
+
+			// It's gauranteed that there is a zone here
+			availableNodes, err = filterNodesToZone(ctx, availableNodes, zone)
+			if err != nil {
+				return "", failureInternal, err
+			}
+
+			nodeNames = make([]string, 0, len(availableNodes))
+			for _, node := range availableNodes {
+				nodeNames = append(nodeNames, node.Name)
+			}
+			singleAzZone = zone
+			shouldScheduleIntoSingleAZ = true
+		} else {
+			// It possible (and expected) to get here when the version of scheduler containing dynamic executor pods in the same zone is rolled out as previously scheduled applications may have executors in different AZs
+			svc1log.FromContext(ctx).Info("Single AZ scheduling is enabled but could not locate a common AZ for scheduled pods, will attempt to schedule this pod in any AZ.")
+		}
+	} else {
+		svc1log.FromContext(ctx).Info("Single AZ not enabled, attempting to schedule anywhere.")
+	}
+
 	usage := s.resourceReservationManager.GetReservedResources()
 	overhead := s.overheadComputer.GetOverhead(ctx, availableNodes)
-
-	availableResources := resources.AvailableForNodes(availableNodes, usage)
 	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usage, overhead)
+
+	usage.Add(overhead)
+	availableResources := resources.AvailableForNodes(availableNodes, usage)
+
 	_, executorNodeNames := s.nodeSorter.PotentialNodes(availableNodesSchedulingMetadata, nodeNames)
 
 	for _, name := range executorNodeNames {
@@ -453,12 +597,12 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 			return name, successRescheduled, nil
 		}
 	}
-
-	if isExtraExecutor {
-		return "", failureFitExtraExecutor, werror.ErrorWithContextParams(ctx, "not enough capacity to schedule the extra executor")
+	if shouldScheduleIntoSingleAZ {
+		demandZone := demandapi.Zone(singleAzZone)
+		s.createDemandForExecutorInSpecificZone(ctx, executor, executorResources, &demandZone)
+	} else {
+		s.createDemandForExecutorInAnyZone(ctx, executor, executorResources)
 	}
-
-	s.createDemandForExecutor(ctx, executor, executorResources)
 	return "", failureFit, werror.ErrorWithContextParams(ctx, "not enough capacity to reschedule the executor")
 }
 

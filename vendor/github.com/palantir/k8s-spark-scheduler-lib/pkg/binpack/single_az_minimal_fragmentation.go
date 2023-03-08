@@ -14,8 +14,7 @@
 
 package binpack
 
-// SingleAZTightlyPack is a SparkBinPackFunction that tries to put the driver pod
-// to as prior nodes as possible before trying to tightly pack executors
-// while also ensuring that we can fit everything in a single AZ.
-// If it cannot fit into a single AZ binpacking fails
-var SingleAZTightlyPack = getSingleAZSparkBinFunction(tightlyPackExecutors)
+// SingleAZMinimalFragmentation attempts to use as few nodes as possible to schedule executors
+// when multiple nodes can be used to fit n executors, it will pick the node with the least available resources
+// that still fit n executors, if there are multiple, it will prefer the higher priority node
+var SingleAZMinimalFragmentation = getSingleAZSparkBinFunction(minimalFragmentation)

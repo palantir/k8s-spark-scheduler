@@ -51,7 +51,7 @@ func (s StringSet) Size() int {
 
 // ToSlice returns all the elements of StringSet as a slice of strings
 func (s StringSet) ToSlice() []string {
-	result := make([]string, s.Size())
+	result := make([]string, 0, s.Size())
 	for e := range s {
 		result = append(result, e)
 	}

@@ -23,28 +23,6 @@ import (
 	"github.com/palantir/pkg/metrics"
 )
 
-type reportableEfficiency struct {
-	CPU    float64
-	Memory float64
-	GPU    float64
-}
-
-func reportableEfficiencyFromPackingEfficiency(efficiency *binpack.PackingEfficiency) reportableEfficiency {
-	return reportableEfficiency{
-		CPU:    efficiency.CPU,
-		Memory: efficiency.Memory,
-		GPU:    efficiency.GPU,
-	}
-}
-
-func reportableEfficiencyFromAvgPackingEfficiency(efficiency *binpack.AvgPackingEfficiency) reportableEfficiency {
-	return reportableEfficiency{
-		CPU:    efficiency.CPU,
-		Memory: efficiency.Memory,
-		GPU:    efficiency.GPU,
-	}
-}
-
 const (
 	packingEfficiencyMetricName = "foundry.spark.scheduler.packingefficiency"
 
@@ -76,7 +54,7 @@ func ReportPackingEfficiency(
 
 	// report avg packing efficiency for all nodes at once
 	efficiency := computeAvgPackingEfficiencyForResult(nodesSchedulingMetadata, packingResult)
-	emitMetrics(ctx, packingFunctionTag, reportableEfficiencyFromAvgPackingEfficiency(&efficiency))
+	emitMetrics(ctx, packingFunctionTag, efficiency)
 }
 
 func computeAvgPackingEfficiencyForResult(
@@ -93,7 +71,7 @@ func computeAvgPackingEfficiencyForResult(
 func emitMetrics(
 	ctx context.Context,
 	packingFunctionTag metrics.Tag,
-	efficiency reportableEfficiency) {
+	efficiency binpack.AvgPackingEfficiency) {
 
 	metrics.FromContext(ctx).GaugeFloat64(packingEfficiencyMetricName, packingFunctionTag, cpuTag).Update(efficiency.CPU)
 	metrics.FromContext(ctx).GaugeFloat64(packingEfficiencyMetricName, packingFunctionTag, memoryTag).Update(efficiency.Memory)

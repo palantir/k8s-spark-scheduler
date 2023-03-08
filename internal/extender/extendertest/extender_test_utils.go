@@ -129,7 +129,8 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 
 	isFIFO := true
 	fifoConfig := config.FifoConfig{}
-	binpacker := extender.SelectBinpacker("tightly-pack")
+	binpacker := extender.SelectBinpacker("single-az-tightly-pack")
+	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ := true
 
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
 
@@ -145,6 +146,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 		isFIFO,
 		fifoConfig,
 		binpacker,
+		shouldScheduleDynamicallyAllocatedExecutorsInSameAZ,
 		overheadComputer,
 		instanceGroupLabel,
 		sort.NewNodeSorter(nil, nil),
@@ -220,7 +222,7 @@ func (h *Harness) AssertFailedSchedule(t *testing.T, pod v1.Pod, nodeNames []str
 }
 
 // NewNode creates a new dummy node with the given name
-func NewNode(name string) v1.Node {
+func NewNode(name string, zone string) v1.Node {
 	return v1.Node{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "node",
@@ -231,6 +233,7 @@ func NewNode(name string) v1.Node {
 				"resource_channel":                  "batch-medium-priority",
 				"com.palantir.rubix/instance-group": "batch-medium-priority",
 				"test":                              "something",
+				v1.LabelTopologyZone:                zone,
 			},
 			Annotations: map[string]string{},
 		},
@@ -306,7 +309,7 @@ func sparkApplicationPods(sparkApplicationID string, driverAnnotations map[strin
 			Kind: "pod",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "spark-driver",
+			Name:      sparkApplicationID + "-spark-driver",
 			Namespace: namespace,
 			Labels: map[string]string{
 				"spark-role":   "driver",
@@ -349,7 +352,7 @@ func sparkApplicationPods(sparkApplicationID string, driverAnnotations map[strin
 				Kind: "pod",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("spark-exec-%d", i),
+				Name:      fmt.Sprintf("%s-spark-exec-%d", sparkApplicationID, i),
 				Namespace: namespace,
 				Labels: map[string]string{
 					"spark-role":   "executor",

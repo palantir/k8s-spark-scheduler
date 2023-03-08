@@ -55,7 +55,11 @@ func (s *SparkSchedulerExtender) updatePodStatus(ctx context.Context, pod *v1.Po
 	}
 }
 
-func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources) {
+func (s *SparkSchedulerExtender) createDemandForExecutorInAnyZone(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources) {
+	s.createDemandForExecutorInSpecificZone(ctx, executorPod, executorResources, nil)
+}
+
+func (s *SparkSchedulerExtender) createDemandForExecutorInSpecificZone(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources, zone *demandapi.Zone) {
 	if !s.demands.CRDExists() {
 		return
 	}
@@ -67,21 +71,22 @@ func (s *SparkSchedulerExtender) createDemandForExecutor(ctx context.Context, ex
 				demandapi.ResourceMemory:    executorResources.Memory,
 				demandapi.ResourceNvidiaGPU: executorResources.NvidiaGPU,
 			},
+			PodNamesByNamespace: map[string][]string{
+				executorPod.Namespace: {executorPod.Name},
+			},
 		},
 	}
-	// We do not force rescheduled executors to be in the same AZ because we have no mechanism to create a demand in
-	// a specific AZ and this should happen infrequently enough that we prefer making progress
-	s.createDemand(ctx, executorPod, units)
+	s.createDemand(ctx, executorPod, units, zone)
 }
 
-func (s *SparkSchedulerExtender) createDemandForApplication(ctx context.Context, driverPod *v1.Pod, applicationResources *sparkApplicationResources) {
+func (s *SparkSchedulerExtender) createDemandForApplicationInAnyZone(ctx context.Context, driverPod *v1.Pod, applicationResources *sparkApplicationResources) {
 	if !s.demands.CRDExists() {
 		return
 	}
-	s.createDemand(ctx, driverPod, demandResources(applicationResources))
+	s.createDemand(ctx, driverPod, demandResources(applicationResources), nil)
 }
 
-func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, demandUnits []demandapi.DemandUnit) {
+func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, demandUnits []demandapi.DemandUnit, zone *demandapi.Zone) {
 	instanceGroup, ok := internal.FindInstanceGroupFromPodSpec(pod.Spec, s.instanceGroupLabel)
 	if !ok {
 		svc1log.FromContext(ctx).Error("No instanceGroup label exists. Cannot map to InstanceGroup. Skipping demand object",
@@ -89,7 +94,7 @@ func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, 
 		return
 	}
 
-	newDemand, err := s.newDemand(pod, instanceGroup, demandUnits)
+	newDemand, err := s.newDemand(pod, instanceGroup, demandUnits, zone)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("failed to construct demand object", svc1log.Stacktrace(err))
 		return
@@ -138,7 +143,7 @@ func DeleteDemandIfExists(ctx context.Context, cache *cache.SafeDemandCache, pod
 	}
 }
 
-func (s *SparkSchedulerExtender) newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit) (*demandapi.Demand, error) {
+func (s *SparkSchedulerExtender) newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit, zone *demandapi.Zone) (*demandapi.Demand, error) {
 	appID, ok := pod.Labels[common.SparkAppIDLabel]
 	if !ok {
 		return nil, werror.Error("pod did not contain expected label for AppID", werror.SafeParam("expectedLabel", common.SparkAppIDLabel))
@@ -159,6 +164,7 @@ func (s *SparkSchedulerExtender) newDemand(pod *v1.Pod, instanceGroup string, un
 			InstanceGroup:               instanceGroup,
 			Units:                       units,
 			EnforceSingleZoneScheduling: doesBinpackingScheduleInSingleAz(s.binpacker),
+			Zone:                        zone,
 		},
 	}, nil
 }
