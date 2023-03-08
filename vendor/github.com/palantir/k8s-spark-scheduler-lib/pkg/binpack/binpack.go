@@ -20,13 +20,32 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 )
 
+// PackingResult is a result of one binpacking operation. When successful, assigns driver and
+// executors to nodes. Includes an overview of the resource assignment across nodes.
+type PackingResult struct {
+	DriverNode          string
+	ExecutorNodes       []string
+	PackingEfficiencies map[string]*PackingEfficiency
+	HasCapacity         bool
+}
+
+// EmptyPackingResult returns a representation of the worst possible packing result.
+func EmptyPackingResult() *PackingResult {
+	return &PackingResult{
+		DriverNode:          "",
+		ExecutorNodes:       make([]string, 0),
+		HasCapacity:         false,
+		PackingEfficiencies: make(map[string]*PackingEfficiency, 0),
+	}
+}
+
 // SparkBinPackFunction is a function type for assigning nodes to spark drivers and executors
 type SparkBinPackFunction func(
 	ctx context.Context,
 	driverResources, executorResources *resources.Resources,
 	executorCount int,
 	driverNodePriorityOrder, executorNodePriorityOrder []string,
-	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) (driverNode string, executorNodes []string, hasCapacity bool)
+	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) *PackingResult
 
 // GenericBinPackFunction is a function type for assigning nodes to a batch of equivalent pods
 type GenericBinPackFunction func(
@@ -44,19 +63,25 @@ func SparkBinPack(
 	executorCount int,
 	driverNodePriorityOrder, executorNodePriorityOrder []string,
 	nodesSchedulingMetadata resources.NodeGroupSchedulingMetadata,
-	distributeExecutors GenericBinPackFunction) (driverNode string, executorNodes []string, hasCapacity bool) {
-	for _, name := range driverNodePriorityOrder {
-		nodeSchedulingMetadata, ok := nodesSchedulingMetadata[name]
+	distributeExecutors GenericBinPackFunction) *PackingResult {
+	for _, driverNodeName := range driverNodePriorityOrder {
+		nodeSchedulingMetadata, ok := nodesSchedulingMetadata[driverNodeName]
 		if !ok || driverResources.GreaterThan(nodeSchedulingMetadata.AvailableResources) {
 			continue
 		}
 		reserved := make(resources.NodeGroupResources, len(nodesSchedulingMetadata))
-		reserved[name] = driverResources.Copy()
+		reserved[driverNodeName] = driverResources.Copy()
 		executorNodes, ok := distributeExecutors(
 			ctx, executorResources, executorCount, executorNodePriorityOrder, nodesSchedulingMetadata, reserved)
 		if ok {
-			return name, executorNodes, true
+			packingEfficiencies := ComputePackingEfficiencies(nodesSchedulingMetadata, reserved)
+			return &PackingResult{
+				DriverNode:          driverNodeName,
+				ExecutorNodes:       executorNodes,
+				HasCapacity:         true,
+				PackingEfficiencies: packingEfficiencies,
+			}
 		}
 	}
-	return "", nil, false
+	return EmptyPackingResult()
 }
