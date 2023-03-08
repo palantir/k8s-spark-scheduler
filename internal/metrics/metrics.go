@@ -72,6 +72,7 @@ const (
 	statusCodeTagName          = "requeststatuscode"
 	queueIndexTagName          = "queueIndex"
 	schedulingWasteTypeTagName = "wastetype"
+	zoneTagName                = "zone"
 )
 
 const (
@@ -133,6 +134,11 @@ func VerbTag(ctx context.Context, verb string) metrics.Tag {
 // StatusCodeTag returns a status code tag
 func StatusCodeTag(ctx context.Context, statusCode string) metrics.Tag {
 	return tagWithDefault(ctx, statusCodeTagName, statusCode, "unspecified")
+}
+
+// ZoneTag returns a zone tag
+func ZoneTag(ctx context.Context, zone string) metrics.Tag {
+	return tagWithDefault(ctx, zoneTagName, zone, "unspecified")
 }
 
 // QueueIndexTag returns a queue index tag
@@ -285,6 +291,7 @@ func (dct *SoftReservationCompactionTimer) MarkCompactionComplete(ctx context.Co
 	metrics.FromContext(ctx).Histogram(softReservationCompactionTime).Update(time.Now().Sub(dct.startTime).Nanoseconds())
 }
 
-func IncrementSingleAzDynamicAllocationPackFailure(ctx context.Context) {
-	metrics.FromContext(ctx).Counter(singleAzDynamicAllocationPackFailureCount).Inc(1)
+// IncrementSingleAzDynamicAllocationPackFailure increments a counter for a zone we fail to schedule in, this allows us to keep track of exactly which zones are over utilised
+func IncrementSingleAzDynamicAllocationPackFailure(ctx context.Context, zone string) {
+	metrics.FromContext(ctx).Counter(singleAzDynamicAllocationPackFailureCount, ZoneTag(ctx, zone)).Inc(1)
 }
