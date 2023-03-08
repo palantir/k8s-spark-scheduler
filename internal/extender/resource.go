@@ -332,7 +332,6 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		svc1log.SafeParam("candidateExecutorNodes", executorNodeNames),
 		svc1log.SafeParam("driverNode", packingResult.DriverNode),
 		svc1log.SafeParam("executorNodes", packingResult.ExecutorNodes),
-		svc1log.SafeParam("packingEfficiency", packingResult.ExecutorNodes),
 		svc1log.SafeParam("binpacker", s.binpacker.Name))
 	if !packingResult.HasCapacity {
 		s.createDemandForApplicationInAnyZone(ctx, driver, applicationResources)
