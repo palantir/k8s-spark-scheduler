@@ -81,6 +81,11 @@ func (rrm *ResourceReservationManager) GetResourceReservation(appID string, name
 	return rrm.resourceReservations.Get(namespace, appID)
 }
 
+// GetSoftResourceReservation returns the soft resource reservation for this appId
+func (rrm *ResourceReservationManager) GetSoftResourceReservation(appID string) (*cache.SoftReservation, bool) {
+	return rrm.softReservationStore.GetSoftReservation(appID)
+}
+
 // PodHasReservation returns if the passed pod has any reservation whether it is a resource reservation or a soft reservation
 func (rrm *ResourceReservationManager) PodHasReservation(ctx context.Context, pod *v1.Pod) bool {
 	appID, ok := pod.Labels[common.SparkAppIDLabel]

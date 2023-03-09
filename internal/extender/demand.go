@@ -195,5 +195,5 @@ func demandResources(applicationResources *sparkApplicationResources) []demandap
 
 // doesBinpackingScheduleInSingleAz returns true if the binpacking algo schedules only in a specific AZ
 func doesBinpackingScheduleInSingleAz(binpacker *Binpacker) bool {
-	return binpacker.Name == singleAZTightlyPack
+	return binpacker.Name == SingleAZTightlyPack
 }

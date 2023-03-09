@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender/extendertest"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -30,6 +31,7 @@ func TestScheduler(t *testing.T) {
 	podsToSchedule := extendertest.StaticAllocationSparkPods("2-executor-app", 2)
 
 	testHarness, err := extendertest.NewTestExtender(
+		extender.SingleAZTightlyPack,
 		&node1,
 		&node2,
 		&podsToSchedule[0],
@@ -66,6 +68,59 @@ func TestScheduler(t *testing.T) {
 		newExecutor,
 		nodeNames,
 		"Because an executor is terminated, the new request can replace its reservation")
+}
+
+func TestMinimalFragmentation(t *testing.T) {
+	node1 := extendertest.NewNode("node1", "zone1")
+	node2 := extendertest.NewNode("node2", "zone1")
+	nodeNames := []string{node1.Name, node2.Name}
+	staticPodsToSchedule := extendertest.StaticAllocationSparkPods("static-app", 2)
+	podsToSchedule := extendertest.DynamicAllocationSparkPods("dynamic-app", 1, 2)
+
+	testHarness, err := extendertest.NewTestExtender(
+		extender.SingleAzMinimalFragmentation,
+		&node1,
+		&node2,
+		&staticPodsToSchedule[0],
+		&staticPodsToSchedule[1],
+		&staticPodsToSchedule[2],
+		&podsToSchedule[0],
+		&podsToSchedule[1],
+		&podsToSchedule[2],
+	)
+	if err != nil {
+		t.Fatal("Could not setup test extender")
+	}
+
+	// schedule some pods on node1, to make sure NodeSorter.PotentialNodes will put node1 first by the time we schedule the
+	// last dynamic executor (which is the actual scheduling decision under test here)
+	for i := 0; i < len(staticPodsToSchedule); i++ {
+		testHarness.AssertSuccessfulSchedule(
+			t,
+			staticPodsToSchedule[i],
+			nodeNames[:1],
+			"There should be enough capacity to schedule this pod on node1")
+	}
+
+	// note how we purposely schedule exec-1 on node2, then we attempt to schedule exec-2
+	// we pass [node1, node2] as the potential nodes, nonetheless, exec-2 should be scheduled on node2
+	// given that it already has exec-1
+	testHarness.AssertSuccessfulSchedule(
+		t,
+		podsToSchedule[0],
+		nodeNames,
+		"There should be enough capacity to schedule the driver")
+	testHarness.AssertSuccessfulSchedule(
+		t,
+		podsToSchedule[1],
+		nodeNames[1:],
+		"There should be enough capacity to schedule the first executor")
+	testHarness.AssertSuccessfulScheduleOnNode(
+		t,
+		podsToSchedule[2],
+		nodeNames,
+		nodeNames[1],
+		"The dynamic pod should be attracted to the node already hosting the first executor")
 }
 
 func TestDynamicAllocationScheduling(t *testing.T) {
@@ -206,7 +261,7 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 			for i := range test.podsToSchedule {
 				harnessArgs = append(harnessArgs, &test.podsToSchedule[i])
 			}
-			testHarness, err := extendertest.NewTestExtender(harnessArgs...)
+			testHarness, err := extendertest.NewTestExtender(extender.SingleAZTightlyPack, harnessArgs...)
 			if err != nil {
 				t.Fatal("Could not setup test extender")
 			}

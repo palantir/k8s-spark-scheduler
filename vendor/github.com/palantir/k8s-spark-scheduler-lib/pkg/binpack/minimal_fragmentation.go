@@ -16,12 +16,10 @@ package binpack
 
 import (
 	"context"
-	"math"
 	"sort"
 
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/capacity"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	"gopkg.in/inf.v0"
-	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // MinimalFragmentation is a SparkBinPackFunction that tries to put the driver pod on the first possible node with
@@ -58,35 +56,35 @@ func minimalFragmentation(
 		return executorNodes, true
 	}
 
-	nodeCapacities := getNodeCapacities(nodePriorityOrder, nodeGroupSchedulingMetadata, reservedResources, executorResources)
-	nodeCapacities = filterOutNodesWithoutCapacity(nodeCapacities)
+	nodeCapacities := capacity.GetNodeCapacities(nodePriorityOrder, nodeGroupSchedulingMetadata, reservedResources, executorResources)
+	nodeCapacities = capacity.FilterOutNodesWithoutCapacity(nodeCapacities)
 	sort.SliceStable(nodeCapacities, func(i, j int) bool {
-		return nodeCapacities[i].capacity < nodeCapacities[j].capacity
+		return nodeCapacities[i].Capacity < nodeCapacities[j].Capacity
 	})
 
 	// as long as we have nodes where we could schedule executors
 	for len(nodeCapacities) > 0 {
 		// pick the first node that could fit all the executors (if there's one)
 		position := sort.Search(len(nodeCapacities), func(i int) bool {
-			return nodeCapacities[i].capacity >= executorCount
+			return nodeCapacities[i].Capacity >= executorCount
 		})
 
 		if position != len(nodeCapacities) {
 			// we found a node that has the required capacity, schedule everything there and we're done
-			return append(executorNodes, repeat(nodeCapacities[position].nodeName, executorCount)...), true
+			return append(executorNodes, repeat(nodeCapacities[position].NodeName, executorCount)...), true
 		}
 
 		// we will need multiple nodes for scheduling, thus we'll try to schedule executors on nodes with the most capacity
-		maxCapacity := nodeCapacities[len(nodeCapacities)-1].capacity
+		maxCapacity := nodeCapacities[len(nodeCapacities)-1].Capacity
 		firstNodeWithMaxCapacityIdx := sort.Search(len(nodeCapacities), func(i int) bool {
-			return nodeCapacities[i].capacity >= maxCapacity
+			return nodeCapacities[i].Capacity >= maxCapacity
 		})
 
 		// the loop will exit because maxCapacity is always > 0
 		currentPos := firstNodeWithMaxCapacityIdx
 		for ; executorCount >= maxCapacity && currentPos < len(nodeCapacities); currentPos++ {
 			// we can skip the check on firstNodeWithMaxCapacityIdx since we know at least one node will be found
-			executorNodes = append(executorNodes, repeat(nodeCapacities[currentPos].nodeName, maxCapacity)...)
+			executorNodes = append(executorNodes, repeat(nodeCapacities[currentPos].NodeName, maxCapacity)...)
 			executorCount -= maxCapacity
 		}
 
@@ -98,102 +96,6 @@ func minimalFragmentation(
 	}
 
 	return nil, false
-}
-
-type nodeAndExecutorCapacity struct {
-	nodeName string
-	capacity int
-}
-
-// getCapacityAgainstSingleDimension computes how many times we can fit the required quantity within (available-reserved)
-// e.g. if required = 4, available = 14, reserved = 1, we can fit 3 executors (3 * required <= available - reserved)
-//
-// This function is only useful to compare one dimension at a time, e.g. CPU or Memory, use getNodeCapacity to account
-// for all dimensions
-func getCapacityAgainstSingleDimension(available, reserved, required resource.Quantity) int {
-	if reserved.Cmp(available) == 1 {
-		// ideally this shouldn't happen (reserved > available), but should this happen, let's be resilient
-		return 0
-	}
-
-	if required.IsZero() {
-		// if we don't require any resources for this dimension, then we can fit an infinite number of executors
-		return math.MaxInt
-	}
-
-	// this basically computes: floor((available - reserved) / required)
-	return int(new(inf.Dec).QuoRound(
-		new(inf.Dec).Sub(available.AsDec(), reserved.AsDec()),
-		required.AsDec(),
-		0,
-		inf.RoundFloor,
-	).UnscaledBig().Int64())
-}
-
-func getNodeCapacity(available, reserved, singleExecutor *resources.Resources) int {
-	capacityConsideringCPUOnly := getCapacityAgainstSingleDimension(
-		available.CPU,
-		reserved.CPU,
-		singleExecutor.CPU,
-	)
-	capacityConsideringMemoryOnly := getCapacityAgainstSingleDimension(
-		available.Memory,
-		reserved.Memory,
-		singleExecutor.Memory,
-	)
-	capacityConsideringNvidiaGPUOnly := getCapacityAgainstSingleDimension(
-		available.NvidiaGPU,
-		reserved.NvidiaGPU,
-		singleExecutor.NvidiaGPU,
-	)
-
-	return min(capacityConsideringCPUOnly, capacityConsideringMemoryOnly, capacityConsideringNvidiaGPUOnly)
-}
-
-// getNodeCapacities' return value is ordered according to nodePriorityOrder
-func getNodeCapacities(
-	nodePriorityOrder []string,
-	nodeGroupSchedulingMetadata resources.NodeGroupSchedulingMetadata,
-	reservedResources resources.NodeGroupResources,
-	singleExecutor *resources.Resources,
-) []nodeAndExecutorCapacity {
-	capacities := make([]nodeAndExecutorCapacity, 0, len(nodePriorityOrder))
-
-	for _, nodeName := range nodePriorityOrder {
-		if nodeSchedulingMetadata, ok := nodeGroupSchedulingMetadata[nodeName]; ok {
-			reserved := resources.Zero()
-
-			if alreadyReserved, ok := reservedResources[nodeName]; ok {
-				reserved = alreadyReserved
-			}
-
-			capacities = append(capacities, nodeAndExecutorCapacity{
-				nodeName,
-				getNodeCapacity(nodeSchedulingMetadata.AvailableResources, reserved, singleExecutor),
-			})
-		}
-	}
-
-	return capacities
-}
-
-func filterOutNodesWithoutCapacity(capacities []nodeAndExecutorCapacity) []nodeAndExecutorCapacity {
-	filteredCapacities := make([]nodeAndExecutorCapacity, 0, len(capacities))
-	for _, nodeWithCapacity := range capacities {
-		if nodeWithCapacity.capacity > 0 {
-			filteredCapacities = append(filteredCapacities, nodeWithCapacity)
-		}
-	}
-	return filteredCapacities
-}
-
-func min(a, b, c int) int {
-	if a <= b && a <= c {
-		return a
-	} else if b <= c {
-		return b
-	}
-	return c
 }
 
 func repeat(str string, n int) []string {

@@ -60,7 +60,7 @@ type Harness struct {
 }
 
 // NewTestExtender returns a new extender test harness, initialized with the provided k8s objects
-func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
+func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, error) {
 	wlog.SetDefaultLoggerProvider(wlog.NewNoopLoggerProvider()) // suppressing Witchcraft warning log about logger provider
 	ctx := newLoggingContext()
 
@@ -129,7 +129,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 
 	isFIFO := true
 	fifoConfig := config.FifoConfig{}
-	binpacker := extender.SelectBinpacker("single-az-tightly-pack")
+	binpacker := extender.SelectBinpacker(binpackAlgo)
 	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ := true
 
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
@@ -210,6 +210,17 @@ func (h *Harness) AssertSuccessfulSchedule(t *testing.T, pod v1.Pod, nodeNames [
 	result := h.Schedule(t, pod, nodeNames)
 	if result.NodeNames == nil {
 		t.Errorf("Scheduling should succeed: %s", errorDetails)
+	}
+}
+
+// AssertSuccessfulScheduleOnNode tries to schedule the provided pods and fails if the pod isn't schedule on the expected node
+func (h *Harness) AssertSuccessfulScheduleOnNode(t *testing.T, pod v1.Pod, nodeNames []string, expectedNode string, errorDetails string) {
+	result := h.Schedule(t, pod, nodeNames)
+	if result.NodeNames == nil {
+		t.Errorf("Scheduling should succeed: %s", errorDetails)
+	}
+	if len(*result.NodeNames) != 1 || (*result.NodeNames)[0] != expectedNode {
+		t.Errorf("Scheduled pod on the wrong node: %s", errorDetails)
 	}
 }
 
