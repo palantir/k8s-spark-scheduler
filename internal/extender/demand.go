@@ -83,7 +83,7 @@ func (s *SparkSchedulerExtender) createDemandForApplicationInAnyZone(ctx context
 	if !s.demands.CRDExists() {
 		return
 	}
-	s.createDemand(ctx, driverPod, demandResources(applicationResources), nil)
+	s.createDemand(ctx, driverPod, demandResourcesForApplication(driverPod, applicationResources), nil)
 }
 
 func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, demandUnits []demandapi.DemandUnit, zone *demandapi.Zone) {
@@ -169,7 +169,7 @@ func (s *SparkSchedulerExtender) newDemand(pod *v1.Pod, instanceGroup string, un
 	}, nil
 }
 
-func demandResources(applicationResources *sparkApplicationResources) []demandapi.DemandUnit {
+func demandResourcesForApplication(driverPod *v1.Pod, applicationResources *sparkApplicationResources) []demandapi.DemandUnit {
 	demandUnits := []demandapi.DemandUnit{
 		{
 			Count: 1,
@@ -177,6 +177,10 @@ func demandResources(applicationResources *sparkApplicationResources) []demandap
 				demandapi.ResourceCPU:       applicationResources.driverResources.CPU,
 				demandapi.ResourceMemory:    applicationResources.driverResources.Memory,
 				demandapi.ResourceNvidiaGPU: applicationResources.driverResources.NvidiaGPU,
+			},
+			// By specifying the pod driver pod here, we don't duplicate the resources of the pod with the created demand
+			PodNamesByNamespace: map[string][]string{
+				driverPod.Namespace: {driverPod.Name},
 			},
 		},
 	}
