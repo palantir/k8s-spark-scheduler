@@ -1,0 +1,2 @@
+'autorelease': ['**/*.go', 'go.sum']
+'merge when ready': ['**/*.go', 'go.sum']

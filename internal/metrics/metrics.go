@@ -27,34 +27,35 @@ import (
 )
 
 const (
-	requestCounter                  = "foundry.spark.scheduler.requests"
-	schedulingProcessingTime        = "foundry.spark.scheduler.schedule.time"
-	reconciliationTime              = "foundry.spark.scheduler.reconciliation.time"
-	schedulingWaitTime              = "foundry.spark.scheduler.wait.time"
-	schedulingRetryTime             = "foundry.spark.scheduler.retry.time"
-	resourceUsageCPU                = "foundry.spark.scheduler.resource.usage.cpu"
-	resourceUsageMemory             = "foundry.spark.scheduler.resource.usage.memory"
-	resourceUsageNvidiaGPUs         = "foundry.spark.scheduler.resource.usage.nvidia.com/gpu"
-	lifecycleAgeMax                 = "foundry.spark.scheduler.pod.lifecycle.max"
-	lifecycleAgeP95                 = "foundry.spark.scheduler.pod.lifecycle.p95"
-	lifecycleAgeP50                 = "foundry.spark.scheduler.pod.lifecycle.p50"
-	lifecycleCount                  = "foundry.spark.scheduler.pod.lifecycle.count"
-	crossAzTraffic                  = "foundry.spark.scheduler.az.cross.traffic"
-	crossAzTrafficMean              = "foundry.spark.scheduler.az.cross.traffic.mean"
-	totalTraffic                    = "foundry.spark.scheduler.total.traffic"
-	totalTrafficMean                = "foundry.spark.scheduler.total.traffic.mean"
-	applicationZonesCount           = "foundry.spark.scheduler.application.zones.count"
-	requestLatency                  = "foundry.spark.scheduler.client.request.latency"
-	requestResult                   = "foundry.spark.scheduler.client.request.result"
-	cachedObjectCount               = "foundry.spark.scheduler.cache.objects.count"
-	inflightRequestCount            = "foundry.spark.scheduler.cache.inflight.count"
-	softReservationCount            = "foundry.spark.scheduler.softreservation.count"
-	softReservationExecutorCount    = "foundry.spark.scheduler.softreservation.executorcount"
-	executorsWithNoReservationCount = "foundry.spark.scheduler.softreservation.executorswithnoreservations"
-	softReservationCompactionTime   = "foundry.spark.scheduler.softreservation.compaction.time"
-	podInformerDelay                = "foundry.spark.scheduler.informer.delay"
-	schedulingWaste                 = "foundry.spark.scheduler.scheduling.waste"
-	schedulingWastePerInstanceGroup = "foundry.spark.scheduler.scheduling.wasteperinstancegroup"
+	requestCounter                            = "foundry.spark.scheduler.requests"
+	schedulingProcessingTime                  = "foundry.spark.scheduler.schedule.time"
+	reconciliationTime                        = "foundry.spark.scheduler.reconciliation.time"
+	schedulingWaitTime                        = "foundry.spark.scheduler.wait.time"
+	schedulingRetryTime                       = "foundry.spark.scheduler.retry.time"
+	resourceUsageCPU                          = "foundry.spark.scheduler.resource.usage.cpu"
+	resourceUsageMemory                       = "foundry.spark.scheduler.resource.usage.memory"
+	resourceUsageNvidiaGPUs                   = "foundry.spark.scheduler.resource.usage.nvidia.com/gpu"
+	lifecycleAgeMax                           = "foundry.spark.scheduler.pod.lifecycle.max"
+	lifecycleAgeP95                           = "foundry.spark.scheduler.pod.lifecycle.p95"
+	lifecycleAgeP50                           = "foundry.spark.scheduler.pod.lifecycle.p50"
+	lifecycleCount                            = "foundry.spark.scheduler.pod.lifecycle.count"
+	singleAzDynamicAllocationPackFailureCount = "foundry.spark.scheduler.singleazdynamicallocationpackfailure.count"
+	crossAzTraffic                            = "foundry.spark.scheduler.az.cross.traffic"
+	crossAzTrafficMean                        = "foundry.spark.scheduler.az.cross.traffic.mean"
+	totalTraffic                              = "foundry.spark.scheduler.total.traffic"
+	totalTrafficMean                          = "foundry.spark.scheduler.total.traffic.mean"
+	applicationZonesCount                     = "foundry.spark.scheduler.application.zones.count"
+	requestLatency                            = "foundry.spark.scheduler.client.request.latency"
+	requestResult                             = "foundry.spark.scheduler.client.request.result"
+	cachedObjectCount                         = "foundry.spark.scheduler.cache.objects.count"
+	inflightRequestCount                      = "foundry.spark.scheduler.cache.inflight.count"
+	softReservationCount                      = "foundry.spark.scheduler.softreservation.count"
+	softReservationExecutorCount              = "foundry.spark.scheduler.softreservation.executorcount"
+	executorsWithNoReservationCount           = "foundry.spark.scheduler.softreservation.executorswithnoreservations"
+	softReservationCompactionTime             = "foundry.spark.scheduler.softreservation.compaction.time"
+	podInformerDelay                          = "foundry.spark.scheduler.informer.delay"
+	schedulingWaste                           = "foundry.spark.scheduler.scheduling.waste"
+	schedulingWastePerInstanceGroup           = "foundry.spark.scheduler.scheduling.wasteperinstancegroup"
 )
 
 const (
@@ -71,6 +72,7 @@ const (
 	statusCodeTagName          = "requeststatuscode"
 	queueIndexTagName          = "queueIndex"
 	schedulingWasteTypeTagName = "wastetype"
+	zoneTagName                = "zone"
 )
 
 const (
@@ -132,6 +134,11 @@ func VerbTag(ctx context.Context, verb string) metrics.Tag {
 // StatusCodeTag returns a status code tag
 func StatusCodeTag(ctx context.Context, statusCode string) metrics.Tag {
 	return tagWithDefault(ctx, statusCodeTagName, statusCode, "unspecified")
+}
+
+// ZoneTag returns a zone tag
+func ZoneTag(ctx context.Context, zone string) metrics.Tag {
+	return tagWithDefault(ctx, zoneTagName, zone, "unspecified")
 }
 
 // QueueIndexTag returns a queue index tag
@@ -282,4 +289,9 @@ func GetAndStartSoftReservationCompactionTimer() *SoftReservationCompactionTimer
 // MarkCompactionComplete emits a metric with the time difference between now and when the timer was started by GetAndStartSoftReservationCompactionTimer()
 func (dct *SoftReservationCompactionTimer) MarkCompactionComplete(ctx context.Context) {
 	metrics.FromContext(ctx).Histogram(softReservationCompactionTime).Update(time.Now().Sub(dct.startTime).Nanoseconds())
+}
+
+// IncrementSingleAzDynamicAllocationPackFailure increments a counter for a zone we fail to schedule in, this allows us to keep track of exactly which zones are over utilised
+func IncrementSingleAzDynamicAllocationPackFailure(ctx context.Context, zone string) {
+	metrics.FromContext(ctx).Counter(singleAzDynamicAllocationPackFailureCount, ZoneTag(ctx, zone)).Inc(1)
 }

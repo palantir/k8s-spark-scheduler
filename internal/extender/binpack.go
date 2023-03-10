@@ -37,14 +37,15 @@ const (
 type Binpacker struct {
 	Name        string
 	BinpackFunc binpack.SparkBinPackFunction
+	IsSingleAz  bool
 }
 
 var binpackFunctions = map[string]*Binpacker{
-	tightlyPack:                  {tightlyPack, binpack.TightlyPack},
-	distributeEvenly:             {distributeEvenly, binpack.DistributeEvenly},
-	azAwareTightlyPack:           {azAwareTightlyPack, binpack.AzAwareTightlyPack},
-	SingleAZTightlyPack:          {SingleAZTightlyPack, binpack.SingleAZTightlyPack},
-	SingleAzMinimalFragmentation: {SingleAzMinimalFragmentation, binpack.MinimalFragmentation},
+	tightlyPack:                  {tightlyPack, binpack.TightlyPack, false},
+	distributeEvenly:             {distributeEvenly, binpack.DistributeEvenly, false},
+	azAwareTightlyPack:           {azAwareTightlyPack, binpack.AzAwareTightlyPack, false},
+	SingleAZTightlyPack:          {SingleAZTightlyPack, binpack.SingleAZTightlyPack, true},
+	SingleAzMinimalFragmentation: {SingleAzMinimalFragmentation, binpack.SingleAZMinimalFragmentation, true},
 }
 
 // SelectBinpacker selects the binpack function from the given name

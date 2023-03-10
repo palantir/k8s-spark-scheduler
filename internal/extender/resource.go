@@ -466,8 +466,17 @@ func filterNodesToZone(ctx context.Context, initialNodes []*v1.Node, zone string
 			nodes = append(nodes, node)
 		}
 	}
-	svc1log.FromContext(ctx).Info("Filtered nodes in zone", svc1log.SafeParam("zone", zone), svc1log.SafeParam("nodes", nodes))
+	nodeNames := getNodeNames(nodes)
+	svc1log.FromContext(ctx).Info("Filtered nodes in zone", svc1log.SafeParam("zone", zone), svc1log.SafeParam("nodes", nodeNames))
 	return nodes, nil
+}
+
+func getNodeNames(nodes []*v1.Node) []string {
+	nodeNames := make([]string, len(nodes))
+	for _, node := range nodes {
+		nodeNames = append(nodeNames, node.Name)
+	}
+	return nodeNames
 }
 
 // Return tuple contains the following elements:
@@ -590,7 +599,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 
 	shouldScheduleIntoSingleAZ := false
 	singleAzZone := ""
-	if doesBinpackingScheduleInSingleAz(s.binpacker) && s.shouldScheduleDynamicallyAllocatedExecutorsInSameAZ {
+	if s.binpacker.IsSingleAz && s.shouldScheduleDynamicallyAllocatedExecutorsInSameAZ {
 		svc1log.FromContext(ctx).Info("Dynamic Allocation single AZ scheduling enabled, attempting to get zone to schedule into.")
 		zone, allPodsInSameAz, err := s.getCommonZoneForExecutorsApplication(ctx, executor)
 		if err != nil {
@@ -682,6 +691,8 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 		}
 	}
 	if shouldScheduleIntoSingleAZ {
+		svc1log.FromContext(ctx).Info("Failed to find space in zone for additional executor, creating a demand", svc1log.SafeParam("zone", singleAzZone))
+		metrics.IncrementSingleAzDynamicAllocationPackFailure(ctx, singleAzZone)
 		demandZone := demandapi.Zone(singleAzZone)
 		s.createDemandForExecutorInSpecificZone(ctx, executor, executorResources, &demandZone)
 	} else {
