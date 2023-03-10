@@ -465,8 +465,17 @@ func filterNodesToZone(ctx context.Context, initialNodes []*v1.Node, zone string
 			nodes = append(nodes, node)
 		}
 	}
-	svc1log.FromContext(ctx).Info("Filtered nodes in zone", svc1log.SafeParam("zone", zone), svc1log.SafeParam("nodes", nodes))
+	nodeNames := getNodeNames(nodes)
+	svc1log.FromContext(ctx).Info("Filtered nodes in zone", svc1log.SafeParam("zone", zone), svc1log.SafeParam("nodes", nodeNames))
 	return nodes, nil
+}
+
+func getNodeNames(nodes []*v1.Node) []string {
+	nodeNames := make([]string, len(nodes))
+	for _, node := range nodes {
+		nodeNames = append(nodeNames, node.Name)
+	}
+	return nodeNames
 }
 
 // Return tuple contains the following elements:
