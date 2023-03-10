@@ -163,7 +163,7 @@ func (s *SparkSchedulerExtender) newDemand(pod *v1.Pod, instanceGroup string, un
 		Spec: demandapi.DemandSpec{
 			InstanceGroup:               instanceGroup,
 			Units:                       units,
-			EnforceSingleZoneScheduling: doesBinpackingScheduleInSingleAz(s.binpacker),
+			EnforceSingleZoneScheduling: s.binpacker.IsSingleAz,
 			Zone:                        zone,
 		},
 	}, nil
@@ -195,9 +195,4 @@ func demandResourcesForApplication(driverPod *v1.Pod, applicationResources *spar
 		})
 	}
 	return demandUnits
-}
-
-// doesBinpackingScheduleInSingleAz returns true if the binpacking algo schedules only in a specific AZ
-func doesBinpackingScheduleInSingleAz(binpacker *Binpacker) bool {
-	return binpacker.Name == singleAZTightlyPack
 }

@@ -576,7 +576,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 
 	shouldScheduleIntoSingleAZ := false
 	singleAzZone := ""
-	if doesBinpackingScheduleInSingleAz(s.binpacker) && s.shouldScheduleDynamicallyAllocatedExecutorsInSameAZ {
+	if s.binpacker.IsSingleAz && s.shouldScheduleDynamicallyAllocatedExecutorsInSameAZ {
 		svc1log.FromContext(ctx).Info("Dynamic Allocation single AZ scheduling enabled, attempting to get zone to schedule into.")
 		zone, allPodsInSameAz, err := s.getCommonZoneForExecutorsApplication(ctx, executor)
 		if err != nil {
