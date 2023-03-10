@@ -629,12 +629,22 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 
 	_, executorNodeNames := s.nodeSorter.PotentialNodes(availableNodesSchedulingMetadata, nodeNames)
 
+	potentialSuccessOutcome := successRescheduled
+	if isExtraExecutor {
+		potentialSuccessOutcome = successScheduledExtraExecutor
+	}
+
 	if s.binpacker.Name == SingleAzMinimalFragmentation {
 		capacities := capacity.GetNodeCapacities(executorNodeNames, availableNodesSchedulingMetadata, overhead, executorResources)
 		nodesWithExecutorsBelongingToThisApp := s.getNodesWithExecutorsBelongingToSameApp(executor)
 
+		seenNodesWithExecutorsBelongingToThisApp := 0
 		var best capacity.NodeAndExecutorCapacity
 		for _, nodeAndCapacity := range capacities {
+			if nodesWithExecutorsBelongingToThisApp[nodeAndCapacity.NodeName] {
+				seenNodesWithExecutorsBelongingToThisApp++
+			}
+
 			if nodeAndCapacity.Capacity >= 1 {
 				switch {
 				case best.NodeName == "":
@@ -647,22 +657,27 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 					// provided the two nodes are equal in terms of already hosting pods in this app, then we look at capacity
 					best = nodeAndCapacity
 				}
+
+				// check if we already found an optimal solution
+				switch {
+				case best.Capacity == 1 && nodesWithExecutorsBelongingToThisApp[best.NodeName]:
+					return best.NodeName, potentialSuccessOutcome, nil
+				case seenNodesWithExecutorsBelongingToThisApp == len(nodesWithExecutorsBelongingToThisApp) &&
+					nodesWithExecutorsBelongingToThisApp[best.NodeName]:
+					return best.NodeName, potentialSuccessOutcome, nil
+				case seenNodesWithExecutorsBelongingToThisApp == len(nodesWithExecutorsBelongingToThisApp) && best.Capacity == 1:
+					return best.NodeName, potentialSuccessOutcome, nil
+				}
 			}
 		}
 
 		if best.NodeName != "" {
-			if isExtraExecutor {
-				return best.NodeName, successScheduledExtraExecutor, nil
-			}
-			return best.NodeName, successRescheduled, nil
+			return best.NodeName, potentialSuccessOutcome, nil
 		}
 	} else {
 		for _, name := range executorNodeNames {
 			if !executorResources.GreaterThan(availableResources[name]) {
-				if isExtraExecutor {
-					return name, successScheduledExtraExecutor, nil
-				}
-				return name, successRescheduled, nil
+				return name, potentialSuccessOutcome, nil
 			}
 		}
 	}
