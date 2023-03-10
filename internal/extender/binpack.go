@@ -41,7 +41,7 @@ var binpackFunctions = map[string]*Binpacker{
 	distributeEvenly:             {distributeEvenly, binpack.DistributeEvenly, false},
 	azAwareTightlyPack:           {azAwareTightlyPack, binpack.AzAwareTightlyPack, false},
 	singleAZTightlyPack:          {singleAZTightlyPack, binpack.SingleAZTightlyPack, true},
-	singleAzMinimalFragmentation: {singleAzMinimalFragmentation, binpack.MinimalFragmentation, true},
+	singleAzMinimalFragmentation: {singleAzMinimalFragmentation, binpack.SingleAZMinimalFragmentation, true},
 }
 
 // SelectBinpacker selects the binpack function from the given name
