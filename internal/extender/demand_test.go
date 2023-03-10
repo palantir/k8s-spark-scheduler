@@ -15,11 +15,12 @@
 package extender
 
 import (
+	"reflect"
+	"testing"
+
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
-	"testing"
 )
 
 var testResource = createResources(1, 2432*1024*1024, 1)
