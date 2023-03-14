@@ -236,6 +236,8 @@ github.com/spf13/pflag
 # go.uber.org/atomic v1.7.0
 ## explicit; go 1.13
 go.uber.org/atomic
+# go.uber.org/goleak v1.2.0
+## explicit; go 1.18
 # go.uber.org/multierr v1.6.0
 ## explicit; go 1.12
 go.uber.org/multierr
@@ -436,8 +438,6 @@ k8s.io/apimachinery/pkg/version
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/reflect
-# k8s.io/apiserver v0.25.7 => k8s.io/apiserver v0.25.7
-## explicit; go 1.19
 # k8s.io/client-go v0.25.7 => k8s.io/client-go v0.25.7
 ## explicit; go 1.19
 k8s.io/client-go/applyconfigurations/admissionregistration/v1
@@ -712,8 +712,6 @@ k8s.io/client-go/util/flowcontrol
 k8s.io/client-go/util/homedir
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/workqueue
-# k8s.io/component-base v0.25.7 => k8s.io/component-base v0.25.7
-## explicit; go 1.19
 # k8s.io/component-helpers v0.25.7 => k8s.io/component-helpers v0.25.7
 ## explicit; go 1.19
 k8s.io/component-helpers/scheduling/corev1/nodeaffinity
