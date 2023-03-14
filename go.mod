@@ -22,7 +22,7 @@ require (
 	k8s.io/client-go v0.25.7
 	k8s.io/component-helpers v0.25.7
 	k8s.io/kube-scheduler v0.0.0
-	k8s.io/kubernetes v1.24.7
+	k8s.io/kubernetes v1.25.7
 	sigs.k8s.io/controller-runtime v0.11.0
 )
 
@@ -30,7 +30,6 @@ require (
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/emicklei/go-restful v2.9.5+incompatible // indirect
 	github.com/emicklei/go-restful/v3 v3.8.0 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
