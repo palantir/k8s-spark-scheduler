@@ -331,7 +331,7 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# k8s.io/api v0.24.7 => k8s.io/api v0.24.7
+# k8s.io/api v0.26.2 => k8s.io/api v0.26.2
 ## explicit; go 1.16
 k8s.io/api/admissionregistration/v1
 k8s.io/api/admissionregistration/v1beta1
@@ -770,7 +770,7 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit; go 1.12
 sigs.k8s.io/yaml
 # google.golang.org/grpc => google.golang.org/grpc v1.26.0
-# k8s.io/api => k8s.io/api v0.24.7
+# k8s.io/api => k8s.io/api v0.26.2
 # k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.24.7
 # k8s.io/apimachinery => k8s.io/apimachinery v0.24.7
 # k8s.io/apiserver => k8s.io/apiserver v0.24.7

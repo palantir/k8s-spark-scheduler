@@ -16,7 +16,7 @@ require (
 	go.uber.org/atomic v1.7.0
 	// Pin for CVE-2022-27664
 	golang.org/x/net v0.0.0-20220906165146-f3363e06e74c // indirect
-	k8s.io/api v0.24.7
+	k8s.io/api v0.26.2
 	k8s.io/apiextensions-apiserver v0.24.7
 	k8s.io/apimachinery v0.24.7
 	k8s.io/client-go v0.25.7
@@ -96,7 +96,7 @@ replace (
 	google.golang.org/grpc => google.golang.org/grpc v1.26.0
 	// k8s.io/kubernetes sets these to v0.0.0, replace them with the current
 	// k8s.io/kubernetes version to be able to depend on it.
-	k8s.io/api => k8s.io/api v0.24.7
+	k8s.io/api => k8s.io/api v0.26.2
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.24.7
 	k8s.io/apimachinery => k8s.io/apimachinery v0.24.7
 	k8s.io/apiserver => k8s.io/apiserver v0.24.7
