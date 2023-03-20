@@ -204,7 +204,9 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 }
 
 // ReportCrossZoneMetric reports metric about cross AZ traffic between pods of a spark application
-func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorNodeNames []string, nodes []*v1.Node) {
+func ReportCrossZoneMetric(ctx context.Context, instanceGroup string, driverNodeName string, executorNodeNames []string, nodes []*v1.Node) {
+	instanceGroupTag := InstanceGroupTag(ctx, instanceGroup)
+
 	numPodsPerNode := map[string]int{
 		driverNodeName: 1,
 	}
@@ -229,9 +231,9 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 	totalPairs := int64(totalNumPods * (totalNumPods - 1) / 2)
 	numberOfZones := int64(len(numPodsPerZone))
 
-	crossAzPodPairs := metrics.FromContext(ctx).Histogram(crossAzTraffic)
+	crossAzPodPairs := metrics.FromContext(ctx).Histogram(crossAzTraffic, instanceGroupTag)
 	crossAzPodPairs.Update(crossZonePairs)
-	totalPodPairs := metrics.FromContext(ctx).Histogram(totalTraffic)
+	totalPodPairs := metrics.FromContext(ctx).Histogram(totalTraffic, instanceGroupTag)
 	totalPodPairs.Update(totalPairs)
 
 	// We care about the mean because we want to see the overall picture of cross AZ scheduling, p95 and p99 are too
@@ -239,10 +241,10 @@ func ReportCrossZoneMetric(ctx context.Context, driverNodeName string, executorN
 	// 100% when in reality this represents a fairly small amount of cross AZ traffic
 	// We need to explicitly create a metric for this because the mean is stripped from the metric logs of histograms
 	// by default, we need to explicitly update it
-	metrics.FromContext(ctx).GaugeFloat64(crossAzTrafficMean).Update(crossAzPodPairs.Mean())
-	metrics.FromContext(ctx).GaugeFloat64(totalTrafficMean).Update(totalPodPairs.Mean())
+	metrics.FromContext(ctx).GaugeFloat64(crossAzTrafficMean, instanceGroupTag).Update(crossAzPodPairs.Mean())
+	metrics.FromContext(ctx).GaugeFloat64(totalTrafficMean, instanceGroupTag).Update(totalPodPairs.Mean())
 
-	metrics.FromContext(ctx).Histogram(applicationZonesCount).Update(numberOfZones)
+	metrics.FromContext(ctx).Histogram(applicationZonesCount, instanceGroupTag).Update(numberOfZones)
 }
 
 // crossZoneTraffic calculates the total number of pairs of pods, where the 2 pods are in different zones.
