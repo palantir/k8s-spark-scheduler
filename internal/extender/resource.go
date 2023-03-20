@@ -147,7 +147,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 	}
 	s.resourceReservationManager.CompactDynamicAllocationApplications(ctx)
 
-	nodeName, outcome, err := s.selectNode(ctx, args.Pod.Labels[common.SparkRoleLabel], args.Pod, *args.NodeNames)
+	nodeName, outcome, err := s.selectNode(ctx, instanceGroup, args.Pod.Labels[common.SparkRoleLabel], args.Pod, *args.NodeNames)
 	timer.Mark(ctx, role, outcome)
 	if err != nil {
 		if outcome == failureInternal {
@@ -201,10 +201,10 @@ func (s *SparkSchedulerExtender) reconcileIfNeeded(ctx context.Context, timer *m
 	return nil
 }
 
-func (s *SparkSchedulerExtender) selectNode(ctx context.Context, role string, pod *v1.Pod, nodeNames []string) (string, string, error) {
+func (s *SparkSchedulerExtender) selectNode(ctx context.Context, instanceGroup string, role string, pod *v1.Pod, nodeNames []string) (string, string, error) {
 	switch role {
 	case common.Driver:
-		return s.selectDriverNode(ctx, pod, nodeNames)
+		return s.selectDriverNode(ctx, instanceGroup, pod, nodeNames)
 	case common.Executor:
 		node, outcome, err := s.selectExecutorNode(ctx, pod, nodeNames)
 		if s.isSuccessOutcome(outcome) {
@@ -220,6 +220,7 @@ func (s *SparkSchedulerExtender) selectNode(ctx context.Context, role string, po
 // accounts for their resource usage in availableNodesSchedulingMetadata
 func (s *SparkSchedulerExtender) fitEarlierDrivers(
 	ctx context.Context,
+	instanceGroup string,
 	drivers []*v1.Pod,
 	nodeNames, executorNodeNames []string,
 	availableNodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) bool {
@@ -238,7 +239,7 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 			applicationResources.minExecutorCount,
 			nodeNames, executorNodeNames, availableNodesSchedulingMetadata)
 		if !packingResult.HasCapacity {
-			if s.shouldSkipDriverFifo(driver) {
+			if s.shouldSkipDriverFifo(driver, instanceGroup) {
 				svc1log.FromContext(ctx).Debug("Skipping non-fitting driver from FIFO consideration because it is not too old yet",
 					svc1log.SafeParam("earlierDriverName", driver.Name))
 				continue
@@ -257,11 +258,7 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 	return true
 }
 
-func (s *SparkSchedulerExtender) shouldSkipDriverFifo(pod *v1.Pod) bool {
-	instanceGroup, success := internal.FindInstanceGroupFromPodSpec(pod.Spec, s.instanceGroupLabel)
-	if !success {
-		instanceGroup = ""
-	}
+func (s *SparkSchedulerExtender) shouldSkipDriverFifo(pod *v1.Pod, instanceGroup string) bool {
 	enforceAfterPodAgeConfig := s.fifoConfig.DefaultEnforceAfterPodAge
 	if instanceGroupCustomConfig, ok := s.fifoConfig.EnforceAfterPodAgeByInstanceGroup[instanceGroup]; ok {
 		enforceAfterPodAgeConfig = instanceGroupCustomConfig
@@ -269,7 +266,12 @@ func (s *SparkSchedulerExtender) shouldSkipDriverFifo(pod *v1.Pod) bool {
 	return pod.CreationTimestamp.Add(enforceAfterPodAgeConfig).After(time.Now())
 }
 
-func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v1.Pod, nodeNames []string) (string, string, error) {
+func (s *SparkSchedulerExtender) selectDriverNode(
+	ctx context.Context,
+	instanceGroup string,
+	driver *v1.Pod,
+	nodeNames []string) (string, string, error) {
+
 	if rr, ok := s.resourceReservationManager.GetResourceReservation(driver.Labels[common.SparkAppIDLabel], driver.Namespace); ok {
 		driverReservedNode := rr.Spec.Reservations["driver"].Node
 		for _, node := range nodeNames {
@@ -306,7 +308,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		if err != nil {
 			return "", failureInternal, werror.Wrap(err, "failed to list earlier drivers")
 		}
-		ok := s.fitEarlierDrivers(ctx, queuedDrivers, driverNodeNames, executorNodeNames, availableNodesSchedulingMetadata)
+		ok := s.fitEarlierDrivers(ctx, instanceGroup, queuedDrivers, driverNodeNames, executorNodeNames, availableNodesSchedulingMetadata)
 		if !ok {
 			s.createDemandForApplicationInAnyZone(ctx, driver, applicationResources)
 			return "", failureEarlierDriver, werror.Error("earlier drivers do not fit to the cluster")
@@ -344,10 +346,10 @@ func (s *SparkSchedulerExtender) selectDriverNode(ctx context.Context, driver *v
 		return "", failureFit, werror.Error("application does not fit to the cluster")
 	}
 
-	metrics.ReportPackingEfficiency(ctx, s.binpacker.Name, efficiency)
+	metrics.ReportPackingEfficiency(ctx, instanceGroup, s.binpacker.Name, efficiency)
 
 	s.removeDemandIfExists(ctx, driver)
-	metrics.ReportCrossZoneMetric(ctx, packingResult.DriverNode, packingResult.ExecutorNodes, availableNodes)
+	metrics.ReportCrossZoneMetric(ctx, instanceGroup, packingResult.DriverNode, packingResult.ExecutorNodes, availableNodes)
 
 	_, err = s.resourceReservationManager.CreateReservations(
 		ctx,

@@ -45,20 +45,23 @@ var (
 // ReportPackingEfficiency report packing efficiency metrics for a single packing result.
 func ReportPackingEfficiency(
 	ctx context.Context,
+	instanceGroupName string,
 	packingFunctionName string,
 	efficiency binpack.AvgPackingEfficiency) {
 
 	packingFunctionTag := metrics.MustNewTag(packingEfficiencyFunctionNameTagKey, packingFunctionName)
-	emitMetrics(ctx, packingFunctionTag, efficiency)
+	instanceGroupTag := InstanceGroupTag(ctx, instanceGroupName)
+	emitMetrics(ctx, packingFunctionTag, instanceGroupTag, efficiency)
 }
 
 func emitMetrics(
 	ctx context.Context,
 	packingFunctionTag metrics.Tag,
+	instanceGroupTag metrics.Tag,
 	efficiency binpack.AvgPackingEfficiency) {
 
-	metrics.FromContext(ctx).GaugeFloat64(packingEfficiencyMetricName, packingFunctionTag, cpuTag).Update(efficiency.CPU)
-	metrics.FromContext(ctx).GaugeFloat64(packingEfficiencyMetricName, packingFunctionTag, memoryTag).Update(efficiency.Memory)
-	metrics.FromContext(ctx).GaugeFloat64(packingEfficiencyMetricName, packingFunctionTag, gpuTag).Update(efficiency.GPU)
-	metrics.FromContext(ctx).GaugeFloat64(packingEfficiencyMetricName, packingFunctionTag, maxTag).Update(math.Max(efficiency.CPU, efficiency.Memory))
+	metrics.FromContext(ctx).GaugeFloat64(packingEfficiencyMetricName, packingFunctionTag, instanceGroupTag, cpuTag).Update(efficiency.CPU)
+	metrics.FromContext(ctx).GaugeFloat64(packingEfficiencyMetricName, packingFunctionTag, instanceGroupTag, memoryTag).Update(efficiency.Memory)
+	metrics.FromContext(ctx).GaugeFloat64(packingEfficiencyMetricName, packingFunctionTag, instanceGroupTag, gpuTag).Update(efficiency.GPU)
+	metrics.FromContext(ctx).GaugeFloat64(packingEfficiencyMetricName, packingFunctionTag, instanceGroupTag, maxTag).Update(math.Max(efficiency.CPU, efficiency.Memory))
 }
