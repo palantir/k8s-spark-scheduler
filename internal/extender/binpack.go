@@ -34,14 +34,17 @@ type Binpacker struct {
 	Name        string
 	BinpackFunc binpack.SparkBinPackFunction
 	IsSingleAz  bool
+	// RequiredSingledAz denotes that an application should only ever be scheduled in a single AZ (if IsSingleAz is true)
+	// otherwise this is merely a preference.
+	RequiredSingleAz bool
 }
 
 var binpackFunctions = map[string]*Binpacker{
-	tightlyPack:                  {tightlyPack, binpack.TightlyPack, false},
-	distributeEvenly:             {distributeEvenly, binpack.DistributeEvenly, false},
-	azAwareTightlyPack:           {azAwareTightlyPack, binpack.AzAwareTightlyPack, false},
-	singleAZTightlyPack:          {singleAZTightlyPack, binpack.SingleAZTightlyPack, true},
-	singleAzMinimalFragmentation: {singleAzMinimalFragmentation, binpack.SingleAZMinimalFragmentation, true},
+	tightlyPack:                  {Name: tightlyPack, BinpackFunc: binpack.TightlyPack},
+	distributeEvenly:             {Name: distributeEvenly, BinpackFunc: binpack.DistributeEvenly},
+	azAwareTightlyPack:           {Name: azAwareTightlyPack, BinpackFunc: binpack.AzAwareTightlyPack, IsSingleAz: true},
+	singleAZTightlyPack:          {Name: singleAZTightlyPack, BinpackFunc: binpack.SingleAZTightlyPack, IsSingleAz: true, RequiredSingleAz: true},
+	singleAzMinimalFragmentation: {Name: singleAzMinimalFragmentation, BinpackFunc: binpack.SingleAZMinimalFragmentation, IsSingleAz: true, RequiredSingleAz: true},
 }
 
 // SelectBinpacker selects the binpack function from the given name

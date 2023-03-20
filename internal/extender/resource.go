@@ -563,6 +563,7 @@ func logApplicationPods(ctx context.Context, applicationPods []*v1.Pod) {
 }
 
 func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executor *v1.Pod, nodeNames []string, isExtraExecutor bool) (string, string, error) {
+	initialNodeNames := nodeNames
 	driver, err := s.podLister.getDriverPodForExecutor(ctx, executor)
 	if err != nil {
 		return "", failureInternal, err
@@ -613,25 +614,62 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	usage.Add(overhead)
 	availableResources := resources.AvailableForNodes(availableNodes, usage)
 
-	_, executorNodeNames := s.nodeSorter.PotentialNodes(availableNodesSchedulingMetadata, nodeNames)
-
-	for _, name := range executorNodeNames {
-		if !executorResources.GreaterThan(availableResources[name]) {
-			if isExtraExecutor {
-				return name, successScheduledExtraExecutor, nil
-			}
-			return name, successRescheduled, nil
-		}
+	name, reason, ok := s.findExecutorNode(
+		availableNodesSchedulingMetadata,
+		nodeNames,
+		executorResources,
+		availableResources,
+		isExtraExecutor)
+	if ok {
+		return name, reason, nil
 	}
+
 	if shouldScheduleIntoSingleAZ {
-		svc1log.FromContext(ctx).Info("Failed to find space in zone for additional executor, creating a demand", svc1log.SafeParam("zone", singleAzZone))
-		metrics.IncrementSingleAzDynamicAllocationPackFailure(ctx, singleAzZone)
-		demandZone := demandapi.Zone(singleAzZone)
-		s.createDemandForExecutorInSpecificZone(ctx, executor, executorResources, &demandZone)
+		if s.binpacker.RequiredSingleAz {
+			svc1log.FromContext(ctx).Info("Failed to find space in zone for additional executor, creating a demand", svc1log.SafeParam("zone", singleAzZone))
+			metrics.IncrementSingleAzDynamicAllocationPackFailure(ctx, singleAzZone)
+			demandZone := demandapi.Zone(singleAzZone)
+			s.createDemandForExecutorInSpecificZone(ctx, executor, executorResources, &demandZone)
+		} else {
+			name, reason, ok = s.findExecutorNode(
+				availableNodesSchedulingMetadata,
+				initialNodeNames,
+				executorResources,
+				availableResources,
+				isExtraExecutor,
+			)
+			if ok {
+				svc1log.FromContext(ctx).Info("Preferred single az scheduling resulted in an executor being scheduled in a different AZ")
+				return name, reason, nil
+			}
+
+			// we still create the demand in any AZ, as we want to maximize the chance of being able to provision a new
+			// node, even if that means paying for cross-az traffic
+			s.createDemandForExecutorInAnyZone(ctx, executor, executorResources)
+		}
 	} else {
 		s.createDemandForExecutorInAnyZone(ctx, executor, executorResources)
 	}
 	return "", failureFit, werror.ErrorWithContextParams(ctx, "not enough capacity to reschedule the executor")
+}
+
+func (s *SparkSchedulerExtender) findExecutorNode(
+	availableNodesSchedulingMetadata resources.NodeGroupSchedulingMetadata,
+	nodeNames []string,
+	executorResources *resources.Resources,
+	availableResources resources.NodeGroupResources,
+	isExtraExecutor bool,
+) (string, string, bool) {
+	_, executorNodeNames := s.nodeSorter.PotentialNodes(availableNodesSchedulingMetadata, nodeNames)
+	for _, name := range executorNodeNames {
+		if !executorResources.GreaterThan(availableResources[name]) {
+			if isExtraExecutor {
+				return name, successScheduledExtraExecutor, true
+			}
+			return name, successRescheduled, true
+		}
+	}
+	return "", failureFit, false
 }
 
 func (s *SparkSchedulerExtender) isSuccessOutcome(outcome string) bool {
