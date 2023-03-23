@@ -270,12 +270,22 @@ func NewNode(name string, zone string) v1.Node {
 // StaticAllocationSparkPods returns a list of pods corresponding to a Spark Application with 1 driver and numExecutors executors
 // with the proper static allocation annotations set
 func StaticAllocationSparkPods(sparkApplicationID string, numExecutors int) []v1.Pod {
+	return StaticAllocationSparkPodsWithSizes(sparkApplicationID, numExecutors, "1", "1", "1", "1")
+}
+
+// StaticAllocationSparkPodsWithSizes behaves like StaticAllocationSparkPods except that it allows the caller to
+// configure pod sizes
+func StaticAllocationSparkPodsWithSizes(
+	sparkApplicationID string,
+	numExecutors int,
+	driverMem, driverCpu, executorMem, executorCpu string,
+) []v1.Pod {
 	driverAnnotations := map[string]string{
-		"spark-driver-cpu":            "1",
-		"spark-driver-mem":            "1",
+		"spark-driver-cpu":            driverCpu,
+		"spark-driver-mem":            driverMem,
 		"spark-driver-nvidia.com/gpu": "1",
-		"spark-executor-cpu":          "1",
-		"spark-executor-mem":          "1",
+		"spark-executor-cpu":          executorCpu,
+		"spark-executor-mem":          executorMem,
 		"spark-executor-count":        fmt.Sprintf("%d", numExecutors),
 	}
 	return sparkApplicationPods(sparkApplicationID, driverAnnotations, numExecutors)
@@ -299,12 +309,23 @@ func StaticAllocationSparkPodsWithExecutorGPUs(sparkApplicationID string, numExe
 // DynamicAllocationSparkPods returns a list of pods corresponding to a Spark Application with 1 driver and maxExecutors executors
 // with the proper dynamic allocation annotations set for min and max executor counts
 func DynamicAllocationSparkPods(sparkApplicationID string, minExecutors int, maxExecutors int) []v1.Pod {
+	return DynamicAllocationSparkPodsWithSizes(sparkApplicationID, minExecutors, maxExecutors, "1", "1", "1", "1")
+}
+
+// DynamicAllocationSparkPodsWithSizes behaves like DynamicAllocationSparkPods except that it allows the caller to
+// configure pod sizes
+func DynamicAllocationSparkPodsWithSizes(
+	sparkApplicationID string,
+	minExecutors int,
+	maxExecutors int,
+	driverMem, driverCpu, executorMem, executorCpu string,
+) []v1.Pod {
 	driverAnnotations := map[string]string{
-		"spark-driver-cpu":                            "1",
-		"spark-driver-mem":                            "1",
+		"spark-driver-cpu":                            driverCpu,
+		"spark-driver-mem":                            driverMem,
 		"spark-driver-nvidia.com/gpu":                 "1",
-		"spark-executor-cpu":                          "1",
-		"spark-executor-mem":                          "1",
+		"spark-executor-cpu":                          executorCpu,
+		"spark-executor-mem":                          executorMem,
 		"spark-dynamic-allocation-enabled":            "true",
 		"spark-dynamic-allocation-min-executor-count": fmt.Sprintf("%d", minExecutors),
 		"spark-dynamic-allocation-max-executor-count": fmt.Sprintf("%d", maxExecutors),

@@ -98,7 +98,7 @@ func TestMinimalFragmentation(t *testing.T) {
 		testHarness.AssertSuccessfulSchedule(
 			t,
 			staticPodsToSchedule[i],
-			nodeNames[:1],
+			[]string{node1.Name},
 			"There should be enough capacity to schedule this pod on node1")
 	}
 
@@ -113,14 +113,60 @@ func TestMinimalFragmentation(t *testing.T) {
 	testHarness.AssertSuccessfulSchedule(
 		t,
 		podsToSchedule[1],
-		nodeNames[1:],
+		[]string{node2.Name},
 		"There should be enough capacity to schedule the first executor")
 	testHarness.AssertSuccessfulScheduleOnNode(
 		t,
 		podsToSchedule[2],
 		nodeNames,
-		nodeNames[1],
+		node2.Name,
 		"The dynamic pod should be attracted to the node already hosting the first executor")
+}
+
+func TestMinimalFragmentationEdgeCase(t *testing.T) {
+	node1 := extendertest.NewNode("node1", "zone1")
+	node2 := extendertest.NewNode("node2", "zone1")
+	nodeNames := []string{node1.Name, node2.Name}
+	staticApp := extendertest.StaticAllocationSparkPodsWithSizes("static-app", 0, "4", "1", "1", "1")
+	dynamicApp := extendertest.DynamicAllocationSparkPodsWithSizes("dyn-app", 0, 1, "1", "4", "1", "3")
+
+	testHarness, err := extendertest.NewTestExtender(
+		extender.SingleAzMinimalFragmentation,
+		&node1,
+		&node2,
+		&staticApp[0],
+		&dynamicApp[0],
+		&dynamicApp[1],
+	)
+	if err != nil {
+		t.Fatal("Could not setup test extender")
+	}
+
+	// schedule a driver on each node
+	testHarness.AssertSuccessfulSchedule(
+		t,
+		staticApp[0],
+		[]string{node1.Name},
+		"There should be enough capacity to schedule the first driver")
+	testHarness.AssertSuccessfulSchedule(
+		t,
+		dynamicApp[0],
+		[]string{node2.Name},
+		"There should be enough capacity to schedule the second driver")
+
+	// schedule the executor on either node, which should result in node2.
+	// this is a bit convoluted because nodes will be sorted once through sort.resourcesLessThan
+	// which puts nodes with little memory available first.
+	// however in our case due the pod sizes, n2 actually has fewer capacity (since capacity is driven
+	// by the size of the actual pod we're scheduling)
+	//
+	// ultimately, this is testing https://github.com/palantir/k8s-spark-scheduler/pull/236/files/4ad85d4184dcf6dbcdd11539815f5b5bd2884ee8#r1146268126
+	testHarness.AssertSuccessfulScheduleOnNode(
+		t,
+		dynamicApp[1],
+		nodeNames,
+		node2.Name,
+		"This pod should be scheduled on node2 has it has the smallest capacity")
 }
 
 func TestDynamicAllocationScheduling(t *testing.T) {
