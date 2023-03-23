@@ -60,7 +60,7 @@ type Harness struct {
 }
 
 // NewTestExtender returns a new extender test harness, initialized with the provided k8s objects
-func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
+func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, error) {
 	wlog.SetDefaultLoggerProvider(wlog.NewNoopLoggerProvider()) // suppressing Witchcraft warning log about logger provider
 	ctx := newLoggingContext()
 
@@ -129,7 +129,7 @@ func NewTestExtender(objects ...runtime.Object) (*Harness, error) {
 
 	isFIFO := true
 	fifoConfig := config.FifoConfig{}
-	binpacker := extender.SelectBinpacker("single-az-tightly-pack")
+	binpacker := extender.SelectBinpacker(binpackAlgo)
 	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ := true
 
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
@@ -213,6 +213,17 @@ func (h *Harness) AssertSuccessfulSchedule(t *testing.T, pod v1.Pod, nodeNames [
 	}
 }
 
+// AssertSuccessfulScheduleOnNode tries to schedule the provided pods and fails if the pod isn't schedule on the expected node
+func (h *Harness) AssertSuccessfulScheduleOnNode(t *testing.T, pod v1.Pod, nodeNames []string, expectedNode string, errorDetails string) {
+	result := h.Schedule(t, pod, nodeNames)
+	if result.NodeNames == nil {
+		t.Errorf("Scheduling should succeed: %s", errorDetails)
+	}
+	if len(*result.NodeNames) != 1 || (*result.NodeNames)[0] != expectedNode {
+		t.Errorf("Scheduled pod on the wrong node: %s", errorDetails)
+	}
+}
+
 // AssertFailedSchedule tries to schedule the provided pods and fails the test if successful
 func (h *Harness) AssertFailedSchedule(t *testing.T, pod v1.Pod, nodeNames []string, errorDetails string) {
 	result := h.Schedule(t, pod, nodeNames)
@@ -259,12 +270,22 @@ func NewNode(name string, zone string) v1.Node {
 // StaticAllocationSparkPods returns a list of pods corresponding to a Spark Application with 1 driver and numExecutors executors
 // with the proper static allocation annotations set
 func StaticAllocationSparkPods(sparkApplicationID string, numExecutors int) []v1.Pod {
+	return StaticAllocationSparkPodsWithSizes(sparkApplicationID, numExecutors, "1", "1", "1", "1")
+}
+
+// StaticAllocationSparkPodsWithSizes behaves like StaticAllocationSparkPods except that it allows the caller to
+// configure pod sizes
+func StaticAllocationSparkPodsWithSizes(
+	sparkApplicationID string,
+	numExecutors int,
+	driverMem, driverCPU, executorMem, executorCPU string,
+) []v1.Pod {
 	driverAnnotations := map[string]string{
-		"spark-driver-cpu":            "1",
-		"spark-driver-mem":            "1",
+		"spark-driver-cpu":            driverCPU,
+		"spark-driver-mem":            driverMem,
 		"spark-driver-nvidia.com/gpu": "1",
-		"spark-executor-cpu":          "1",
-		"spark-executor-mem":          "1",
+		"spark-executor-cpu":          executorCPU,
+		"spark-executor-mem":          executorMem,
 		"spark-executor-count":        fmt.Sprintf("%d", numExecutors),
 	}
 	return sparkApplicationPods(sparkApplicationID, driverAnnotations, numExecutors)
@@ -288,12 +309,23 @@ func StaticAllocationSparkPodsWithExecutorGPUs(sparkApplicationID string, numExe
 // DynamicAllocationSparkPods returns a list of pods corresponding to a Spark Application with 1 driver and maxExecutors executors
 // with the proper dynamic allocation annotations set for min and max executor counts
 func DynamicAllocationSparkPods(sparkApplicationID string, minExecutors int, maxExecutors int) []v1.Pod {
+	return DynamicAllocationSparkPodsWithSizes(sparkApplicationID, minExecutors, maxExecutors, "1", "1", "1", "1")
+}
+
+// DynamicAllocationSparkPodsWithSizes behaves like DynamicAllocationSparkPods except that it allows the caller to
+// configure pod sizes
+func DynamicAllocationSparkPodsWithSizes(
+	sparkApplicationID string,
+	minExecutors int,
+	maxExecutors int,
+	driverMem, driverCPU, executorMem, executorCPU string,
+) []v1.Pod {
 	driverAnnotations := map[string]string{
-		"spark-driver-cpu":                            "1",
-		"spark-driver-mem":                            "1",
+		"spark-driver-cpu":                            driverCPU,
+		"spark-driver-mem":                            driverMem,
 		"spark-driver-nvidia.com/gpu":                 "1",
-		"spark-executor-cpu":                          "1",
-		"spark-executor-mem":                          "1",
+		"spark-executor-cpu":                          executorCPU,
+		"spark-executor-mem":                          executorMem,
 		"spark-dynamic-allocation-enabled":            "true",
 		"spark-dynamic-allocation-min-executor-count": fmt.Sprintf("%d", minExecutors),
 		"spark-dynamic-allocation-max-executor-count": fmt.Sprintf("%d", maxExecutors),
