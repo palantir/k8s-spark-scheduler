@@ -23,10 +23,10 @@ const (
 	tightlyPack        string = "tightly-pack"
 	azAwareTightlyPack string = "az-aware-tightly-pack"
 
-	// SingleAZTightlyPack will attempt to schedule pods within a single AZ
+	// SingleAzTightlyPack will attempt to schedule pods within a single AZ
 	// Note that single-az-tightly-pack does not guarantee that ALL pods will be scheduled in the same AZ, please see
 	// the SingleAzTightlyPack docs for more information (see also ShouldScheduleDynamicallyAllocatedExecutorsInSameAZ)
-	SingleAZTightlyPack string = "single-az-tightly-pack"
+	SingleAzTightlyPack string = "single-az-tightly-pack"
 	// SingleAzMinimalFragmentation tries to reduce spark app fragmentation by trying to fit executors on fewer hosts
 	// when possible. Dynamically allocated executors are a bit more challenging, but generally speaking we will
 	// attempt to schedule them on host already running executors belonging to the same app.
@@ -44,7 +44,7 @@ var binpackFunctions = map[string]*Binpacker{
 	tightlyPack:                  {tightlyPack, binpack.TightlyPack, false},
 	distributeEvenly:             {distributeEvenly, binpack.DistributeEvenly, false},
 	azAwareTightlyPack:           {azAwareTightlyPack, binpack.AzAwareTightlyPack, false},
-	SingleAZTightlyPack:          {SingleAZTightlyPack, binpack.SingleAZTightlyPack, true},
+	SingleAzTightlyPack:          {SingleAzTightlyPack, binpack.SingleAZTightlyPack, true},
 	SingleAzMinimalFragmentation: {SingleAzMinimalFragmentation, binpack.SingleAZMinimalFragmentation, true},
 }
 

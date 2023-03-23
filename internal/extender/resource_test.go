@@ -31,7 +31,7 @@ func TestScheduler(t *testing.T) {
 	podsToSchedule := extendertest.StaticAllocationSparkPods("2-executor-app", 2)
 
 	testHarness, err := extendertest.NewTestExtender(
-		extender.SingleAZTightlyPack,
+		extender.SingleAzTightlyPack,
 		&node1,
 		&node2,
 		&podsToSchedule[0],
@@ -307,7 +307,7 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 			for i := range test.podsToSchedule {
 				harnessArgs = append(harnessArgs, &test.podsToSchedule[i])
 			}
-			testHarness, err := extendertest.NewTestExtender(extender.SingleAZTightlyPack, harnessArgs...)
+			testHarness, err := extendertest.NewTestExtender(extender.SingleAzTightlyPack, harnessArgs...)
 			if err != nil {
 				t.Fatal("Could not setup test extender")
 			}
