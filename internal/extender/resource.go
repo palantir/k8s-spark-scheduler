@@ -688,7 +688,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutorWithMinimalFragmentation(
 			case nodesWithExecutorsBelongingToThisApp[nodeAndCapacity.NodeName] && !nodesWithExecutorsBelongingToThisApp[best.NodeName]:
 				// we prefer to schedule on a less used node that already hosts pods for this app
 				best = nodeAndCapacity
-			case nodeAndCapacity.Capacity < best.Capacity && nodesWithExecutorsBelongingToThisApp[nodeAndCapacity.NodeName] == nodesWithExecutorsBelongingToThisApp[best.NodeName]:
+			case nodesWithExecutorsBelongingToThisApp[nodeAndCapacity.NodeName] == nodesWithExecutorsBelongingToThisApp[best.NodeName] && nodeAndCapacity.Capacity < best.Capacity:
 				// provided the two nodes are equal in terms of already hosting pods in this app, then we look at capacity
 				best = nodeAndCapacity
 			}
