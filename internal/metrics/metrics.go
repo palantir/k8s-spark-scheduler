@@ -108,7 +108,8 @@ func SparkRoleTag(ctx context.Context, role string) metrics.Tag {
 	return tagWithDefault(ctx, sparkRoleTagName, role, "unspecified")
 }
 
-func CollocationgTypeTag(ctx context.Context, collocationType string) metrics.Tag {
+// CollocationTypeTag returns a collocation type tag
+func CollocationTypeTag(ctx context.Context, collocationType string) metrics.Tag {
 	return tagWithDefault(ctx, collocationTypeTagName, collocationType, "unspecified")
 }
 
@@ -219,18 +220,18 @@ func ReportInitialDriverExecutorCollocationMetric(ctx context.Context, instanceG
 	}
 
 	if !executorNodeNamesSet[driverNodeName] {
-		collocationTypeTag := CollocationgTypeTag(ctx, "no-collocation")
+		collocationTypeTag := CollocationTypeTag(ctx, "no-collocation")
 		metrics.FromContext(ctx).Counter(initialDriverExecutorCollocation, instanceGroupTag, collocationTypeTag).Inc(1)
 		return
 	}
 
 	if len(executorNodeNamesSet) == 1 {
-		collocationTypeTag := CollocationgTypeTag(ctx, "driver-collocated-with-all-executors")
+		collocationTypeTag := CollocationTypeTag(ctx, "driver-collocated-with-all-executors")
 		metrics.FromContext(ctx).Counter(initialDriverExecutorCollocation, instanceGroupTag, collocationTypeTag).Inc(1)
 		return
 	}
 
-	collocationTypeTag := CollocationgTypeTag(ctx, "driver-collocated-with-some-executors")
+	collocationTypeTag := CollocationTypeTag(ctx, "driver-collocated-with-some-executors")
 	metrics.FromContext(ctx).Counter(initialDriverExecutorCollocation, instanceGroupTag, collocationTypeTag).Inc(1)
 }
 
