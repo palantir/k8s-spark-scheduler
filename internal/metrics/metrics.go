@@ -56,7 +56,8 @@ const (
 	podInformerDelay                          = "foundry.spark.scheduler.informer.delay"
 	schedulingWaste                           = "foundry.spark.scheduler.scheduling.waste"
 	schedulingWastePerInstanceGroup           = "foundry.spark.scheduler.scheduling.wasteperinstancegroup"
-	initialDriverExecutorCollocation          = "foundry.spark.scheduler.scheduling.driverexecutorinitialcollocation"
+	initialDriverExecutorCollocation          = "foundry.spark.scheduler.scheduling.initialdriverexecutorcollocation"
+	initialExecutorsPerNode                   = "foundry.spark.scheduler.scheduling.initialexecutorspernode"
 )
 
 const (
@@ -214,10 +215,7 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 // This metric is only reported during the initial scheduling of the Spark application.
 func ReportInitialDriverExecutorCollocationMetric(ctx context.Context, instanceGroup string, driverNodeName string, executorNodeNames []string) {
 	instanceGroupTag := InstanceGroupTag(ctx, instanceGroup)
-	executorNodeNamesSet := make(map[string]bool)
-	for _, node := range executorNodeNames {
-		executorNodeNamesSet[node] = true
-	}
+	executorNodeNamesSet := toExecutorNodeNamesSet(executorNodeNames)
 
 	if !executorNodeNamesSet[driverNodeName] {
 		collocationTypeTag := CollocationTypeTag(ctx, "no-collocation")
@@ -233,6 +231,34 @@ func ReportInitialDriverExecutorCollocationMetric(ctx context.Context, instanceG
 
 	collocationTypeTag := CollocationTypeTag(ctx, "driver-collocated-with-some-executors")
 	metrics.FromContext(ctx).Counter(initialDriverExecutorCollocation, instanceGroupTag, collocationTypeTag).Inc(1)
+}
+
+// ReportInitialExecutorsPerNodeMetric reports a metric about how many executors are hosted per node for a given spark
+// application. This ignores executor-less applications.
+//
+// For instance for an application with 6 executors being scheduled on a single node the metric would be 6,
+// if this application was instead scheduled on 2 nodes, then the metric would be 3.
+//
+// This metric is only reported during the initial scheduling of the Spark application.
+func ReportInitialExecutorsPerNodeMetric(ctx context.Context, instanceGroup string, executorNodeNames []string) {
+	executorCount := len(executorNodeNames)
+	if executorCount == 0 {
+		return
+	}
+
+	instanceGroupTag := InstanceGroupTag(ctx, instanceGroup)
+	executorNodeNamesSet := toExecutorNodeNamesSet(executorNodeNames)
+	ratio := executorCount / len(executorNodeNamesSet)
+
+	metrics.FromContext(ctx).Histogram(initialExecutorsPerNode, instanceGroupTag).Update(int64(ratio))
+}
+
+func toExecutorNodeNamesSet(executorNodeNames []string) map[string]bool {
+	executorNodeNamesSet := make(map[string]bool)
+	for _, node := range executorNodeNames {
+		executorNodeNamesSet[node] = true
+	}
+	return executorNodeNamesSet
 }
 
 // ReportCrossZoneMetric reports metric about cross AZ traffic between pods of a spark application
