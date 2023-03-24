@@ -56,7 +56,7 @@ const (
 	podInformerDelay                          = "foundry.spark.scheduler.informer.delay"
 	schedulingWaste                           = "foundry.spark.scheduler.scheduling.waste"
 	schedulingWastePerInstanceGroup           = "foundry.spark.scheduler.scheduling.wasteperinstancegroup"
-	driverCollocation                         = "foundry.spark.scheduler.scheduling.drivercollocation"
+	initialDriverExecutorCollocation          = "foundry.spark.scheduler.scheduling.driverexecutorinitialcollocation"
 )
 
 const (
@@ -209,9 +209,9 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 	}
 }
 
-// ReportDriverCollocationMetric reports metrics around whether driver collocation with executors. This is meant to be used
-// during the initial scheduling.
-func ReportDriverCollocationMetric(ctx context.Context, instanceGroup string, driverNodeName string, executorNodeNames []string) {
+// ReportInitialDriverExecutorCollocationMetric reports a metric about whether the driver is collocated with executors.
+// This metric is only reported during the initial scheduling of the Spark application.
+func ReportInitialDriverExecutorCollocationMetric(ctx context.Context, instanceGroup string, driverNodeName string, executorNodeNames []string) {
 	instanceGroupTag := InstanceGroupTag(ctx, instanceGroup)
 	executorNodeNamesSet := make(map[string]bool)
 	for _, node := range executorNodeNames {
@@ -220,18 +220,18 @@ func ReportDriverCollocationMetric(ctx context.Context, instanceGroup string, dr
 
 	if !executorNodeNamesSet[driverNodeName] {
 		collocationTypeTag := CollocationgTypeTag(ctx, "no-collocation")
-		metrics.FromContext(ctx).Counter(driverCollocation, instanceGroupTag, collocationTypeTag).Inc(1)
+		metrics.FromContext(ctx).Counter(initialDriverExecutorCollocation, instanceGroupTag, collocationTypeTag).Inc(1)
 		return
 	}
 
 	if len(executorNodeNamesSet) == 1 {
 		collocationTypeTag := CollocationgTypeTag(ctx, "driver-collocated-with-all-executors")
-		metrics.FromContext(ctx).Counter(driverCollocation, instanceGroupTag, collocationTypeTag).Inc(1)
+		metrics.FromContext(ctx).Counter(initialDriverExecutorCollocation, instanceGroupTag, collocationTypeTag).Inc(1)
 		return
 	}
 
 	collocationTypeTag := CollocationgTypeTag(ctx, "driver-collocated-with-some-executors")
-	metrics.FromContext(ctx).Counter(driverCollocation, instanceGroupTag, collocationTypeTag).Inc(1)
+	metrics.FromContext(ctx).Counter(initialDriverExecutorCollocation, instanceGroupTag, collocationTypeTag).Inc(1)
 }
 
 // ReportCrossZoneMetric reports metric about cross AZ traffic between pods of a spark application
