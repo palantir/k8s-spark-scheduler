@@ -56,12 +56,14 @@ const (
 	podInformerDelay                          = "foundry.spark.scheduler.informer.delay"
 	schedulingWaste                           = "foundry.spark.scheduler.scheduling.waste"
 	schedulingWastePerInstanceGroup           = "foundry.spark.scheduler.scheduling.wasteperinstancegroup"
+	initialDriverExecutorCollocation          = "foundry.spark.scheduler.scheduling.driverexecutorinitialcollocation"
 )
 
 const (
 	sparkRoleLabel             = "spark-role"
 	executor                   = "executor"
 	sparkRoleTagName           = "sparkrole"
+	collocationTypeTagName     = "collocation-type"
 	outcomeTagName             = "outcome"
 	instanceGroupTagName       = "instance-group"
 	hostTagName                = "nodename"
@@ -104,6 +106,11 @@ func tagWithDefault(ctx context.Context, key, value, defaultValue string) metric
 // SparkRoleTag returns a spark role tag
 func SparkRoleTag(ctx context.Context, role string) metrics.Tag {
 	return tagWithDefault(ctx, sparkRoleTagName, role, "unspecified")
+}
+
+// CollocationTypeTag returns a collocation type tag
+func CollocationTypeTag(ctx context.Context, collocationType string) metrics.Tag {
+	return tagWithDefault(ctx, collocationTypeTagName, collocationType, "unspecified")
 }
 
 // OutcomeTag returns an outcome tag
@@ -201,6 +208,31 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 			"pod is first seen by the extender, but it is older than the slow log threshold",
 			svc1log.SafeParam("slowLogThreshold", slowLogThreshold))
 	}
+}
+
+// ReportInitialDriverExecutorCollocationMetric reports a metric about whether the driver is collocated with executors.
+// This metric is only reported during the initial scheduling of the Spark application.
+func ReportInitialDriverExecutorCollocationMetric(ctx context.Context, instanceGroup string, driverNodeName string, executorNodeNames []string) {
+	instanceGroupTag := InstanceGroupTag(ctx, instanceGroup)
+	executorNodeNamesSet := make(map[string]bool)
+	for _, node := range executorNodeNames {
+		executorNodeNamesSet[node] = true
+	}
+
+	if !executorNodeNamesSet[driverNodeName] {
+		collocationTypeTag := CollocationTypeTag(ctx, "no-collocation")
+		metrics.FromContext(ctx).Counter(initialDriverExecutorCollocation, instanceGroupTag, collocationTypeTag).Inc(1)
+		return
+	}
+
+	if len(executorNodeNamesSet) == 1 {
+		collocationTypeTag := CollocationTypeTag(ctx, "driver-collocated-with-all-executors")
+		metrics.FromContext(ctx).Counter(initialDriverExecutorCollocation, instanceGroupTag, collocationTypeTag).Inc(1)
+		return
+	}
+
+	collocationTypeTag := CollocationTypeTag(ctx, "driver-collocated-with-some-executors")
+	metrics.FromContext(ctx).Counter(initialDriverExecutorCollocation, instanceGroupTag, collocationTypeTag).Inc(1)
 }
 
 // ReportCrossZoneMetric reports metric about cross AZ traffic between pods of a spark application
