@@ -209,9 +209,9 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 	}
 }
 
-// ReportDriverCollocationMetrics reports metrics around whether driver collocation with executors. This is meant to be used
+// ReportDriverCollocationMetric reports metrics around whether driver collocation with executors. This is meant to be used
 // during the initial scheduling.
-func ReportDriverCollocationMetrics(ctx context.Context, instanceGroup string, driverNodeName string, executorNodeNames []string) {
+func ReportDriverCollocationMetric(ctx context.Context, instanceGroup string, driverNodeName string, executorNodeNames []string) {
 	instanceGroupTag := InstanceGroupTag(ctx, instanceGroup)
 	executorNodeNamesSet := make(map[string]bool)
 	for _, node := range executorNodeNames {
