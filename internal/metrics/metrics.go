@@ -58,6 +58,7 @@ const (
 	schedulingWastePerInstanceGroup           = "foundry.spark.scheduler.scheduling.wasteperinstancegroup"
 	initialDriverExecutorCollocation          = "foundry.spark.scheduler.scheduling.initialdriverexecutorcollocation"
 	initialExecutorsPerNode                   = "foundry.spark.scheduler.scheduling.initialexecutorspernode"
+	initialNodeCount                          = "foundry.spark.scheduler.scheduling.initialnodecount"
 )
 
 const (
@@ -233,14 +234,18 @@ func ReportInitialDriverExecutorCollocationMetric(ctx context.Context, instanceG
 	metrics.FromContext(ctx).Counter(initialDriverExecutorCollocation, instanceGroupTag, collocationTypeTag).Inc(1)
 }
 
-// ReportInitialExecutorsPerNodeMetric reports a metric about how many executors are hosted per node for a given spark
-// application. This ignores executor-less applications.
+// ReportInitialNodeCountMetrics reports two metrics used to reason about how fragmented a Spark app is.
+//
+// The first metric measures how many executors are hosted per node for a given spark application. This ignores
+// executor-less applications.
 //
 // For instance for an application with 6 executors being scheduled on a single node the metric would be 6,
 // if this application was instead scheduled on 2 nodes, then the metric would be 3.
 //
-// This metric is only reported during the initial scheduling of the Spark application.
-func ReportInitialExecutorsPerNodeMetric(ctx context.Context, instanceGroup string, executorNodeNames []string) {
+// The second metric simply tracks how many unique nodes are being used to schedule all the executors.
+//
+// Those metrics are only reported during the initial scheduling of the Spark application.
+func ReportInitialNodeCountMetrics(ctx context.Context, instanceGroup string, executorNodeNames []string) {
 	executorCount := len(executorNodeNames)
 	if executorCount == 0 {
 		return
@@ -251,6 +256,7 @@ func ReportInitialExecutorsPerNodeMetric(ctx context.Context, instanceGroup stri
 	ratio := executorCount / len(executorNodeNamesSet)
 
 	metrics.FromContext(ctx).Histogram(initialExecutorsPerNode, instanceGroupTag).Update(int64(ratio))
+	metrics.FromContext(ctx).Histogram(initialNodeCount, instanceGroupTag).Update(int64(len(executorNodeNamesSet)))
 }
 
 func toExecutorNodeNamesSet(executorNodeNames []string) map[string]bool {

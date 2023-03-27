@@ -351,7 +351,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(
 
 	s.removeDemandIfExists(ctx, driver)
 	metrics.ReportInitialDriverExecutorCollocationMetric(ctx, instanceGroup, packingResult.DriverNode, packingResult.ExecutorNodes)
-	metrics.ReportInitialExecutorsPerNodeMetric(ctx, instanceGroup, packingResult.ExecutorNodes)
+	metrics.ReportInitialNodeCountMetrics(ctx, instanceGroup, packingResult.ExecutorNodes)
 	metrics.ReportCrossZoneMetric(ctx, instanceGroup, packingResult.DriverNode, packingResult.ExecutorNodes, availableNodes)
 
 	_, err = s.resourceReservationManager.CreateReservations(
