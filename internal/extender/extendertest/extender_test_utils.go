@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	ssclientset "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/fake"
@@ -109,6 +110,7 @@ func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, e
 	lazyDemandInformer := crd.NewLazyDemandInformer(
 		sparkSchedulerInformerFactory,
 		fakeAPIExtensionsClient,
+		time.Minute,
 	)
 	demandCache := sscache.NewSafeDemandCache(
 		lazyDemandInformer,
