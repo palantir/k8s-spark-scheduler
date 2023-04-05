@@ -123,11 +123,11 @@ func sparkResources(ctx context.Context, pod *v1.Pod) (*sparkApplicationResource
 		minExecutorCount = int(parsedExecutorCount.Value())
 		maxExecutorCount = int(parsedExecutorCount.Value())
 	}
-
+	a := parsedResources[common.DriverNvidiaGPUs]
 	driverResources := &resources.Resources{
 		CPU:       parsedResources[common.DriverCPU],
 		Memory:    parsedResources[common.DriverMemory],
-		NvidiaGPU: parsedResources[common.DriverNvidiaGPUs],
+		NvidiaGPU: a,
 	}
 	executorResources := &resources.Resources{
 		CPU:       parsedResources[common.ExecutorCPU],

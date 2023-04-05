@@ -42,15 +42,18 @@ type LazyDemandInformer struct {
 	apiExtensionsClient apiextensionsclientset.Interface
 	ready               chan struct{}
 	informer            v1alpha2.DemandInformer
+	tickerTime          time.Duration
 }
 
 // NewLazyDemandInformer constructs a new LazyDemandInformer instance
 func NewLazyDemandInformer(
 	informerFactory ssinformers.SharedInformerFactory,
-	apiExtensionsClient apiextensionsclientset.Interface) *LazyDemandInformer {
+	apiExtensionsClient apiextensionsclientset.Interface,
+	tickerTime time.Duration) *LazyDemandInformer {
 	return &LazyDemandInformer{
 		informerFactory:     informerFactory,
 		apiExtensionsClient: apiExtensionsClient,
+		tickerTime:          tickerTime,
 		ready:               make(chan struct{}),
 	}
 }
@@ -82,7 +85,7 @@ func (ldi *LazyDemandInformer) Run(ctx context.Context) {
 }
 
 func (ldi *LazyDemandInformer) doStart(ctx context.Context) error {
-	t := time.NewTicker(time.Minute)
+	t := time.NewTicker(ldi.tickerTime)
 	defer t.Stop()
 	for {
 		select {

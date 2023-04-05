@@ -54,10 +54,12 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	return InitServerWithClients(ctx, info, allClient)
+	_, err = InitServerWithClients(ctx, info, allClient)
+	return nil, err
 }
 
-func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allClient AllClient) (func(), error) {
+func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allClient AllClient) (*extender.SparkSchedulerExtender, error) {
+	svc1log.FromContext(ctx).Info("InitServerWithClients")
 	install := info.InstallConfig.(config.Install)
 	instanceGroupLabel := install.InstanceGroupLabel
 	if instanceGroupLabel == "" {
@@ -97,7 +99,6 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 	resourceReservationInformerInterface := sparkSchedulerInformerFactory.Sparkscheduler().V1beta2().ResourceReservations()
 	resourceReservationInformer := resourceReservationInformerInterface.Informer()
 	resourceReservationLister := resourceReservationInformerInterface.Lister()
-
 	go func() {
 		_ = wapp.RunWithFatalLogging(ctx, func(ctx context.Context) error {
 			kubeInformerFactory.Start(ctx.Done())
@@ -136,6 +137,7 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 	lazyDemandInformer := crd.NewLazyDemandInformer(
 		sparkSchedulerInformerFactory,
 		apiExtensionsClient,
+		time.Millisecond*5,
 	)
 
 	demandCache := cache.NewSafeDemandCache(
@@ -225,7 +227,7 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 		return nil, err
 	}
 
-	return nil, nil
+	return sparkSchedulerExtender, nil
 }
 
 // New creates and returns a witchcraft Server.

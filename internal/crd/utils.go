@@ -61,7 +61,11 @@ func conversionStrategiesAreEqual(existingConversion, desiredConversion *v1.Cust
 }
 
 func verifyCRD(existing, desired *v1.CustomResourceDefinition) bool {
-	return versionsAreEqual(existing.Spec.Versions, desired.Spec.Versions) && annotationsAreEqual(existing.Annotations, desired.Annotations) && conversionStrategiesAreEqual(existing.Spec.Conversion, desired.Spec.Conversion)
+	a := versionsAreEqual(existing.Spec.Versions, desired.Spec.Versions)
+	b := annotationsAreEqual(existing.Annotations, desired.Annotations)
+	// c := conversionStrategiesAreEqual(existing.Spec.Conversion, desired.Spec.Conversion) TODO
+
+	return a && b
 }
 
 // getVersionWithName returns the CustomResourceDefinitionVersion with the specified name if it is found
@@ -109,18 +113,18 @@ func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsc
 	if ready && verifyCRD(existing, crd) {
 		return nil
 	}
-	_, err = clientset.ApiextensionsV1().CustomResourceDefinitions().Create(context.Background(), crd, metav1.CreateOptions{})
+	_, err = clientset.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, crd, metav1.CreateOptions{})
 	if err != nil {
 		if errors.IsAlreadyExists(err) {
 			svc1log.FromContext(ctx).Info("CRD already exists")
-			existing, getErr := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(context.Background(), crd.Name, metav1.GetOptions{})
+			existing, getErr := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crd.Name, metav1.GetOptions{})
 			if getErr != nil {
 				return werror.Wrap(getErr, "Failed to get existing CRD")
 			}
 			copyCrd := crd.DeepCopy()
 			copyCrd.ResourceVersion = existing.ResourceVersion
 			svc1log.FromContext(ctx).Info("Upgrading CRD")
-			_, updateErr := clientset.ApiextensionsV1().CustomResourceDefinitions().Update(context.Background(), copyCrd, metav1.UpdateOptions{})
+			_, updateErr := clientset.ApiextensionsV1().CustomResourceDefinitions().Update(ctx, copyCrd, metav1.UpdateOptions{})
 			if updateErr != nil {
 				return werror.Wrap(updateErr, "Failed to update CRD")
 			}
@@ -141,7 +145,7 @@ func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsc
 	svc1log.FromContext(ctx).Info("Verified upgraded CRD has applied.")
 
 	if err != nil {
-		deleteErr := clientset.ApiextensionsV1().CustomResourceDefinitions().Delete(context.Background(), crd.Name, metav1.DeleteOptions{})
+		deleteErr := clientset.ApiextensionsV1().CustomResourceDefinitions().Delete(ctx, crd.Name, metav1.DeleteOptions{})
 		if deleteErr != nil {
 			return werror.Wrap(deleteErr, err.Error())
 		}
