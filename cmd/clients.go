@@ -26,12 +26,14 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// AllClient holds all the k8s clients used
 type AllClient struct {
-	ApiExtensionsClient  apiextensionsclientset.Interface
+	APIExtensionsClient  apiextensionsclientset.Interface
 	SparkSchedulerClient clientset.Interface
 	KubeClient           kubernetes.Interface
 }
 
+// GetClients creates AllClient given the passed in install config
 func GetClients(ctx context.Context, install config.Install) (AllClient, error) {
 	var kubeconfig *rest.Config
 	var err error
@@ -67,7 +69,7 @@ func GetClients(ctx context.Context, install config.Install) (AllClient, error) 
 		return AllClient{}, err
 	}
 	return AllClient{
-		ApiExtensionsClient:  apiExtensionsClient,
+		APIExtensionsClient:  apiExtensionsClient,
 		SparkSchedulerClient: sparkSchedulerClient,
 		KubeClient:           kubeClient,
 	}, nil

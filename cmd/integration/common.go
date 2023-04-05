@@ -2,6 +2,9 @@ package integration
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/palantir/k8s-spark-scheduler/cmd"
 	config2 "github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
@@ -11,8 +14,6 @@ import (
 	"github.com/palantir/witchcraft-go-server/config"
 	"github.com/palantir/witchcraft-go-server/witchcraft"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 type testSetup struct {

@@ -58,6 +58,8 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	return nil, err
 }
 
+// InitServerWithClients starts the server with passed in clients
+// Exported for testing
 func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allClient AllClient) (*extender.SparkSchedulerExtender, error) {
 	svc1log.FromContext(ctx).Info("InitServerWithClients")
 	install := info.InstallConfig.(config.Install)
@@ -67,7 +69,7 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 		instanceGroupLabel = "resource_channel"
 	}
 
-	apiExtensionsClient := allClient.ApiExtensionsClient
+	apiExtensionsClient := allClient.APIExtensionsClient
 	sparkSchedulerClient := allClient.SparkSchedulerClient
 	kubeClient := allClient.KubeClient
 

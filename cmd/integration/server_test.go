@@ -16,6 +16,8 @@ package integration
 
 import (
 	"context"
+	"testing"
+
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
@@ -32,7 +34,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
-	"testing"
 )
 
 func Test_InitServerWithClients(t *testing.T) {
@@ -55,7 +56,7 @@ func Test_InitServerWithClients(t *testing.T) {
 		},
 	}
 	allClients := cmd.AllClient{
-		ApiExtensionsClient:  extensionsfake.NewSimpleClientset(crd, demandCRD),
+		APIExtensionsClient:  extensionsfake.NewSimpleClientset(crd, demandCRD),
 		SparkSchedulerClient: ssclientset.NewSimpleClientset(),
 		KubeClient:           k8sfake.NewSimpleClientset(),
 	}
