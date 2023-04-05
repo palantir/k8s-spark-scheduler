@@ -16,10 +16,6 @@ package integration
 
 import (
 	"context"
-	"fmt"
-	"testing"
-	"time"
-
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
@@ -27,13 +23,8 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/cmd"
 	config2 "github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
-	"github.com/palantir/k8s-spark-scheduler/internal/extender"
-	"github.com/palantir/witchcraft-go-logging/wlog"
-	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	"github.com/palantir/witchcraft-go-server/config"
-	"github.com/palantir/witchcraft-go-server/witchcraft"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	extensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
@@ -41,11 +32,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
+	"testing"
 )
 
 func Test_InitServerWithClients(t *testing.T) {
-	var rootCtx context.Context
-	ctx := context.Background()
 	crd := v1beta2.ResourceReservationCustomResourceDefinition(&v1.WebhookClientConfig{}, v1beta1.ResourceReservationCustomResourceDefinitionVersion())
 	crd.Status = v1.CustomResourceDefinitionStatus{
 		Conditions: []v1.CustomResourceDefinitionCondition{
@@ -75,40 +65,10 @@ func Test_InitServerWithClients(t *testing.T) {
 			UseConsoleLog: true,
 		},
 	}
-	var ref *extender.SparkSchedulerExtender
-	server := witchcraft.NewServer().
-		WithInstallConfigType(config2.Install{}).
-		WithInstallConfig(installConfig).
-		WithSelfSignedCertificate().
-		WithRuntimeConfig(config.Runtime{
-			LoggerConfig: &config.LoggerConfig{
-				Level: wlog.DebugLevel,
-			},
-		}).
-		WithDisableGoRuntimeMetrics().
-		WithInitFunc(func(ctx context.Context, initInfo witchcraft.InitInfo) (func(), error) {
-			rootCtx = ctx
-			f := func(ctx context.Context) error {
-				var err error
-				ref, err = cmd.InitServerWithClients(ctx, initInfo, allClients)
-				require.NoError(t, err)
-				return err
-			}
-			err := wapp.RunWithFatalLogging(ctx, f)
-			require.NoError(t, err)
-			return nil, err
-		})
-
-	go func() {
-		err := server.Start()
-		require.NoError(t, err)
-	}()
-
-	waitForCondition(ctx, t, func() bool {
-		return ref != nil
-	})
-
-	nodeNames := []string{}
+	testSetup := setUpServer(context.Background(), t, installConfig, allClients)
+	ctx := testSetup.ctx
+	defer testSetup.cleanup()
+	var nodeNames []string
 	args := schedulerapi.ExtenderArgs{
 		Pod: &corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
@@ -149,7 +109,7 @@ func Test_InitServerWithClients(t *testing.T) {
 		},
 		NodeNames: &nodeNames,
 	}
-	results := ref.Predicate(rootCtx, args)
+	testSetup.ref.Predicate(ctx, args)
 	waitForCondition(ctx, t, func() bool {
 		demandList, err := allClients.SparkSchedulerClient.ScalerV1alpha2().Demands("").List(ctx, metav1.ListOptions{})
 		assert.NoError(t, err)
@@ -199,29 +159,4 @@ func Test_InitServerWithClients(t *testing.T) {
 			InstanceGroup: "desiredInstanceGroup",
 		},
 	}, item)
-	fmt.Println(results)
-
-}
-
-func getBool(b bool) *bool {
-	return &b
-}
-
-func waitForCondition(ctx context.Context, t *testing.T, condition func() bool) {
-	ticker := time.NewTicker(time.Millisecond * 10)
-	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(time.Hour*5))
-	defer ticker.Stop()
-	defer cancel()
-	for {
-		select {
-		case <-ctx.Done():
-			require.Fail(t, "Did not resolve condition")
-			return
-		case <-ticker.C:
-			checkCorrect := condition()
-			if checkCorrect {
-				return
-			}
-		}
-	}
 }
