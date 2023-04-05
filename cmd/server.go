@@ -20,7 +20,6 @@ import (
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
-	clientset "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
@@ -33,12 +32,8 @@ import (
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	"github.com/palantir/witchcraft-go-server/witchcraft"
 	"github.com/spf13/cobra"
-	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	clientcache "k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 var serverCmd = &cobra.Command{
@@ -54,46 +49,26 @@ func init() {
 }
 
 func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
-	var kubeconfig *rest.Config
-	var err error
-
 	install := info.InstallConfig.(config.Install)
-	if install.Kubeconfig != "" {
-		kubeconfig, err = clientcmd.BuildConfigFromFlags("", install.Kubeconfig)
-		if err != nil {
-			svc1log.FromContext(ctx).Error("Error building config from kubeconfig: %s", svc1log.Stacktrace(err))
-			return nil, err
-		}
-	} else {
-		kubeconfig, err = rest.InClusterConfig()
-		if err != nil {
-			svc1log.FromContext(ctx).Error("Error building in cluster kubeconfig: %s", svc1log.Stacktrace(err))
-			return nil, err
-		}
+	allClient, err := GetClients(ctx, install)
+	if err != nil {
+		return nil, err
 	}
-	kubeconfig.QPS = install.QPS
-	kubeconfig.Burst = install.Burst
+	return InitServerWithClients(ctx, info, allClient)
+}
+
+func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allClient AllClient) (func(), error) {
+	install := info.InstallConfig.(config.Install)
 	instanceGroupLabel := install.InstanceGroupLabel
 	if instanceGroupLabel == "" {
 		// for back-compat, as instanceGroupLabel was once hard-coded to this value
 		instanceGroupLabel = "resource_channel"
 	}
 
-	kubeClient, err := kubernetes.NewForConfig(kubeconfig)
-	if err != nil {
-		svc1log.FromContext(ctx).Error("Error building kubernetes clientset: %s", svc1log.Stacktrace(err))
-		return nil, err
-	}
-	sparkSchedulerClient, err := clientset.NewForConfig(kubeconfig)
-	if err != nil {
-		svc1log.FromContext(ctx).Error("Error building spark scheduler clientset: %s", svc1log.Stacktrace(err))
-		return nil, err
-	}
-	apiExtensionsClient, err := apiextensionsclientset.NewForConfig(kubeconfig)
-	if err != nil {
-		svc1log.FromContext(ctx).Error("Error building api extensions clientset: %s", svc1log.Stacktrace(err))
-		return nil, err
-	}
+	apiExtensionsClient := allClient.ApiExtensionsClient
+	sparkSchedulerClient := allClient.SparkSchedulerClient
+	kubeClient := allClient.KubeClient
+
 	webhookClientConfig, err := conversionwebhook.InitializeCRDConversionWebhook(ctx, info.Router, install.Server,
 		install.WebhookServiceConfig.Namespace, install.WebhookServiceConfig.ServiceName, install.WebhookServiceConfig.ServicePort)
 	if err != nil {
