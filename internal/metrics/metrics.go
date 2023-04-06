@@ -20,7 +20,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
@@ -214,13 +213,6 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 			"pod is first seen by the extender, but it is older than the slow log threshold",
 			svc1log.SafeParam("slowLogThreshold", slowLogThreshold))
 	}
-}
-
-// ReportTotalUnboundReservedResourcesMetric reports metrics measuring how much resources are reserved yet unbound.
-func ReportTotalUnboundReservedResourcesMetric(ctx context.Context, resources *resources.Resources) {
-	metrics.FromContext(ctx).GaugeFloat64(unboundCPUReservations).Update(resources.CPU.AsApproximateFloat64())
-	metrics.FromContext(ctx).GaugeFloat64(unboundMemoryReservations).Update(resources.Memory.AsApproximateFloat64())
-	metrics.FromContext(ctx).GaugeFloat64(unboundNvidiaGPUReservations).Update(resources.NvidiaGPU.AsApproximateFloat64())
 }
 
 // ReportInitialDriverExecutorCollocationMetric reports a metric about whether the driver is collocated with executors.
