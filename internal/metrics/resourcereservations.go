@@ -18,21 +18,20 @@ import (
 	"context"
 	"time"
 
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 )
 
 // ResourceReservationMetrics reports metrics on the ResourceReservationManager passed
 type ResourceReservationMetrics struct {
-	totalUnboundResourcesReservationsFn func() *resources.Resources
+	resourceReservationManager *extender.ResourceReservationManager
 }
 
 // NewResourceReservationMetrics creates a ResourceReservationMetrics
-// func NewResourceReservationMetrics(resourceReservationManager *extender.ResourceReservationManager) *ResourceReservationMetrics {
-func NewResourceReservationMetrics(totalUnboundResourcesReservationsFn func() *resources.Resources) *ResourceReservationMetrics {
+func NewResourceReservationMetrics(resourceReservationManager *extender.ResourceReservationManager) *ResourceReservationMetrics {
 	return &ResourceReservationMetrics{
-		totalUnboundResourcesReservationsFn: totalUnboundResourcesReservationsFn,
+		resourceReservationManager: resourceReservationManager,
 	}
 }
 
@@ -55,7 +54,7 @@ func (s *ResourceReservationMetrics) doStart(ctx context.Context) error {
 }
 
 func (s *ResourceReservationMetrics) emitUnboundResourceReservationMetrics(ctx context.Context) {
-	unboundReservedResources := s.totalUnboundResourcesReservationsFn()
+	unboundReservedResources := s.resourceReservationManager.GetTotalUnboundReservedResources()
 	metrics.FromContext(ctx).GaugeFloat64(unboundCPUReservations).Update(unboundReservedResources.CPU.AsApproximateFloat64())
 	metrics.FromContext(ctx).GaugeFloat64(unboundMemoryReservations).Update(unboundReservedResources.Memory.AsApproximateFloat64())
 	metrics.FromContext(ctx).GaugeFloat64(unboundNvidiaGPUReservations).Update(unboundReservedResources.NvidiaGPU.AsApproximateFloat64())
