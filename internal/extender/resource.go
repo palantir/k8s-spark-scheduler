@@ -177,6 +177,7 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 	}
 
 	logger.Info("scheduling pod to node", svc1log.SafeParam("nodeName", nodeName))
+	metrics.ReportTotalUnboundReservedResourcesMetric(ctx, s.resourceReservationManager)
 	return &schedulerapi.ExtenderFilterResult{NodeNames: &[]string{nodeName}}
 }
 

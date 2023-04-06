@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
@@ -49,6 +50,9 @@ const (
 	requestResult                             = "foundry.spark.scheduler.client.request.result"
 	cachedObjectCount                         = "foundry.spark.scheduler.cache.objects.count"
 	inflightRequestCount                      = "foundry.spark.scheduler.cache.inflight.count"
+	unboundCPUReservations                    = "foundry.spark.scheduler.reservations.unbound.cpu"
+	unboundMemoryReservations                 = "foundry.spark.scheduler.reservations.unbound.memory"
+	unboundNvidiaGPUReservations              = "foundry.spark.scheduler.reservations.unbound.nvidiagpu"
 	softReservationCount                      = "foundry.spark.scheduler.softreservation.count"
 	softReservationExecutorCount              = "foundry.spark.scheduler.softreservation.executorcount"
 	executorsWithNoReservationCount           = "foundry.spark.scheduler.softreservation.executorswithnoreservations"
@@ -210,6 +214,14 @@ func (s *ScheduleTimer) Mark(ctx context.Context, role, outcome string) {
 			"pod is first seen by the extender, but it is older than the slow log threshold",
 			svc1log.SafeParam("slowLogThreshold", slowLogThreshold))
 	}
+}
+
+// ReportTotalUnboundReservedResourcesMetric reports metrics measuring how much resources are reserved yet unbound.
+func ReportTotalUnboundReservedResourcesMetric(ctx context.Context, rrm *extender.ResourceReservationManager) {
+	resources := rrm.GetTotalUnboundReservedResources()
+	metrics.FromContext(ctx).GaugeFloat64(unboundCPUReservations).Update(resources.CPU.AsApproximateFloat64())
+	metrics.FromContext(ctx).GaugeFloat64(unboundMemoryReservations).Update(resources.Memory.AsApproximateFloat64())
+	metrics.FromContext(ctx).GaugeFloat64(unboundNvidiaGPUReservations).Update(resources.NvidiaGPU.AsApproximateFloat64())
 }
 
 // ReportInitialDriverExecutorCollocationMetric reports a metric about whether the driver is collocated with executors.

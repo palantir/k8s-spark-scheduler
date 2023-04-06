@@ -358,6 +358,25 @@ func (rrm *ResourceReservationManager) bindExecutorToSoftReservation(ctx context
 	return rrm.softReservationStore.AddReservationForPod(ctx, driver.Labels[common.SparkAppIDLabel], executor.Name, softReservation)
 }
 
+// GetTotalUnboundReservedResources reports the sum of all reservations that are currently not bound to any pod.
+func (rrm *ResourceReservationManager) GetTotalUnboundReservedResources() *resources.Resources {
+	unboundResources := resources.Zero()
+	for _, rr := range rrm.resourceReservations.List() {
+		bound := rr.Status.Pods
+
+		for reservationName, reservation := range rr.Spec.Reservations {
+			if _, ok := bound[reservationName]; ok {
+				continue
+			}
+
+			unboundResources.CPU.Add(*reservation.Resources.CPU())
+			unboundResources.Memory.Add(*reservation.Resources.Memory())
+			unboundResources.NvidiaGPU.Add(*reservation.Resources.NvidiaGPU())
+		}
+	}
+	return unboundResources
+}
+
 // getUnboundReservations returns a map of reservationName to node for all reservations that are either not bound to an executor,
 // bound to a now-dead executor, or bound to an executor that has now been scheduled onto another node
 func (rrm *ResourceReservationManager) getUnboundReservations(ctx context.Context, appID string, namespace string) (map[string]string, error) {
