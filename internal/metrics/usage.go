@@ -16,6 +16,7 @@ package metrics
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
@@ -33,6 +34,7 @@ import (
 // ResourceUsageReporter reports resource usage periodically
 type ResourceUsageReporter struct {
 	nodeLister            corelisters.NodeLister
+	podLister             corelisters.PodLister
 	resourceReservations  *cache.ResourceReservationCache
 	instanceGroupTagLabel string
 }
@@ -40,10 +42,12 @@ type ResourceUsageReporter struct {
 // NewResourceReporter returns a new ResourceUsageReporter instance
 func NewResourceReporter(
 	nodeLister corelisters.NodeLister,
+	podLister corelisters.PodLister,
 	resourceReservations *cache.ResourceReservationCache,
 	instanceGroupTagLabel string) *ResourceUsageReporter {
 	return &ResourceUsageReporter{
 		nodeLister:            nodeLister,
+		podLister:             podLister,
 		resourceReservations:  resourceReservations,
 		instanceGroupTagLabel: instanceGroupTagLabel,
 	}
@@ -55,7 +59,7 @@ func (r *ResourceUsageReporter) StartReportingResourceUsage(ctx context.Context)
 }
 
 func (r *ResourceUsageReporter) doStart(ctx context.Context) error {
-	t := time.NewTicker(30 * time.Second)
+	t := time.NewTicker(30 * time.Millisecond)
 	for {
 		select {
 		case <-ctx.Done():
@@ -100,7 +104,52 @@ func (r *ResourceUsageReporter) report(ctx context.Context, nodes []*v1.Node, rr
 		metrics.FromContext(ctx).Unregister(resourceUsageMemory, tags...)
 		metrics.FromContext(ctx).Unregister(resourceUsageNvidiaGPUs, tags...)
 	}
-	for _, n := range nodes {
+	pods, err := r.podLister.List(labels.Everything())
+	if err != nil {
+		return
+	}
+
+	for _, node := range nodes {
+		n := node
+
+		// And a log statement
+		resourcesOnNode := resources.Zero()
+		podSeen := map[string]struct{}{}
+		for _, podInLister := range pods {
+			pod := podInLister
+			if pod.Spec.NodeName != n.Name {
+				continue
+			}
+			resourcesOnNode.Add(forPod(*pod))
+			podSeen[pod.Namespace+pod.Name] = struct{}{}
+		}
+
+		for _, resourceReservation := range rrs {
+			for podId, reservation := range resourceReservation.Spec.Reservations {
+				if reservation.Node != n.Name {
+					continue
+				}
+				podName := resourceReservation.Status.Pods[podId]
+				keyName := resourceReservation.Namespace + podName
+				_, ok := podSeen[keyName]
+				if ok {
+					continue
+				}
+				resourcesOnNode.AddFromReservation(&reservation)
+			}
+		}
+		zone := n.Labels[v1.LabelZoneFailureDomain]
+		instanceGroup := n.Labels["com.palantir.rubix/instance-group"]
+		fmt.Println("hi")
+		svc1log.FromContext(ctx).Info("Basic quantity check of node", svc1log.SafeParams(map[string]interface{}{
+			"nodeName":      n.Name,
+			"zone":          zone,
+			"instanceGroup": instanceGroup,
+			"CPU":           resourcesOnNode.CPU.String(),
+			"Memory":        resourcesOnNode.Memory.String(),
+			"NvidiaGPU":     resourcesOnNode.NvidiaGPU.String(),
+		}))
+
 		usage, ok := resourceUsages[n.Name]
 		if !ok {
 			continue
@@ -110,5 +159,15 @@ func (r *ResourceUsageReporter) report(ctx context.Context, nodes []*v1.Node, rr
 		metrics.FromContext(ctx).Gauge(resourceUsageCPU, hostTag, instanceGroupTag).Update(usage.CPU.Value())
 		metrics.FromContext(ctx).Gauge(resourceUsageMemory, hostTag, instanceGroupTag).Update(usage.Memory.Value())
 		metrics.FromContext(ctx).Gauge(resourceUsageNvidiaGPUs, hostTag, instanceGroupTag).Update(usage.NvidiaGPU.Value())
+
 	}
+	fmt.Println("a")
+}
+
+func forPod(pod v1.Pod) *resources.Resources {
+	onPod := resources.Zero()
+	for _, container := range pod.Spec.Containers {
+		onPod.AddFromResourceList(container.Resources.Requests)
+	}
+	return onPod
 }

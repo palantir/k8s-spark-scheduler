@@ -16,6 +16,7 @@ package extender_test
 
 import (
 	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
@@ -68,6 +69,19 @@ func TestScheduler(t *testing.T) {
 		newExecutor,
 		nodeNames,
 		"Because an executor is terminated, the new request can replace its reservation")
+}
+
+func TestMinimalFragmentationa(t *testing.T) {
+	var anodes []*v1.Node
+	for i := 1; i < 50; i++ {
+		anodes = append(anodes, &v1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("n-%d", i),
+			},
+		})
+	}
+	a := extender.GetNodeNames(anodes)
+	fmt.Println(a)
 }
 
 func TestMinimalFragmentation(t *testing.T) {

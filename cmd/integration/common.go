@@ -2,6 +2,12 @@ package integration
 
 import (
 	"context"
+	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/runtime"
 	"testing"
 	"time"
 
@@ -69,8 +75,35 @@ func setUpServer(ctx context.Context, t *testing.T, installConfig config2.Instal
 	}
 }
 
+func getReadyCRDs() []runtime.Object {
+	crd := v1beta2.ResourceReservationCustomResourceDefinition(&v1.WebhookClientConfig{}, v1beta1.ResourceReservationCustomResourceDefinitionVersion())
+	crd.Status = v1.CustomResourceDefinitionStatus{
+		Conditions: []v1.CustomResourceDefinitionCondition{
+			{
+				Type:   v1.Established,
+				Status: v1.ConditionTrue,
+			},
+		},
+	}
+	demandCRD := demandapi.DemandCustomResourceDefinition(nil)
+	demandCRD.Status = v1.CustomResourceDefinitionStatus{
+		Conditions: []v1.CustomResourceDefinitionCondition{
+			{
+				Type:   v1.Established,
+				Status: v1.ConditionTrue,
+			},
+		},
+	}
+	return []runtime.Object{crd, demandCRD}
+}
+
 func getBool(b bool) *bool {
 	return &b
+}
+
+func toResource(parse resource.Quantity) *resource.Quantity {
+	return &parse
+
 }
 
 func waitForCondition(ctx context.Context, t *testing.T, condition func() bool) {

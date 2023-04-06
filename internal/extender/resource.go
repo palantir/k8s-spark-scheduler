@@ -475,8 +475,12 @@ func filterNodesToZone(ctx context.Context, initialNodes []*v1.Node, zone string
 	return nodes, nil
 }
 
+func GetNodeNames(nodes []*v1.Node) []string {
+	return getNodeNames(nodes)
+}
+
 func getNodeNames(nodes []*v1.Node) []string {
-	nodeNames := make([]string, len(nodes))
+	nodeNames := make([]string, 0, len(nodes))
 	for _, node := range nodes {
 		nodeNames = append(nodeNames, node.Name)
 	}
@@ -668,6 +672,28 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 		s.createDemandForExecutorInAnyZone(ctx, executor, executorResources)
 	}
 	return "", failureFit, werror.ErrorWithContextParams(ctx, "not enough capacity to reschedule the executor")
+}
+
+type AwsCloudSpecic struct {
+	// Create Launch Config
+	// Create Instange group
+
+}
+
+type CloudSpecic interface {
+	DoWork()
+	// Create
+}
+
+type controller struct {
+	cloudSpecic CloudSpecic
+}
+
+// CreateOrUpdate(ctx context.Context, cloudInstanceGroupParams CloudInstanceGroupParams, clusterName string) error
+func (controller controller) CreateOrUpdate(ctx context.Context, cloudInstanceGroupParams, clusterName string) {
+
+	/// Cloud specfic implemtnation
+	controller.cloudSpecic.DoWork()
 }
 
 func (s *SparkSchedulerExtender) rescheduleExecutorWithMinimalFragmentation(

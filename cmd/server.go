@@ -190,6 +190,7 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 
 	resourceReporter := metrics.NewResourceReporter(
 		nodeLister,
+		podLister,
 		resourceReservationCache,
 		instanceGroupLabel,
 	)
