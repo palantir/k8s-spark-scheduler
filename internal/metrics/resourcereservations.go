@@ -43,6 +43,7 @@ func (s *ResourceReservationMetrics) StartReporting(ctx context.Context) {
 
 func (s *ResourceReservationMetrics) doStart(ctx context.Context) error {
 	t := time.NewTicker(tickInterval)
+	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
