@@ -17,6 +17,7 @@ package extender
 import (
 	"context"
 	"fmt"
+	"github.com/palantir/k8s-spark-scheduler/internal/reservations"
 	"math"
 	"sync"
 
@@ -41,7 +42,7 @@ var podGroupVersionKind = v1.SchemeGroupVersion.WithKind("Pod")
 
 // ResourceReservationManager is a central point which manages the creation and reading of both resource reservations and soft reservations
 type ResourceReservationManager struct {
-	resourceReservations                 *cache.ResourceReservationCache
+	resourceReservations                 reservations.Store
 	softReservationStore                 *cache.SoftReservationStore
 	podLister                            *SparkPodLister
 	mutex                                sync.Mutex
@@ -53,7 +54,7 @@ type ResourceReservationManager struct {
 // NewResourceReservationManager creates and returns a ResourceReservationManager
 func NewResourceReservationManager(
 	ctx context.Context,
-	resourceReservations *cache.ResourceReservationCache,
+	resourceReservations reservations.Store,
 	softReservationStore *cache.SoftReservationStore,
 	podLister *SparkPodLister,
 	informer coreinformers.PodInformer) *ResourceReservationManager {
@@ -77,8 +78,12 @@ func NewResourceReservationManager(
 }
 
 // GetResourceReservation returns the resource reservation for the passed pod, if any.
-func (rrm *ResourceReservationManager) GetResourceReservation(appID string, namespace string) (*v1beta2.ResourceReservation, bool) {
-	return rrm.resourceReservations.Get(namespace, appID)
+func (rrm *ResourceReservationManager) GetResourceReservation(ctx context.Context, appID string, namespace string) (*v1beta2.ResourceReservation, bool) {
+	r, err := rrm.resourceReservations.Get(ctx, namespace, appID)
+	if err != nil {
+		return nil, false
+	}
+	return r, true
 }
 
 // GetSoftResourceReservation returns the soft resource reservation for this appId
@@ -92,7 +97,7 @@ func (rrm *ResourceReservationManager) PodHasReservation(ctx context.Context, po
 	if !ok {
 		return false
 	}
-	if rr, ok := rrm.GetResourceReservation(appID, pod.Namespace); ok {
+	if rr, ok := rrm.GetResourceReservation(ctx, appID, pod.Namespace); ok {
 		for _, rPodName := range rr.Status.Pods {
 			if pod.Name == rPodName {
 				return true
@@ -114,11 +119,11 @@ func (rrm *ResourceReservationManager) CreateReservations(
 	applicationResources *sparkApplicationResources,
 	driverNode string,
 	executorNodes []string) (*v1beta2.ResourceReservation, error) {
-	rr, ok := rrm.GetResourceReservation(driver.Labels[common.SparkAppIDLabel], driver.Namespace)
+	rr, ok := rrm.GetResourceReservation(ctx, driver.Labels[common.SparkAppIDLabel], driver.Namespace)
 	if !ok {
 		rr = newResourceReservation(driverNode, executorNodes, driver, applicationResources.driverResources, applicationResources.executorResources)
 		svc1log.FromContext(ctx).Debug("creating executor resource reservations", svc1log.SafeParams(logging.RRSafeParamV1Beta2(rr)))
-		err := rrm.resourceReservations.Create(rr)
+		err := rrm.resourceReservations.Create(ctx, rr)
 		if err != nil {
 			return nil, werror.WrapWithContextParams(ctx, err, "failed to create resource reservation", werror.SafeParam("reservationName", rr.Name))
 		}
@@ -136,7 +141,7 @@ func (rrm *ResourceReservationManager) CreateReservations(
 // FindAlreadyBoundReservationNode returns a node name that was previously allocated to this executor if any, or false otherwise.
 // Binding reservations have to be idempotent. Binding the pod to the node on kube-scheduler might fail, so we want to get the same executor pod on a retry.
 func (rrm *ResourceReservationManager) FindAlreadyBoundReservationNode(ctx context.Context, executor *v1.Pod) (string, bool, error) {
-	resourceReservation, ok := rrm.GetResourceReservation(executor.Labels[common.SparkAppIDLabel], executor.Namespace)
+	resourceReservation, ok := rrm.GetResourceReservation(ctx, executor.Labels[common.SparkAppIDLabel], executor.Namespace)
 	if !ok {
 		return "", false, werror.ErrorWithContextParams(ctx, "failed to get resource reservations")
 	}
@@ -230,8 +235,8 @@ func (rrm *ResourceReservationManager) ReserveForExecutorOnRescheduledNode(ctx c
 }
 
 // GetReservedResources returns the resources per node that are reserved for executors.
-func (rrm *ResourceReservationManager) GetReservedResources() resources.NodeGroupResources {
-	resourceReservations := rrm.resourceReservations.List()
+func (rrm *ResourceReservationManager) GetReservedResources(ctx context.Context) resources.NodeGroupResources {
+	resourceReservations, _ := rrm.resourceReservations.List(ctx)
 	usage := resources.UsageForNodes(resourceReservations)
 	usage.Add(rrm.softReservationStore.UsedSoftReservationResources())
 	return usage
@@ -322,7 +327,7 @@ func (rrm *ResourceReservationManager) drainDynamicAllocationCompactionApps() ma
 }
 
 func (rrm *ResourceReservationManager) bindExecutorToResourceReservation(ctx context.Context, executor *v1.Pod, reservationName string, node string) error {
-	resourceReservation, ok := rrm.GetResourceReservation(executor.Labels[common.SparkAppIDLabel], executor.Namespace)
+	resourceReservation, ok := rrm.GetResourceReservation(ctx, executor.Labels[common.SparkAppIDLabel], executor.Namespace)
 	if !ok {
 		return werror.ErrorWithContextParams(ctx, "failed to get resource reservationName", werror.SafeParam("reservationName", reservationName))
 	}
@@ -331,7 +336,7 @@ func (rrm *ResourceReservationManager) bindExecutorToResourceReservation(ctx con
 	reservationObject.Node = node
 	copyResourceReservation.Spec.Reservations[reservationName] = reservationObject
 	copyResourceReservation.Status.Pods[reservationName] = executor.Name
-	err := rrm.resourceReservations.Update(copyResourceReservation)
+	err := rrm.resourceReservations.Update(ctx, copyResourceReservation)
 	if err != nil {
 		return werror.WrapWithContextParams(ctx, err, "failed to update resource reservationName", werror.SafeParam("reservationName", reservationName))
 	}
@@ -361,7 +366,7 @@ func (rrm *ResourceReservationManager) bindExecutorToSoftReservation(ctx context
 // getUnboundReservations returns a map of reservationName to node for all reservations that are either not bound to an executor,
 // bound to a now-dead executor, or bound to an executor that has now been scheduled onto another node
 func (rrm *ResourceReservationManager) getUnboundReservations(ctx context.Context, appID string, namespace string) (map[string]string, error) {
-	resourceReservation, ok := rrm.GetResourceReservation(appID, namespace)
+	resourceReservation, ok := rrm.GetResourceReservation(ctx, appID, namespace)
 	if !ok {
 		return nil, werror.ErrorWithContextParams(ctx, "failed to get resource reservation")
 	}

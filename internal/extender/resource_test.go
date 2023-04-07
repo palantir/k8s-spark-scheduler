@@ -15,7 +15,9 @@
 package extender_test
 
 import (
+	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 
@@ -334,7 +336,9 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 				expectedExecutorReservations[expectedRes] = true
 			}
 			extraExecutors := make(map[string]bool)
-			for _, resourceReservation := range testHarness.ResourceReservationCache.List() {
+			resourceReservations, err := testHarness.ResourceReservationCache.List(context.Background())
+			assert.NoError(t, err)
+			for _, resourceReservation := range resourceReservations {
 				for name, podName := range resourceReservation.Status.Pods {
 					if name != "driver" {
 						if _, exists := expectedExecutorReservations[podName]; exists {

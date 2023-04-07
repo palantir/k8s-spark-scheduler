@@ -16,6 +16,7 @@ package extender
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/reservations"
 	"time"
 
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
@@ -63,7 +64,7 @@ const (
 type SparkSchedulerExtender struct {
 	nodeLister                 corelisters.NodeLister
 	podLister                  *SparkPodLister
-	resourceReservations       *cache.ResourceReservationCache
+	resourceReservations       reservations.Store
 	softReservationStore       *cache.SoftReservationStore
 	resourceReservationManager *ResourceReservationManager
 	coreClient                 corev1.CoreV1Interface
@@ -87,7 +88,7 @@ type SparkSchedulerExtender struct {
 func NewExtender(
 	nodeLister corelisters.NodeLister,
 	podLister *SparkPodLister,
-	resourceReservations *cache.ResourceReservationCache,
+	resourceReservations reservations.Store,
 	softReservationStore *cache.SoftReservationStore,
 	resourceReservationManager *ResourceReservationManager,
 	coreClient corev1.CoreV1Interface,
@@ -273,7 +274,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(
 	driver *v1.Pod,
 	nodeNames []string) (string, string, error) {
 
-	if rr, ok := s.resourceReservationManager.GetResourceReservation(driver.Labels[common.SparkAppIDLabel], driver.Namespace); ok {
+	if rr, ok := s.resourceReservationManager.GetResourceReservation(ctx, driver.Labels[common.SparkAppIDLabel], driver.Namespace); ok {
 		driverReservedNode := rr.Spec.Reservations["driver"].Node
 		for _, node := range nodeNames {
 			if driverReservedNode == node {
@@ -295,7 +296,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(
 		return "", failureInternal, err
 	}
 
-	usage := s.resourceReservationManager.GetReservedResources()
+	usage := s.resourceReservationManager.GetReservedResources(ctx)
 	overhead := s.overheadComputer.GetOverhead(ctx, availableNodes)
 
 	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usage, overhead)
@@ -564,10 +565,10 @@ func (s *SparkSchedulerExtender) getSparkApplicationPodsForExecutor(ctx context.
 }
 
 // getNodesWithExecutorsBelongingToSameApp returns the set of nodes with reservations for the spark app this executor belongs to
-func (s *SparkSchedulerExtender) getNodesWithExecutorsBelongingToSameApp(executor *v1.Pod) map[string]bool {
+func (s *SparkSchedulerExtender) getNodesWithExecutorsBelongingToSameApp(ctx context.Context, executor *v1.Pod) map[string]bool {
 	nodeNames := make(map[string]bool)
 	appID := executor.Labels[common.SparkAppIDLabel]
-	if rr, ok := s.resourceReservationManager.GetResourceReservation(appID, executor.Namespace); ok {
+	if rr, ok := s.resourceReservationManager.GetResourceReservation(ctx, appID, executor.Namespace); ok {
 		for pod, reservation := range rr.Spec.Reservations {
 			if pod != common.Driver {
 				nodeNames[reservation.Node] = true
@@ -637,7 +638,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 		svc1log.FromContext(ctx).Info("Single AZ not enabled, attempting to schedule anywhere.")
 	}
 
-	usage := s.resourceReservationManager.GetReservedResources()
+	usage := s.resourceReservationManager.GetReservedResources(ctx)
 	overhead := s.overheadComputer.GetOverhead(ctx, availableNodes)
 	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usage, overhead)
 
@@ -652,7 +653,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	}
 
 	if s.binpacker.Name == SingleAzMinimalFragmentation {
-		name, ok := s.rescheduleExecutorWithMinimalFragmentation(executor, executorNodeNames, availableNodesSchedulingMetadata, overhead, executorResources)
+		name, ok := s.rescheduleExecutorWithMinimalFragmentation(ctx, executor, executorNodeNames, availableNodesSchedulingMetadata, overhead, executorResources)
 		if ok {
 			return name, potentialSuccessOutcome, nil
 		}
@@ -697,6 +698,7 @@ func (controller controller) CreateOrUpdate(ctx context.Context, cloudInstanceGr
 }
 
 func (s *SparkSchedulerExtender) rescheduleExecutorWithMinimalFragmentation(
+	ctx context.Context,
 	executor *v1.Pod,
 	executorNodeNames []string,
 	availableNodesSchedulingMetadata resources.NodeGroupSchedulingMetadata,
@@ -704,7 +706,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutorWithMinimalFragmentation(
 	executorResources *resources.Resources,
 ) (string, bool) {
 	capacities := capacity.GetNodeCapacities(executorNodeNames, availableNodesSchedulingMetadata, overhead, executorResources)
-	nodesWithExecutorsBelongingToThisApp := s.getNodesWithExecutorsBelongingToSameApp(executor)
+	nodesWithExecutorsBelongingToThisApp := s.getNodesWithExecutorsBelongingToSameApp(ctx, executor)
 
 	var best capacity.NodeAndExecutorCapacity
 	for _, nodeAndCapacity := range capacities {
