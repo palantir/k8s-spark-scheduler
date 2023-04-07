@@ -71,7 +71,6 @@ type SparkSchedulerExtender struct {
 	coreClient                 corev1.CoreV1Interface
 	nodeSorter                 *ns.NodeSorter
 
-	// demands             *cache.SafeDemandCache
 	apiExtensionsClient apiextensionsclientset.Interface
 	demandsManager      demands.Manager
 

@@ -164,7 +164,6 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 
 func (r *reconciler) syncDemands(ctx context.Context, sp *sparkPods) {
 	if sp.inconsistentDriver != nil {
-		// r.demands.
 		r.demands.DeleteDemandIfExists(ctx, sp.inconsistentDriver, "Reconciler")
 	}
 	for _, e := range sp.inconsistentExecutors {
