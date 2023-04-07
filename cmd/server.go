@@ -16,8 +16,6 @@ package cmd
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
-	"github.com/palantir/k8s-spark-scheduler/internal/demands"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
@@ -25,9 +23,11 @@ import (
 	clientset "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler/config"
+	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/conversionwebhook"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
+	"github.com/palantir/k8s-spark-scheduler/internal/demands"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	"github.com/palantir/k8s-spark-scheduler/internal/sort"
@@ -164,13 +164,17 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		sparkSchedulerInformerFactory,
 		apiExtensionsClient,
 	)
-
+	binpacker := binpacker.SelectBinpacker(install.BinpackAlgo)
 	demandCache := cache.NewSafeDemandCache(
 		lazyDemandInformer,
 		sparkSchedulerClient.ScalerV1alpha2(),
 		install.AsyncClientConfig,
 	)
-	demandManager := demands.NewDefaultManager()
+	demandManager := demands.NewDefaultManager(
+		kubeClient.CoreV1(),
+		demandCache,
+		binpacker,
+		instanceGroupLabel)
 	extender.StartDemandGC(ctx, podInformerInterface, demandManager)
 
 	softReservationStore := cache.NewSoftReservationStore(ctx, podInformerInterface)
@@ -184,8 +188,6 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		resourceReservationManager,
 		nodeLister,
 	)
-
-	binpacker := binpacker.SelectBinpacker(install.BinpackAlgo)
 
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
 

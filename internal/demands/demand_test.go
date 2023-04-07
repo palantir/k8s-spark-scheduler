@@ -15,14 +15,14 @@
 package demands
 
 import (
-	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	"github.com/palantir/k8s-spark-scheduler/internal/types"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"reflect"
 	"testing"
 
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	"github.com/palantir/k8s-spark-scheduler/internal/types"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

@@ -15,9 +15,9 @@
 package extender_test
 
 import (
-	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"testing"
 
+	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender/extendertest"
 )
 

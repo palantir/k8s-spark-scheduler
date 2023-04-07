@@ -16,9 +16,9 @@ package extender_test
 
 import (
 	"fmt"
-	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"testing"
 
+	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender/extendertest"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"

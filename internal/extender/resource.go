@@ -16,8 +16,6 @@ package extender
 
 import (
 	"context"
-	binpacker2 "github.com/palantir/k8s-spark-scheduler/internal/binpacker"
-	"github.com/palantir/k8s-spark-scheduler/internal/demands"
 	"time"
 
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
@@ -26,9 +24,11 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal"
+	binpacker2 "github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
+	"github.com/palantir/k8s-spark-scheduler/internal/demands"
 	"github.com/palantir/k8s-spark-scheduler/internal/events"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	ns "github.com/palantir/k8s-spark-scheduler/internal/sort"

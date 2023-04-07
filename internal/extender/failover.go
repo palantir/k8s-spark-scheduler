@@ -16,8 +16,6 @@ package extender
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal/demands"
-	"github.com/palantir/k8s-spark-scheduler/internal/types"
 	"math"
 	"sort"
 
@@ -27,6 +25,8 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
+	"github.com/palantir/k8s-spark-scheduler/internal/demands"
+	"github.com/palantir/k8s-spark-scheduler/internal/types"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"

@@ -16,10 +16,10 @@ package extender
 
 import (
 	"context"
-	binpacker2 "github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	binpacker2 "github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"

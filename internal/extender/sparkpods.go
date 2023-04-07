@@ -17,13 +17,13 @@ package extender
 import (
 	"context"
 	"fmt"
-	"github.com/palantir/k8s-spark-scheduler/internal/types"
 	"sort"
 	"strconv"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	"github.com/palantir/k8s-spark-scheduler/internal/types"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"

@@ -56,13 +56,21 @@ type Manager interface {
 type defaultManager struct {
 	coreClient         corev1.CoreV1Interface
 	demands            *cache.SafeDemandCache
-	instanceGroupLabel string
 	binpacker          *binpacker.Binpacker
+	instanceGroupLabel string
 }
 
-func NewDefaultManager() Manager {
-	panic("NewDefaultManager")
-
+func NewDefaultManager(
+	coreClient corev1.CoreV1Interface,
+	demands *cache.SafeDemandCache,
+	binpacker *binpacker.Binpacker,
+	instanceGroupLabel string) Manager {
+	return &defaultManager{
+		coreClient:         coreClient,
+		demands:            demands,
+		binpacker:          binpacker,
+		instanceGroupLabel: instanceGroupLabel,
+	}
 }
 
 // TODO: should patch instead of put to avoid conflicts

@@ -16,9 +16,9 @@ package extender
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal/demands"
 
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
+	"github.com/palantir/k8s-spark-scheduler/internal/demands"
 	v1 "k8s.io/api/core/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	clientcache "k8s.io/client-go/tools/cache"
