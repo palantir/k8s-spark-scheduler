@@ -17,21 +17,21 @@ package demands
 import (
 	"context"
 	"encoding/json"
-	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
-	"github.com/palantir/k8s-spark-scheduler/internal/types"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
+	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/k8s-spark-scheduler/internal/events"
+	"github.com/palantir/k8s-spark-scheduler/internal/types"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 )
 
@@ -60,6 +60,7 @@ type defaultManager struct {
 	instanceGroupLabel string
 }
 
+// NewDefaultManager creates the default implementation of the Manager
 func NewDefaultManager(
 	coreClient corev1.CoreV1Interface,
 	demands *cache.SafeDemandCache,

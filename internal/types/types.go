@@ -18,6 +18,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 )
 
+// SparkApplicationResources holds all resources for a single SparkApplication
 type SparkApplicationResources struct {
 	DriverResources   *resources.Resources
 	ExecutorResources *resources.Resources
