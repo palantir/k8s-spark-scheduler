@@ -17,6 +17,9 @@ package extendertest
 import (
 	"context"
 	"fmt"
+	"os"
+	"testing"
+
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	ssclientset "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/fake"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
@@ -39,8 +42,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
-	"os"
-	"testing"
 )
 
 const (

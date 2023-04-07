@@ -16,10 +16,10 @@ package metrics
 
 import (
 	"context"
-	"github.com/palantir/k8s-spark-scheduler/internal/reservations"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	"github.com/palantir/k8s-spark-scheduler/internal/reservations"
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 )

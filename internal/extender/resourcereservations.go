@@ -17,7 +17,6 @@ package extender
 import (
 	"context"
 	"fmt"
-	"github.com/palantir/k8s-spark-scheduler/internal/reservations"
 	"math"
 	"sync"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
+	"github.com/palantir/k8s-spark-scheduler/internal/reservations"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
