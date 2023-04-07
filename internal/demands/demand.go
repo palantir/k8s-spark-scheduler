@@ -46,6 +46,7 @@ var (
 	}
 )
 
+// Manager holds the types of demand operations that are available
 type Manager interface {
 	DeleteDemandIfExists(ctx context.Context, pod *v1.Pod, source string)
 	CreateDemandForApplicationInAnyZone(ctx context.Context, driverPod *v1.Pod, applicationResources *types.SparkApplicationResources)
