@@ -16,6 +16,7 @@ package extender_test
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"testing"
 
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
@@ -320,7 +321,10 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 				expectedExecutorReservations[expectedRes] = true
 			}
 			extraExecutors := make(map[string]bool)
-			for _, resourceReservation := range testHarness.ResourceReservationCache.List() {
+
+			resourceReservations, err := testHarness.ResourceReservationCache.List(context.Background())
+			assert.NoError(t, err)
+			for _, resourceReservation := range resourceReservations {
 				for name, podName := range resourceReservation.Status.Pods {
 					if name != "driver" {
 						if _, exists := expectedExecutorReservations[podName]; exists {

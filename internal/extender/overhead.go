@@ -138,7 +138,7 @@ func (o *OverheadComputer) computeNodeOverhead(ctx context.Context, nodeName str
 		if !o.resourceReservationManager.PodHasReservation(ctx, pod) {
 			overhead.Add(podRequestInfo.requests)
 			if pod.Spec.SchedulerName == common.SparkSchedulerName {
-				if _, appHasResourceReservation := o.resourceReservationManager.GetResourceReservation(pod.Labels[common.SparkAppIDLabel], pod.Namespace); appHasResourceReservation {
+				if _, appHasResourceReservation := o.resourceReservationManager.GetResourceReservation(ctx, pod.Labels[common.SparkAppIDLabel], pod.Namespace); appHasResourceReservation {
 					svc1log.FromContext(ctx).Warn("found spark scheduler pod with no reservation but application has a resource reservation",
 						svc1log.SafeParam("nodeName", nodeName),
 						svc1log.SafeParam("podName", podRequestInfo.podName),

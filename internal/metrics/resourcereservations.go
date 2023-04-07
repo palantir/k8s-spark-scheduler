@@ -16,23 +16,23 @@ package metrics
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/reservations"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 )
 
 // ResourceReservationMetrics reports metrics on the ResourceReservationManager passed
 type ResourceReservationMetrics struct {
-	resourceReservationCache *cache.ResourceReservationCache
+	resourceReservationStore reservations.Store
 }
 
 // NewResourceReservationMetrics creates a ResourceReservationMetrics
-func NewResourceReservationMetrics(resourceReservationCache *cache.ResourceReservationCache) *ResourceReservationMetrics {
+func NewResourceReservationMetrics(resourceReservationStore reservations.Store) *ResourceReservationMetrics {
 	return &ResourceReservationMetrics{
-		resourceReservationCache: resourceReservationCache,
+		resourceReservationStore: resourceReservationStore,
 	}
 }
 
@@ -55,15 +55,22 @@ func (s *ResourceReservationMetrics) doStart(ctx context.Context) error {
 }
 
 func (s *ResourceReservationMetrics) emitUnboundResourceReservationMetrics(ctx context.Context) {
-	unboundReservedResources := s.getTotalUnboundReservedResources()
+	unboundReservedResources, err := s.getTotalUnboundReservedResources(ctx)
+	if err != nil {
+		return
+	}
 	metrics.FromContext(ctx).GaugeFloat64(unboundCPUReservations).Update(unboundReservedResources.CPU.AsApproximateFloat64())
 	metrics.FromContext(ctx).GaugeFloat64(unboundMemoryReservations).Update(unboundReservedResources.Memory.AsApproximateFloat64())
 	metrics.FromContext(ctx).GaugeFloat64(unboundNvidiaGPUReservations).Update(unboundReservedResources.NvidiaGPU.AsApproximateFloat64())
 }
 
-func (s *ResourceReservationMetrics) getTotalUnboundReservedResources() *resources.Resources {
+func (s *ResourceReservationMetrics) getTotalUnboundReservedResources(ctx context.Context) (*resources.Resources, error) {
 	unboundResources := resources.Zero()
-	for _, rr := range s.resourceReservationCache.List() {
+	reservations, err := s.resourceReservationStore.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, rr := range reservations {
 		bound := rr.Status.Pods
 
 		for reservationName, reservation := range rr.Spec.Reservations {
@@ -76,5 +83,5 @@ func (s *ResourceReservationMetrics) getTotalUnboundReservedResources() *resourc
 			unboundResources.NvidiaGPU.Add(*reservation.Resources.NvidiaGPU())
 		}
 	}
-	return unboundResources
+	return unboundResources, nil
 }

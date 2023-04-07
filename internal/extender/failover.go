@@ -16,6 +16,7 @@ package extender
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/reservations"
 	"math"
 	"sort"
 
@@ -47,14 +48,17 @@ func (s *SparkSchedulerExtender) syncResourceReservationsAndDemands(ctx context.
 	if err != nil {
 		return err
 	}
-	rrs := s.resourceReservations.List()
+	rrs, err := s.resourceReservationStore.List(ctx)
+	if err != nil {
+		return err
+	}
 	overhead := s.overheadComputer.GetOverhead(ctx, nodes)
 	softReservationOverhead := s.softReservationStore.UsedSoftReservationResources()
 	availableResources, orderedNodes := availableResourcesPerInstanceGroup(s.instanceGroupLabel, rrs, nodes, overhead, softReservationOverhead)
 	staleSparkPods := unreservedSparkPodsBySparkID(ctx, rrs, s.softReservationStore, pods)
 	svc1log.FromContext(ctx).Info("starting reconciliation", svc1log.SafeParam("appCount", len(staleSparkPods)))
 
-	r := &reconciler{s.podLister, s.resourceReservations, s.softReservationStore, s.demands, availableResources, orderedNodes, s.instanceGroupLabel}
+	r := &reconciler{s.podLister, s.resourceReservationStore, s.softReservationStore, s.demands, availableResources, orderedNodes, s.instanceGroupLabel}
 
 	extraExecutorsWithNoRRs := make(map[string][]*v1.Pod)
 	for _, sp := range staleSparkPods {
@@ -83,13 +87,13 @@ type sparkPods struct {
 type instanceGroup string
 
 type reconciler struct {
-	podLister            *SparkPodLister
-	resourceReservations *cache.ResourceReservationCache
-	softReservations     *cache.SoftReservationStore
-	demands              *cache.SafeDemandCache
-	availableResources   map[instanceGroup]resources.NodeGroupResources
-	orderedNodes         map[instanceGroup][]*v1.Node
-	instanceGroupLabel   string
+	podLister                *SparkPodLister
+	resourceReservationStore reservations.Store
+	softReservations         *cache.SoftReservationStore
+	demands                  *cache.SafeDemandCache
+	availableResources       map[instanceGroup]resources.NodeGroupResources
+	orderedNodes             map[instanceGroup][]*v1.Node
+	instanceGroupLabel       string
 }
 
 func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods) []*v1.Pod {
@@ -98,12 +102,12 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 		// if the driver is nil it already has an associated reservation, get the resource
 		// reservation object and update it so it has reservations for each stale executor
 		exec := sp.inconsistentExecutors[0]
-		rr, ok := r.resourceReservations.Get(exec.Namespace, sp.appID)
-		if !ok {
+		rr, err := r.resourceReservationStore.Get(ctx, exec.Namespace, sp.appID)
+		if err != nil {
 			logRR(ctx, "resource reservation deleted, ignoring", exec.Namespace, sp.appID)
 			return nil
 		}
-		newRR, err := r.patchResourceReservation(sp.inconsistentExecutors, rr.DeepCopy())
+		newRR, err := r.patchResourceReservation(ctx, sp.inconsistentExecutors, rr.DeepCopy())
 		if err != nil {
 			logRR(ctx, "resource reservation deleted, ignoring", exec.Namespace, sp.appID)
 			return nil
@@ -137,10 +141,10 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 			svc1log.FromContext(ctx).Error("failed to construct resource reservation", svc1log.Stacktrace(err))
 			return nil
 		}
-		err = r.resourceReservations.Create(newRR)
+		err = r.resourceReservationStore.Create(ctx, newRR)
 		if err != nil {
 			logRR(ctx, "resource reservation already exists, force updating", sp.inconsistentDriver.Namespace, sp.appID)
-			updateErr := r.resourceReservations.Update(newRR)
+			updateErr := r.resourceReservationStore.Update(ctx, newRR)
 			if updateErr != nil {
 				logRR(ctx, "resource reservation deleted, ignoring", sp.inconsistentDriver.Namespace, sp.appID)
 				return nil
@@ -313,7 +317,7 @@ func availableResourcesPerInstanceGroup(
 }
 
 // patchResourceReservation gets a stale resource reservation and updates its status to reflect all given executors
-func (r *reconciler) patchResourceReservation(execs []*v1.Pod, rr *v1beta2.ResourceReservation) (*v1beta2.ResourceReservation, error) {
+func (r *reconciler) patchResourceReservation(ctx context.Context, execs []*v1.Pod, rr *v1beta2.ResourceReservation) (*v1beta2.ResourceReservation, error) {
 	for _, e := range execs {
 		for name, reservation := range rr.Spec.Reservations {
 			if reservation.Node != e.Spec.NodeName {
@@ -332,7 +336,7 @@ func (r *reconciler) patchResourceReservation(execs []*v1.Pod, rr *v1beta2.Resou
 		}
 	}
 
-	return rr, r.resourceReservations.Update(rr)
+	return rr, r.resourceReservationStore.Update(ctx, rr)
 }
 
 func (r *reconciler) constructResourceReservation(
