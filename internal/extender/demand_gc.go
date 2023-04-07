@@ -16,8 +16,8 @@ package extender
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/demands"
 
-	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	v1 "k8s.io/api/core/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
@@ -27,15 +27,19 @@ import (
 // DemandGC is a background pod event handler which deletes any demand we have previously created for a pod when a pod gets scheduled.
 // We also delete demands elsewhere in the extender when we schedule the pod, but those can miss some demands due to race conditions.
 type DemandGC struct {
-	demandCache *cache.SafeDemandCache
-	ctx         context.Context
+	manager demands.Manager
+	ctx     context.Context
 }
 
 // StartDemandGC initializes the DemandGC which handles events in the background
-func StartDemandGC(ctx context.Context, podInformer coreinformers.PodInformer, demandCache *cache.SafeDemandCache) {
+func StartDemandGC(
+	ctx context.Context,
+	podInformer coreinformers.PodInformer,
+	manager demands.Manager,
+) {
 	dgc := &DemandGC{
-		demandCache: demandCache,
-		ctx:         ctx,
+		manager: manager,
+		ctx:     ctx,
 	}
 
 	podInformer.Informer().AddEventHandler(
@@ -43,7 +47,7 @@ func StartDemandGC(ctx context.Context, podInformer coreinformers.PodInformer, d
 			FilterFunc: utils.IsSparkSchedulerPod,
 			Handler: clientcache.ResourceEventHandlerFuncs{
 				UpdateFunc: utils.OnPodScheduled(ctx, func(pod *v1.Pod) {
-					DeleteDemandIfExists(dgc.ctx, dgc.demandCache, pod, "DemandGC")
+					manager.DeleteDemandIfExists(dgc.ctx, pod, "DemandGC")
 				}),
 			},
 		},

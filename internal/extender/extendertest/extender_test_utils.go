@@ -17,6 +17,8 @@ package extendertest
 import (
 	"context"
 	"fmt"
+	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
+	"github.com/palantir/k8s-spark-scheduler/internal/demands"
 	"os"
 	"testing"
 
@@ -129,11 +131,13 @@ func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, e
 
 	isFIFO := true
 	fifoConfig := config.FifoConfig{}
-	binpacker := extender.SelectBinpacker(binpackAlgo)
+	binpacker := binpacker.SelectBinpacker(binpackAlgo)
 	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ := true
 
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
 
+	demandManager := demands.NewDefaultManager()
+	fmt.Println(demandCache)
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeLister,
 		sparkPodLister,
@@ -141,7 +145,7 @@ func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, e
 		softReservationStore,
 		resourceReservationManager,
 		fakeKubeClient.CoreV1(),
-		demandCache,
+		demandManager,
 		fakeAPIExtensionsClient,
 		isFIFO,
 		fifoConfig,

@@ -16,6 +16,8 @@ package cmd
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
+	"github.com/palantir/k8s-spark-scheduler/internal/demands"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
@@ -168,8 +170,8 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		sparkSchedulerClient.ScalerV1alpha2(),
 		install.AsyncClientConfig,
 	)
-
-	extender.StartDemandGC(ctx, podInformerInterface, demandCache)
+	demandManager := demands.NewDefaultManager()
+	extender.StartDemandGC(ctx, podInformerInterface, demandManager)
 
 	softReservationStore := cache.NewSoftReservationStore(ctx, podInformerInterface)
 
@@ -183,7 +185,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		nodeLister,
 	)
 
-	binpacker := extender.SelectBinpacker(install.BinpackAlgo)
+	binpacker := binpacker.SelectBinpacker(install.BinpackAlgo)
 
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
 
@@ -194,7 +196,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		softReservationStore,
 		resourceReservationManager,
 		kubeClient.CoreV1(),
-		demandCache,
+		demandManager,
 		apiExtensionsClient,
 		install.FIFO,
 		install.FifoConfig,

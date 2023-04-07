@@ -15,9 +15,9 @@
 package extender_test
 
 import (
+	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"testing"
 
-	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender/extendertest"
 )
 
@@ -26,7 +26,7 @@ func TestUnschedulablePodMarker(t *testing.T) {
 	node2 := extendertest.NewNode("node2", "zone1")
 
 	testHarness, err := extendertest.NewTestExtender(
-		extender.SingleAzTightlyPack,
+		binpacker.SingleAzTightlyPack,
 		&node1,
 		&node2)
 	if err != nil {
@@ -59,7 +59,7 @@ func TestSchedulerFailsToScheduleWhenNotEnoughNvidiaGPUs(t *testing.T) {
 	podsToSchedule := extendertest.StaticAllocationSparkPodsWithExecutorGPUs("2-executor-app", 2)
 
 	testHarness, err := extendertest.NewTestExtender(
-		extender.SingleAzTightlyPack,
+		binpacker.SingleAzTightlyPack,
 		&node1,
 		&node2,
 		&podsToSchedule[0],
