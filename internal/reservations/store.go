@@ -16,6 +16,7 @@ package reservations
 
 import (
 	"context"
+	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	sparkschedulerclient "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/typed/sparkscheduler/v1beta2"
@@ -57,11 +58,37 @@ func (d *defaultStore) List(ctx context.Context) ([]*v1beta2.ResourceReservation
 }
 
 func (d *defaultStore) Create(ctx context.Context, obj *v1beta2.ResourceReservation) error {
-	_, err := d.sparkschedulerV1beta2Interface.ResourceReservations(obj.GetNamespace()).Create(ctx, obj, metav1.CreateOptions{})
+	result, err := d.sparkschedulerV1beta2Interface.ResourceReservations(obj.GetNamespace()).Create(ctx, obj, metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+	d.allowListerToSync(ctx, result)
 	return err
 }
 
 func (d *defaultStore) Update(ctx context.Context, obj *v1beta2.ResourceReservation) error {
-	_, err := d.sparkschedulerV1beta2Interface.ResourceReservations(obj.GetNamespace()).Update(ctx, obj, metav1.UpdateOptions{})
+	result, err := d.sparkschedulerV1beta2Interface.ResourceReservations(obj.GetNamespace()).Update(ctx, obj, metav1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
+	d.allowListerToSync(ctx, result)
 	return err
+}
+
+func (d *defaultStore) allowListerToSync(ctx context.Context, result *v1beta2.ResourceReservation) {
+	ticker := time.NewTicker(time.Millisecond * 20)
+	ctx, cancel := context.WithDeadline(ctx, time.Now().Add(time.Second*5))
+	defer ticker.Stop()
+	defer cancel()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			ok, err := d.resourceReservationLister.ResourceReservations(result.Namespace).Get(result.Name)
+			if err == nil && ok.Generation >= result.Generation {
+				return
+			}
+		}
+	}
 }
