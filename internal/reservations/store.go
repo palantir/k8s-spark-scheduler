@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 )
 
+// Store wraps a raw reservations client and a lister to provide a single interface for reads and writes
 type Store interface {
 	List(ctx context.Context) ([]*v1beta2.ResourceReservation, error)
 	Get(ctx context.Context, namespace, name string) (*v1beta2.ResourceReservation, error)
@@ -36,6 +37,7 @@ type defaultStore struct {
 	resourceReservationLister      sparkschedulerlisters.ResourceReservationLister
 }
 
+// NewDefaultStore Creates the default implementation of Store
 func NewDefaultStore(
 	sparkschedulerV1beta2Interface sparkschedulerclient.ResourceReservationsGetter,
 	resourceReservationLister sparkschedulerlisters.ResourceReservationLister,
