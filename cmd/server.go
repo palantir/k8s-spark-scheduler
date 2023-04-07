@@ -212,10 +212,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	metrics.RegisterInformerDelayMetrics(ctx, podInformerInterface)
 
-	cacheReporter := metrics.NewCacheMetrics(
-		resourceReservationLister,
-		demandCache,
-	)
+	cacheReporter := metrics.NewCacheMetrics(demandCache)
 
 	queueReporter := metrics.NewQueueReporter(podLister, instanceGroupLabel)
 

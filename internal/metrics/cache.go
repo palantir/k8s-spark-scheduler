@@ -18,7 +18,6 @@ import (
 	"context"
 	"time"
 
-	sparkschedulerlisters "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/listers/sparkscheduler/v1beta2"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
@@ -31,18 +30,13 @@ var (
 
 // CacheMetrics reports metrics for resource reservation and demand caches
 type CacheMetrics struct {
-	resourceReservationLister sparkschedulerlisters.ResourceReservationLister
-	demands                   *cache.SafeDemandCache
+	demands *cache.SafeDemandCache
 }
 
 // NewCacheMetrics creates a new CacheMetrics object
-func NewCacheMetrics(
-	resourceReservationLister sparkschedulerlisters.ResourceReservationLister,
-	demands *cache.SafeDemandCache,
-) *CacheMetrics {
+func NewCacheMetrics(demands *cache.SafeDemandCache) *CacheMetrics {
 	return &CacheMetrics{
-		resourceReservationLister: resourceReservationLister,
-		demands:                   demands,
+		demands: demands,
 	}
 }
 
