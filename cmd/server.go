@@ -219,6 +219,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	queueReporter := metrics.NewQueueReporter(podLister, instanceGroupLabel)
 
+	resourceReservationReporter := metrics.NewResourceReservationMetrics(defaultStore)
 	softReservationReporter := metrics.NewSoftReservationMetrics(ctx, softReservationStore, podLister, defaultStore)
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(
@@ -236,6 +237,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	go cacheReporter.StartReporting(ctx)
 	go resourceReporter.StartReportingResourceUsage(ctx)
 	go queueReporter.StartReportingQueues(ctx)
+	go resourceReservationReporter.StartReporting(ctx)
 	go softReservationReporter.StartReporting(ctx)
 	go unschedulablePodMarker.Start(ctx)
 

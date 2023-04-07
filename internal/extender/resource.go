@@ -296,7 +296,10 @@ func (s *SparkSchedulerExtender) selectDriverNode(
 		return "", failureInternal, err
 	}
 
-	usage := s.resourceReservationManager.GetReservedResources(ctx)
+	usage, err := s.resourceReservationManager.GetReservedResources(ctx)
+	if err != nil {
+		return "", failureInternal, err
+	}
 	overhead := s.overheadComputer.GetOverhead(ctx, availableNodes)
 
 	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usage, overhead)
@@ -634,7 +637,10 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 		svc1log.FromContext(ctx).Info("Single AZ not enabled, attempting to schedule anywhere.")
 	}
 
-	usage := s.resourceReservationManager.GetReservedResources(ctx)
+	usage, err := s.resourceReservationManager.GetReservedResources(ctx)
+	if err != nil {
+		return "", "", err
+	}
 	overhead := s.overheadComputer.GetOverhead(ctx, availableNodes)
 	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usage, overhead)
 

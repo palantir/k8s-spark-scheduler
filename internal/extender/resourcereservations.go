@@ -235,11 +235,14 @@ func (rrm *ResourceReservationManager) ReserveForExecutorOnRescheduledNode(ctx c
 }
 
 // GetReservedResources returns the resources per node that are reserved for executors.
-func (rrm *ResourceReservationManager) GetReservedResources(ctx context.Context) resources.NodeGroupResources {
-	resourceReservations, _ := rrm.resourceReservationStore.List(ctx)
+func (rrm *ResourceReservationManager) GetReservedResources(ctx context.Context) (resources.NodeGroupResources, error) {
+	resourceReservations, err := rrm.resourceReservationStore.List(ctx)
+	if err != nil {
+		return nil, err
+	}
 	usage := resources.UsageForNodes(resourceReservations)
 	usage.Add(rrm.softReservationStore.UsedSoftReservationResources())
-	return usage
+	return usage, nil
 }
 
 // CompactDynamicAllocationApplications compacts reservations for executors belonging to dynamic allocation applications by moving

@@ -24,10 +24,6 @@ import (
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 )
 
-const (
-	informerDelayBuffer = 5
-)
-
 var (
 	cacheTag  = metrics.MustNewTag("source", "cache")
 	demandTag = metrics.MustNewTag("cachedobject", "demand")
