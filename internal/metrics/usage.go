@@ -16,11 +16,11 @@ package metrics
 
 import (
 	"context"
+	"github.com/palantir/k8s-spark-scheduler/internal/reservations"
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/pkg/metrics"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
@@ -32,20 +32,20 @@ import (
 
 // ResourceUsageReporter reports resource usage periodically
 type ResourceUsageReporter struct {
-	nodeLister            corelisters.NodeLister
-	resourceReservations  *cache.ResourceReservationCache
-	instanceGroupTagLabel string
+	nodeLister               corelisters.NodeLister
+	resourceReservationStore reservations.Store
+	instanceGroupTagLabel    string
 }
 
 // NewResourceReporter returns a new ResourceUsageReporter instance
 func NewResourceReporter(
 	nodeLister corelisters.NodeLister,
-	resourceReservations *cache.ResourceReservationCache,
+	resourceReservationStore reservations.Store,
 	instanceGroupTagLabel string) *ResourceUsageReporter {
 	return &ResourceUsageReporter{
-		nodeLister:            nodeLister,
-		resourceReservations:  resourceReservations,
-		instanceGroupTagLabel: instanceGroupTagLabel,
+		nodeLister:               nodeLister,
+		resourceReservationStore: resourceReservationStore,
+		instanceGroupTagLabel:    instanceGroupTagLabel,
 	}
 }
 
@@ -69,14 +69,18 @@ func (r *ResourceUsageReporter) doStart(ctx context.Context) error {
 			hasInstanceGroup := labels.NewSelector().Add(*req)
 			nodes, err := r.nodeLister.List(hasInstanceGroup)
 			if err != nil {
-				svc1log.FromContext(ctx).Error("failed to list resource reservations", svc1log.Stacktrace(err))
+				svc1log.FromContext(ctx).Error("failed to list nodes", svc1log.Stacktrace(err))
 				break
 			}
 			nodeNames := make([]string, 0, len(nodes))
 			for _, n := range nodes {
 				nodeNames = append(nodeNames, n.Name)
 			}
-			rrs := r.resourceReservations.List()
+			rrs, err := r.resourceReservationStore.List(ctx)
+			if err != nil {
+				svc1log.FromContext(ctx).Error("failed to list resource reservations", svc1log.Stacktrace(err))
+				break
+			}
 			r.report(ctx, nodes, rrs)
 		}
 	}
