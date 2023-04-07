@@ -476,7 +476,7 @@ func filterNodesToZone(ctx context.Context, initialNodes []*v1.Node, zone string
 }
 
 func getNodeNames(nodes []*v1.Node) []string {
-	nodeNames := make([]string, len(nodes))
+	nodeNames := make([]string, 0, len(nodes))
 	for _, node := range nodes {
 		nodeNames = append(nodeNames, node.Name)
 	}
