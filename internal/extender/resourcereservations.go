@@ -341,8 +341,11 @@ func (rrm *ResourceReservationManager) bindExecutorToResourceReservation(ctx con
 	if _, ok := resourceReservation.Status.Pods[reservationName]; !ok {
 		// this is the k8s server time, so the duration we're computing only makes sense if clocks are reasonably kept in sync
 		creationTime := resourceReservation.CreationTimestamp.Time
-		duration := time.Now().Sub(creationTime)
-		metrics.ReportTimeToFirstBindMetrics(ctx, duration)
+
+		if !creationTime.IsZero() {
+			duration := time.Since(creationTime)
+			metrics.ReportTimeToFirstBindMetrics(ctx, duration)
+		}
 	}
 	return nil
 }
