@@ -371,5 +371,5 @@ func IncrementSingleAzDynamicAllocationPackFailure(ctx context.Context, zone str
 func ReportTimeToBindMetrics(ctx context.Context, durationMicros int64) {
 	timeToBindHist := metrics.FromContext(ctx).Histogram(timeToBind)
 	timeToBindHist.Update(durationMicros)
-	metrics.FromContext(ctx).GaugeFloat64(timeToBindP50).Update(timeToBindHist.Mean())
+	metrics.FromContext(ctx).GaugeFloat64(timeToBindP50).Update(timeToBindHist.Percentile(.5))
 }
