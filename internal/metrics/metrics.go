@@ -368,8 +368,8 @@ func IncrementSingleAzDynamicAllocationPackFailure(ctx context.Context, zone str
 	metrics.FromContext(ctx).Counter(singleAzDynamicAllocationPackFailureCount, ZoneTag(ctx, zone)).Inc(1)
 }
 
-// ReportTimeToBindMetrics reports how long it takes between a reservation being created and pods being bound to said reservation.
-func ReportTimeToBindMetrics(ctx context.Context, duration time.Duration) {
+// ReportTimeToFirstBindMetrics reports how long it takes between a reservation being created and pods being bound to said reservation.
+func ReportTimeToFirstBindMetrics(ctx context.Context, duration time.Duration) {
 	timeToFirstBindHist := metrics.FromContext(ctx).Histogram(timeToFirstBind)
 	timeToFirstBindHist.Update(duration.Nanoseconds())
 	metrics.FromContext(ctx).GaugeFloat64(timeToFirstBindP50).Update(timeToFirstBindHist.Percentile(.5))
