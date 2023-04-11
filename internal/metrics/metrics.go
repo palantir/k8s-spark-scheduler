@@ -370,8 +370,8 @@ func IncrementSingleAzDynamicAllocationPackFailure(ctx context.Context, zone str
 
 // ReportTimeToBindMetrics reports how long it takes between a reservation being created and pods being bound to said reservation.
 func ReportTimeToBindMetrics(ctx context.Context, duration time.Duration) {
-	timeToBindHist := metrics.FromContext(ctx).Histogram(timeToFirstBind)
-	timeToBindHist.Update(duration.Nanoseconds())
-	metrics.FromContext(ctx).GaugeFloat64(timeToFirstBindP50).Update(timeToBindHist.Percentile(.5))
-	metrics.FromContext(ctx).GaugeFloat64(timeToFirstBindMean).Update(timeToBindHist.Mean())
+	timeToFirstBindHist := metrics.FromContext(ctx).Histogram(timeToFirstBind)
+	timeToFirstBindHist.Update(duration.Nanoseconds())
+	metrics.FromContext(ctx).GaugeFloat64(timeToFirstBindP50).Update(timeToFirstBindHist.Percentile(.5))
+	metrics.FromContext(ctx).GaugeFloat64(timeToFirstBindMean).Update(timeToFirstBindHist.Mean())
 }
