@@ -340,9 +340,8 @@ func (rrm *ResourceReservationManager) bindExecutorToResourceReservation(ctx con
 	// only report the metric the first time the reservation is bound
 	if _, ok := resourceReservation.Status.Pods[reservationName]; !ok {
 		// this is the k8s server time, so the duration we're computing only makes sense if clocks are reasonably kept in sync
-		creationMicros := resourceReservation.CreationTimestamp.Time
-		now := time.Now()
-		duration := now.Sub(creationMicros)
+		creationTime := resourceReservation.CreationTimestamp.Time
+		duration := time.Now().Sub(creationTime)
 		metrics.ReportTimeToBindMetrics(ctx, duration)
 	}
 	return nil
