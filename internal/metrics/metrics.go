@@ -54,6 +54,7 @@ const (
 	unboundNvidiaGPUReservations              = "foundry.spark.scheduler.reservations.unbound.nvidiagpu"
 	timeToBind                                = "foundry.spark.scheduler.reservations.timetobind"
 	timeToBindP50                             = "foundry.spark.scheduler.reservations.timetobind.p50"
+	timeToBindMean                            = "foundry.spark.scheduler.reservations.timetobind.mean"
 	softReservationCount                      = "foundry.spark.scheduler.softreservation.count"
 	softReservationExecutorCount              = "foundry.spark.scheduler.softreservation.executorcount"
 	executorsWithNoReservationCount           = "foundry.spark.scheduler.softreservation.executorswithnoreservations"
@@ -368,8 +369,9 @@ func IncrementSingleAzDynamicAllocationPackFailure(ctx context.Context, zone str
 }
 
 // ReportTimeToBindMetrics reports how long it takes between a reservation being created and pods being bound to said reservation.
-func ReportTimeToBindMetrics(ctx context.Context, durationMicros int64) {
+func ReportTimeToBindMetrics(ctx context.Context, duration time.Duration) {
 	timeToBindHist := metrics.FromContext(ctx).Histogram(timeToBind)
-	timeToBindHist.Update(durationMicros)
+	timeToBindHist.Update(duration.Microseconds())
 	metrics.FromContext(ctx).GaugeFloat64(timeToBindP50).Update(timeToBindHist.Percentile(.5))
+	metrics.FromContext(ctx).GaugeFloat64(timeToBindMean).Update(timeToBindHist.Mean())
 }
