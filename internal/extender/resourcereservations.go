@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
@@ -334,6 +335,14 @@ func (rrm *ResourceReservationManager) bindExecutorToResourceReservation(ctx con
 	err := rrm.resourceReservations.Update(copyResourceReservation)
 	if err != nil {
 		return werror.WrapWithContextParams(ctx, err, "failed to update resource reservationName", werror.SafeParam("reservationName", reservationName))
+	}
+
+	// only report the metric the first time the reservation is bound
+	if _, ok := resourceReservation.Status.Pods[reservationName]; !ok {
+		// this is the k8s server time, so the duration we're computing only makes sense if clocks are reasonably kept in sync
+		creationTime := resourceReservation.CreationTimestamp.Time
+		duration := time.Now().Sub(creationTime)
+		metrics.ReportTimeToFirstBindMetrics(ctx, duration)
 	}
 	return nil
 }
