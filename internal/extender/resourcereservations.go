@@ -56,7 +56,7 @@ type ResourceReservationManager interface {
 	CreateReservations(
 		ctx context.Context,
 		driver *v1.Pod,
-		applicationResources *sparkApplicationResources,
+		applicationResources *types.SparkApplicationResources,
 		driverNode string,
 		executorNodes []string) (*v1beta2.ResourceReservation, error)
 }
