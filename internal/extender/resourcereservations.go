@@ -359,10 +359,15 @@ func (rrm *defaultResourceReservationManager) bindExecutorToResourceReservation(
 
 	// only report the metric the first time the reservation is bound
 	if _, ok := resourceReservation.Status.Pods[reservationName]; !ok {
-		// this is the k8s server time, so the duration we're computing only makes sense if clocks are reasonably kept in sync
+		// this should the k8s server time, but due to the way we cache request/object this might actually be set by k8s-spark-scheduler itself
 		creationTime := resourceReservation.CreationTimestamp.Time
-		duration := time.Now().Sub(creationTime)
-		metrics.ReportTimeToFirstBindMetrics(ctx, duration)
+
+		// we haven't observed this in practice, but the docs for CreationTimestamp make it clear that this is optional
+		// so just to be safe we ignore the zero-value
+		if !creationTime.IsZero() {
+			duration := time.Since(creationTime)
+			metrics.ReportTimeToFirstBindMetrics(ctx, duration)
+		}
 	}
 	return nil
 }
@@ -489,9 +494,10 @@ func newResourceReservation(driverNode string, executorNodes []string, driver *v
 	}
 	return &v1beta2.ResourceReservation{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            driver.Labels[common.SparkAppIDLabel],
-			Namespace:       driver.Namespace,
-			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(driver, podGroupVersionKind)},
+			Name:              driver.Labels[common.SparkAppIDLabel],
+			Namespace:         driver.Namespace,
+			OwnerReferences:   []metav1.OwnerReference{*metav1.NewControllerRef(driver, podGroupVersionKind)},
+			CreationTimestamp: metav1.Now(),
 			Labels: map[string]string{
 				v1beta1.AppIDLabel: driver.Labels[common.SparkAppIDLabel],
 			},
