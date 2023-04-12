@@ -29,6 +29,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
+	"github.com/palantir/k8s-spark-scheduler/internal/types"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
@@ -131,12 +132,12 @@ func (rrm *defaultResourceReservationManager) PodHasReservation(ctx context.Cont
 func (rrm *defaultResourceReservationManager) CreateReservations(
 	ctx context.Context,
 	driver *v1.Pod,
-	applicationResources *sparkApplicationResources,
+	applicationResources *types.SparkApplicationResources,
 	driverNode string,
 	executorNodes []string) (*v1beta2.ResourceReservation, error) {
 	rr, ok := rrm.GetResourceReservation(driver.Labels[common.SparkAppIDLabel], driver.Namespace)
 	if !ok {
-		rr = newResourceReservation(driverNode, executorNodes, driver, applicationResources.driverResources, applicationResources.executorResources)
+		rr = newResourceReservation(driverNode, executorNodes, driver, applicationResources.DriverResources, applicationResources.ExecutorResources)
 		svc1log.FromContext(ctx).Debug("creating executor resource reservations", svc1log.SafeParams(logging.RRSafeParamV1Beta2(rr)))
 		err := rrm.resourceReservations.Create(rr)
 		if err != nil {
@@ -144,7 +145,7 @@ func (rrm *defaultResourceReservationManager) CreateReservations(
 		}
 	}
 
-	if applicationResources.maxExecutorCount > applicationResources.minExecutorCount {
+	if applicationResources.MaxExecutorCount > applicationResources.MinExecutorCount {
 		// only create soft reservations for applications which can request extra executors
 		svc1log.FromContext(ctx).Debug("creating soft reservations for application", svc1log.SafeParam("appID", driver.Labels[common.SparkAppIDLabel]))
 		rrm.softReservationStore.CreateSoftReservationIfNotExists(driver.Labels[common.SparkAppIDLabel])
@@ -378,9 +379,9 @@ func (rrm *defaultResourceReservationManager) bindExecutorToSoftReservation(ctx 
 	softReservation := v1beta2.Reservation{
 		Node: node,
 		Resources: v1beta2.ResourceList{
-			string(v1beta2.ResourceCPU):       &sparkResources.executorResources.CPU,
-			string(v1beta2.ResourceMemory):    &sparkResources.executorResources.Memory,
-			string(v1beta2.ResourceNvidiaGPU): &sparkResources.executorResources.NvidiaGPU,
+			string(v1beta2.ResourceCPU):       &sparkResources.ExecutorResources.CPU,
+			string(v1beta2.ResourceMemory):    &sparkResources.ExecutorResources.Memory,
+			string(v1beta2.ResourceNvidiaGPU): &sparkResources.ExecutorResources.NvidiaGPU,
 		},
 	}
 	return rrm.softReservationStore.AddReservationForPod(ctx, driver.Labels[common.SparkAppIDLabel], executor.Name, softReservation)
@@ -424,7 +425,7 @@ func (rrm *defaultResourceReservationManager) getFreeSoftReservationSpots(ctx co
 	if err != nil {
 		return 0, err
 	}
-	maxAllowedExtraExecutors := sparkResources.maxExecutorCount - sparkResources.minExecutorCount
+	maxAllowedExtraExecutors := sparkResources.MaxExecutorCount - sparkResources.MinExecutorCount
 	return int(math.Max(float64(maxAllowedExtraExecutors-usedSoftReservationCount), 0)), nil
 }
 

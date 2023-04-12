@@ -12,24 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package extender
+package demands
 
 import (
 	"reflect"
 	"testing"
 
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
+	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
+	"github.com/palantir/k8s-spark-scheduler/internal/types"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var testResource = createResources(1, 2432*1024*1024, 1)
+var testResource = &resources.Resources{
+	CPU:       *resource.NewQuantity(1, resource.DecimalSI),
+	Memory:    *resource.NewQuantity(2432*1024*1024, resource.BinarySI),
+	NvidiaGPU: *resource.NewQuantity(1, resource.DecimalSI),
+}
 
-var testResources = &sparkApplicationResources{
-	driverResources:   testResource,
-	executorResources: testResource,
-	minExecutorCount:  0,
-	maxExecutorCount:  0,
+var testResources = &types.SparkApplicationResources{
+	DriverResources:   testResource,
+	ExecutorResources: testResource,
+	MinExecutorCount:  0,
+	MaxExecutorCount:  0,
 }
 var testPod = &v1.Pod{
 	ObjectMeta: metav1.ObjectMeta{
@@ -41,7 +48,7 @@ var testPod = &v1.Pod{
 func Test_demandResourcesForApplication(t *testing.T) {
 	type args struct {
 		driverPod            *v1.Pod
-		applicationResources *sparkApplicationResources
+		applicationResources *types.SparkApplicationResources
 	}
 	var tests = []struct {
 		name string
@@ -57,9 +64,9 @@ func Test_demandResourcesForApplication(t *testing.T) {
 			want: []demandapi.DemandUnit{
 				{
 					Resources: demandapi.ResourceList{
-						demandapi.ResourceCPU:       testResources.driverResources.CPU,
-						demandapi.ResourceMemory:    testResources.driverResources.Memory,
-						demandapi.ResourceNvidiaGPU: testResources.driverResources.NvidiaGPU,
+						demandapi.ResourceCPU:       testResources.DriverResources.CPU,
+						demandapi.ResourceMemory:    testResources.DriverResources.Memory,
+						demandapi.ResourceNvidiaGPU: testResources.DriverResources.NvidiaGPU,
 					},
 					Count:               1,
 					PodNamesByNamespace: map[string][]string{"test-namespace": {"test-name"}},

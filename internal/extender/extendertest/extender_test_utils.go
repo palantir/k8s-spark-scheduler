@@ -24,8 +24,10 @@ import (
 	ssclientset "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/fake"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler/config"
+	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	sscache "github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
+	"github.com/palantir/k8s-spark-scheduler/internal/demands"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	"github.com/palantir/k8s-spark-scheduler/internal/sort"
@@ -129,11 +131,12 @@ func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, e
 
 	isFIFO := true
 	fifoConfig := config.FifoConfig{}
-	binpacker := extender.SelectBinpacker(binpackAlgo)
+	binpacker := binpacker.SelectBinpacker(binpackAlgo)
 	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ := true
 
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
 
+	demandManager := demands.NewDefaultManager(fakeKubeClient.CoreV1(), demandCache, binpacker, instanceGroupLabel)
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeLister,
 		sparkPodLister,
@@ -141,7 +144,7 @@ func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, e
 		softReservationStore,
 		resourceReservationManager,
 		fakeKubeClient.CoreV1(),
-		demandCache,
+		demandManager,
 		fakeAPIExtensionsClient,
 		isFIFO,
 		fifoConfig,
