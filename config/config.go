@@ -26,7 +26,8 @@ type Install struct {
 	config.Runtime                                      `yaml:",inline"`
 	Kubeconfig                                          string            `yaml:"kube-config,omitempty"`
 	FIFO                                                bool              `yaml:"fifo,omitempty"`
-	FifoConfig                                          FifoConfig        `yaml:"fifo-config,omitempty"`
+	FifoConfig                                          FifoConfig        `yaml:"t,omitempty"`
+	GangScaling                                         bool              `yaml:"gang-scaling,omitempty"`
 	QPS                                                 float32           `yaml:"qps,omitempty"`
 	Burst                                               int               `yaml:"burst,omitempty"`
 	BinpackAlgo                                         string            `yaml:"binpack,omitempty"`
