@@ -79,6 +79,7 @@ type SparkSchedulerExtender struct {
 	overheadComputer                                    *OverheadComputer
 	lastRequest                                         time.Time
 	instanceGroupLabel                                  string
+	isGangScaling                                       bool
 
 	wasteMetricsReporter *metrics.WasteMetricsReporter
 }
@@ -100,7 +101,8 @@ func NewExtender(
 	overheadComputer *OverheadComputer,
 	instanceGroupLabel string,
 	nodeSorter *ns.NodeSorter,
-	wasteMetricsReporter *metrics.WasteMetricsReporter) *SparkSchedulerExtender {
+	wasteMetricsReporter *metrics.WasteMetricsReporter,
+	isGangScaling bool) *SparkSchedulerExtender {
 	return &SparkSchedulerExtender{
 		nodeLister:                 nodeLister,
 		podLister:                  podLister,
@@ -118,6 +120,7 @@ func NewExtender(
 		instanceGroupLabel:   instanceGroupLabel,
 		nodeSorter:           nodeSorter,
 		wasteMetricsReporter: wasteMetricsReporter,
+		isGangScaling:        isGangScaling,
 	}
 }
 
@@ -316,14 +319,7 @@ func (s *SparkSchedulerExtender) selectDriverNode(
 		}
 	}
 
-	packingResult := s.binpacker.BinpackFunc(
-		ctx,
-		applicationResources.driverResources,
-		applicationResources.executorResources,
-		applicationResources.minExecutorCount,
-		driverNodeNames,
-		executorNodeNames,
-		availableNodesSchedulingMetadata)
+	packingResult := s.getPackingResult(ctx, applicationResources, driverNodeNames, executorNodeNames, availableNodesSchedulingMetadata)
 	efficiency := computeAvgPackingEfficiencyForResult(availableNodesSchedulingMetadata, packingResult)
 
 	svc1log.FromContext(ctx).Debug("binpacking result",
@@ -363,6 +359,14 @@ func (s *SparkSchedulerExtender) selectDriverNode(
 	)
 	if err != nil {
 		return "", failureInternal, err
+	}
+	// Then we consider create partial demands
+	if s.isGangScaling {
+		differenceBetweenAllocationAndDesired := applicationResources.minExecutorCount - len(packingResult.ExecutorNodes)
+		if differenceBetweenAllocationAndDesired > 0 {
+			zone := s.getZone(packingResult.DriverNode, availableNodesSchedulingMetadata)
+			s.createPartialDemand(ctx, driver, applicationResources.executorResources, differenceBetweenAllocationAndDesired, zone)
+		}
 	}
 	return packingResult.DriverNode, success, nil
 }
@@ -702,4 +706,61 @@ func (s *SparkSchedulerExtender) rescheduleExecutorWithMinimalFragmentation(
 
 func (s *SparkSchedulerExtender) isSuccessOutcome(outcome string) bool {
 	return outcome == success || outcome == successAlreadyBound || outcome == successRescheduled || outcome == successScheduledExtraExecutor
+}
+
+func (s *SparkSchedulerExtender) getPackingResult(
+	ctx context.Context,
+	applicationResources *sparkApplicationResources,
+	driverNodeNames []string,
+	executorNodeNames []string,
+	availableNodesSchedulingMetadata resources.NodeGroupSchedulingMetadata) *binpack.PackingResult {
+	if !s.isGangScaling {
+		return s.binpacker.BinpackFunc(
+			ctx,
+			applicationResources.driverResources,
+			applicationResources.executorResources,
+			applicationResources.minExecutorCount,
+			driverNodeNames,
+			executorNodeNames,
+			availableNodesSchedulingMetadata)
+	}
+	i := applicationResources.minExecutorCount
+	if i < 0 {
+		i = 0
+	}
+	var packingResult *binpack.PackingResult
+	for {
+		if i == -1 {
+			break
+		}
+		packingResult = s.binpacker.BinpackFunc(
+			ctx,
+			applicationResources.driverResources,
+			applicationResources.executorResources,
+			i,
+			driverNodeNames,
+			executorNodeNames,
+			availableNodesSchedulingMetadata)
+
+		if packingResult.HasCapacity {
+			break
+		}
+		i = i - 1
+	}
+	return packingResult
+}
+
+func (s *SparkSchedulerExtender) getZone(driverNodeName string, metadata resources.NodeGroupSchedulingMetadata) *demandapi.Zone {
+	if !s.binpacker.IsSingleAz {
+		return nil
+	}
+	nodeSchedulingMetadata, ok := metadata[driverNodeName]
+	if !ok || nodeSchedulingMetadata == nil {
+		return nil
+	}
+	if nodeSchedulingMetadata.ZoneLabel == "" {
+		return nil
+	}
+	demandZone := demandapi.Zone(nodeSchedulingMetadata.ZoneLabel)
+	return &demandZone
 }

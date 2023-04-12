@@ -207,6 +207,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 			install.ExecutorPrioritizedNodeLabel,
 		),
 		wasteMetricsReporter,
+		install.GangScaling,
 	)
 
 	resourceReporter := metrics.NewResourceReporter(

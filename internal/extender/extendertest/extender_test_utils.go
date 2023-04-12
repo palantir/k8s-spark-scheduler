@@ -151,6 +151,7 @@ func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, e
 		instanceGroupLabel,
 		sort.NewNodeSorter(nil, nil),
 		wasteMetricsReporter,
+		false,
 	)
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(
