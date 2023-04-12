@@ -16,6 +16,10 @@ package integration
 
 import (
 	"context"
+	"fmt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"reflect"
 	"testing"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
@@ -140,7 +144,7 @@ func Test_StaticCompaction(t *testing.T) {
 		},
 	}
 	allClients := cmd.AllClient{
-		APIExtensionsClient:  apiextensionsfake.NewSimpleClientset(), //getReadyCRDs()...),
+		APIExtensionsClient:  apiextensionsfake.NewSimpleClientset(),
 		SparkSchedulerClient: ssclientset.NewSimpleClientset(&rr),
 		KubeClient:           k8sfake.NewSimpleClientset(existingNode, driverPod, executor1Pod),
 	}
@@ -179,9 +183,8 @@ func Test_StaticCompaction(t *testing.T) {
 								{
 									MatchExpressions: []v1.NodeSelectorRequirement{
 										{
-											Key:      "resource_channel",
-											Operator: "",
-											Values:   []string{"desiredInstanceGroup"},
+											Key:    "resource_channel",
+											Values: []string{"desiredInstanceGroup"},
 										},
 									},
 								},
@@ -190,9 +193,25 @@ func Test_StaticCompaction(t *testing.T) {
 					},
 				},
 			},
-			Status: v1.PodStatus{},
 		},
 		NodeNames: &nodeNames,
 	}
-	testSetup.ref.Predicate(ctx, args)
+	// Ensure we return the correct node
+	filterResult := testSetup.ref.Predicate(ctx, args)
+	returnedNodeNames := *filterResult.NodeNames
+	assert.Equal(t, 1, len(returnedNodeNames))
+	assert.Equal(t, "n1", returnedNodeNames[0])
+	// And that we updated the reservation
+
+	checkTheReservation := func() bool {
+		existingRR, err := allClients.SparkSchedulerClient.SparkschedulerV1beta2().ResourceReservations(rr.Namespace).Get(ctx, rr.Name, metav1.GetOptions{})
+		require.NoError(t, err)
+		fmt.Println(existingRR.Status.Pods)
+		return reflect.DeepEqual(existingRR.Status.Pods, map[string]string{
+			"driver":     "my-pod-driver",
+			"executor-1": "my-pod-executor-1",
+			"executor-2": "new-podName",
+		})
+	}
+	waitForCondition(ctx, t, checkTheReservation)
 }
