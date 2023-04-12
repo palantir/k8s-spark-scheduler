@@ -53,7 +53,7 @@ const (
 	unboundMemoryReservations                 = "foundry.spark.scheduler.reservations.unbound.memory"
 	unboundNvidiaGPUReservations              = "foundry.spark.scheduler.reservations.unbound.nvidiagpu"
 	timeToFirstBind                           = "foundry.spark.scheduler.reservations.timetofirstbind"
-	timeToFirstBindP50                        = "foundry.spark.scheduler.reservations.timetofirstbind.p50"
+	timeToFirstBindMedian                     = "foundry.spark.scheduler.reservations.timetofirstbind.median"
 	timeToFirstBindMean                       = "foundry.spark.scheduler.reservations.timetofirstbind.mean"
 	softReservationCount                      = "foundry.spark.scheduler.softreservation.count"
 	softReservationExecutorCount              = "foundry.spark.scheduler.softreservation.executorcount"
@@ -372,6 +372,6 @@ func IncrementSingleAzDynamicAllocationPackFailure(ctx context.Context, zone str
 func ReportTimeToFirstBindMetrics(ctx context.Context, duration time.Duration) {
 	timeToFirstBindHist := metrics.FromContext(ctx).Histogram(timeToFirstBind)
 	timeToFirstBindHist.Update(duration.Nanoseconds())
-	metrics.FromContext(ctx).GaugeFloat64(timeToFirstBindP50).Update(timeToFirstBindHist.Percentile(.5))
+	metrics.FromContext(ctx).GaugeFloat64(timeToFirstBindMedian).Update(timeToFirstBindHist.Percentile(.5))
 	metrics.FromContext(ctx).GaugeFloat64(timeToFirstBindMean).Update(timeToFirstBindHist.Mean())
 }

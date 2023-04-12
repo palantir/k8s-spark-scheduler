@@ -30,7 +30,7 @@ import (
 // OverheadComputer computes non spark scheduler managed pods total resources periodically
 type defaultOverheadComputer struct {
 	podLister                  corelisters.PodLister
-	resourceReservationManager *ResourceReservationManager
+	resourceReservationManager ResourceReservationManager
 }
 
 // NodeRequests represents the currently present pod requests on this node, indexed by pod uid
@@ -51,7 +51,7 @@ type OverheadComputer interface {
 
 // NewOverheadComputer creates a new OverheadComputer instance
 func NewOverheadComputer(
-	resourceReservationManager *ResourceReservationManager,
+	resourceReservationManager ResourceReservationManager,
 	podLister corelisters.PodLister) OverheadComputer {
 	return &defaultOverheadComputer{
 		resourceReservationManager: resourceReservationManager,

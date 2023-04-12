@@ -22,6 +22,7 @@ import (
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	internaltypes "github.com/palantir/k8s-spark-scheduler/internal/types"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,7 +41,7 @@ func TestSparkResources(t *testing.T) {
 	tests := []struct {
 		name                         string
 		pod                          v1.Pod
-		expectedApplicationResources *sparkApplicationResources
+		expectedApplicationResources *internaltypes.SparkApplicationResources
 	}{{
 		name: "parses static allocation pod annotations into resources",
 		pod: v1.Pod{
@@ -56,11 +57,11 @@ func TestSparkResources(t *testing.T) {
 				},
 			},
 		},
-		expectedApplicationResources: &sparkApplicationResources{
-			driverResources:   createResources(1, 2432*1024*1024, 1),
-			executorResources: createResources(2, 6758*1024*1024, 1),
-			minExecutorCount:  2,
-			maxExecutorCount:  2,
+		expectedApplicationResources: &internaltypes.SparkApplicationResources{
+			DriverResources:   createResources(1, 2432*1024*1024, 1),
+			ExecutorResources: createResources(2, 6758*1024*1024, 1),
+			MinExecutorCount:  2,
+			MaxExecutorCount:  2,
 		},
 	}, {
 		name: "parses dynamic allocation pod annotations into resources",
@@ -79,11 +80,11 @@ func TestSparkResources(t *testing.T) {
 				},
 			},
 		},
-		expectedApplicationResources: &sparkApplicationResources{
-			driverResources:   createResources(1, 2432*1024*1024, 1),
-			executorResources: createResources(2, 6758*1024*1024, 1),
-			minExecutorCount:  2,
-			maxExecutorCount:  5,
+		expectedApplicationResources: &internaltypes.SparkApplicationResources{
+			DriverResources:   createResources(1, 2432*1024*1024, 1),
+			ExecutorResources: createResources(2, 6758*1024*1024, 1),
+			MinExecutorCount:  2,
+			MaxExecutorCount:  5,
 		},
 	}, {
 		name: "parses static allocation pod annotations into resources when no gpu annotation is present",
@@ -98,11 +99,11 @@ func TestSparkResources(t *testing.T) {
 				},
 			},
 		},
-		expectedApplicationResources: &sparkApplicationResources{
-			driverResources:   createResources(1, 2432*1024*1024, 0),
-			executorResources: createResources(2, 6758*1024*1024, 0),
-			minExecutorCount:  2,
-			maxExecutorCount:  2,
+		expectedApplicationResources: &internaltypes.SparkApplicationResources{
+			DriverResources:   createResources(1, 2432*1024*1024, 0),
+			ExecutorResources: createResources(2, 6758*1024*1024, 0),
+			MinExecutorCount:  2,
+			MaxExecutorCount:  2,
 		},
 	},
 	}
@@ -113,25 +114,25 @@ func TestSparkResources(t *testing.T) {
 			if err != nil {
 				t.Fatalf("error: %v", err)
 			}
-			cacheQuantities(applicationResources.driverResources)
-			cacheQuantities(test.expectedApplicationResources.driverResources)
-			cacheQuantities(applicationResources.executorResources)
-			cacheQuantities(test.expectedApplicationResources.executorResources)
-			if !applicationResources.driverResources.Eq(test.expectedApplicationResources.driverResources) {
+			cacheQuantities(applicationResources.DriverResources)
+			cacheQuantities(test.expectedApplicationResources.DriverResources)
+			cacheQuantities(applicationResources.ExecutorResources)
+			cacheQuantities(test.expectedApplicationResources.ExecutorResources)
+			if !applicationResources.DriverResources.Eq(test.expectedApplicationResources.DriverResources) {
 				t.Fatalf("driverResources are not equal, expected: %v, got: %v",
-					test.expectedApplicationResources.driverResources, applicationResources.driverResources)
+					test.expectedApplicationResources.DriverResources, applicationResources.DriverResources)
 			}
-			if !applicationResources.executorResources.Eq(test.expectedApplicationResources.executorResources) {
+			if !applicationResources.ExecutorResources.Eq(test.expectedApplicationResources.ExecutorResources) {
 				t.Fatalf("executorResources are not equal, expected: %v, got: %v",
-					test.expectedApplicationResources.executorResources, applicationResources.executorResources)
+					test.expectedApplicationResources.ExecutorResources, applicationResources.ExecutorResources)
 			}
-			if applicationResources.minExecutorCount != test.expectedApplicationResources.minExecutorCount {
+			if applicationResources.MinExecutorCount != test.expectedApplicationResources.MinExecutorCount {
 				t.Fatalf("minExecutorCount not equal to ExecutorCount in static allocation, expected: %v, got: %v",
-					test.expectedApplicationResources.minExecutorCount, applicationResources.minExecutorCount)
+					test.expectedApplicationResources.MinExecutorCount, applicationResources.MinExecutorCount)
 			}
-			if applicationResources.maxExecutorCount != test.expectedApplicationResources.maxExecutorCount {
+			if applicationResources.MaxExecutorCount != test.expectedApplicationResources.MaxExecutorCount {
 				t.Fatalf("maxExecutorCount not equal to ExecutorCount in static allocation, expected: %v, got: %v",
-					test.expectedApplicationResources.maxExecutorCount, applicationResources.maxExecutorCount)
+					test.expectedApplicationResources.MaxExecutorCount, applicationResources.MaxExecutorCount)
 			}
 		})
 	}

@@ -24,9 +24,11 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal"
+	internalbinpacker "github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
+	"github.com/palantir/k8s-spark-scheduler/internal/demands"
 	"github.com/palantir/k8s-spark-scheduler/internal/events"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	ns "github.com/palantir/k8s-spark-scheduler/internal/sort"
@@ -65,16 +67,16 @@ type SparkSchedulerExtender struct {
 	podLister                  *SparkPodLister
 	resourceReservations       *cache.ResourceReservationCache
 	softReservationStore       *cache.SoftReservationStore
-	resourceReservationManager *ResourceReservationManager
+	resourceReservationManager ResourceReservationManager
 	coreClient                 corev1.CoreV1Interface
 	nodeSorter                 *ns.NodeSorter
 
-	demands             *cache.SafeDemandCache
 	apiExtensionsClient apiextensionsclientset.Interface
+	demandsManager      demands.Manager
 
 	isFIFO                                              bool
 	fifoConfig                                          config.FifoConfig
-	binpacker                                           *Binpacker
+	binpacker                                           *internalbinpacker.Binpacker
 	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ bool
 	overheadComputer                                    OverheadComputer
 	lastRequest                                         time.Time
@@ -89,13 +91,13 @@ func NewExtender(
 	podLister *SparkPodLister,
 	resourceReservations *cache.ResourceReservationCache,
 	softReservationStore *cache.SoftReservationStore,
-	resourceReservationManager *ResourceReservationManager,
+	resourceReservationManager ResourceReservationManager,
 	coreClient corev1.CoreV1Interface,
-	demands *cache.SafeDemandCache,
+	demandsManager demands.Manager,
 	apiExtensionsClient apiextensionsclientset.Interface,
 	isFIFO bool,
 	fifoConfig config.FifoConfig,
-	binpacker *Binpacker,
+	binpacker *internalbinpacker.Binpacker,
 	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ bool,
 	overheadComputer OverheadComputer,
 	instanceGroupLabel string,
@@ -108,7 +110,7 @@ func NewExtender(
 		softReservationStore:       softReservationStore,
 		resourceReservationManager: resourceReservationManager,
 		coreClient:                 coreClient,
-		demands:                    demands,
+		demandsManager:             demandsManager,
 		apiExtensionsClient:        apiExtensionsClient,
 		isFIFO:                     isFIFO,
 		fifoConfig:                 fifoConfig,
@@ -170,10 +172,10 @@ func (s *SparkSchedulerExtender) Predicate(ctx context.Context, args schedulerap
 			instanceGroup,
 			args.Pod.Labels[common.SparkAppIDLabel],
 			*args.Pod,
-			appResources.driverResources,
-			appResources.executorResources,
-			appResources.minExecutorCount,
-			appResources.maxExecutorCount)
+			appResources.DriverResources,
+			appResources.ExecutorResources,
+			appResources.MinExecutorCount,
+			appResources.MaxExecutorCount)
 	}
 
 	logger.Info("scheduling pod to node", svc1log.SafeParam("nodeName", nodeName))
@@ -209,7 +211,7 @@ func (s *SparkSchedulerExtender) selectNode(ctx context.Context, instanceGroup s
 	case common.Executor:
 		node, outcome, err := s.selectExecutorNode(ctx, pod, nodeNames)
 		if s.isSuccessOutcome(outcome) {
-			s.removeDemandIfExists(ctx, pod)
+			s.demandsManager.DeleteDemandIfExists(ctx, pod, "SparkSchedulerExtender")
 		}
 		return node, outcome, err
 	default:
@@ -235,9 +237,9 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 		}
 		packingResult := s.binpacker.BinpackFunc(
 			ctx,
-			applicationResources.driverResources,
-			applicationResources.executorResources,
-			applicationResources.minExecutorCount,
+			applicationResources.DriverResources,
+			applicationResources.ExecutorResources,
+			applicationResources.MinExecutorCount,
 			nodeNames, executorNodeNames, availableNodesSchedulingMetadata)
 		if !packingResult.HasCapacity {
 			if s.shouldSkipDriverFifo(driver, instanceGroup) {
@@ -251,8 +253,8 @@ func (s *SparkSchedulerExtender) fitEarlierDrivers(
 		}
 
 		availableNodesSchedulingMetadata.SubtractUsageIfExists(sparkResourceUsage(
-			applicationResources.driverResources,
-			applicationResources.executorResources,
+			applicationResources.DriverResources,
+			applicationResources.ExecutorResources,
 			packingResult.DriverNode,
 			packingResult.ExecutorNodes))
 	}
@@ -314,16 +316,16 @@ func (s *SparkSchedulerExtender) selectDriverNode(
 		}
 		ok := s.fitEarlierDrivers(ctx, instanceGroup, queuedDrivers, driverNodeNames, executorNodeNames, availableNodesSchedulingMetadata)
 		if !ok {
-			s.createDemandForApplicationInAnyZone(ctx, driver, applicationResources)
+			s.demandsManager.CreateDemandForApplicationInAnyZone(ctx, driver, applicationResources)
 			return "", failureEarlierDriver, werror.Error("earlier drivers do not fit to the cluster")
 		}
 	}
 
 	packingResult := s.binpacker.BinpackFunc(
 		ctx,
-		applicationResources.driverResources,
-		applicationResources.executorResources,
-		applicationResources.minExecutorCount,
+		applicationResources.DriverResources,
+		applicationResources.ExecutorResources,
+		applicationResources.MinExecutorCount,
 		driverNodeNames,
 		executorNodeNames,
 		availableNodesSchedulingMetadata)
@@ -331,10 +333,10 @@ func (s *SparkSchedulerExtender) selectDriverNode(
 
 	svc1log.FromContext(ctx).Debug("binpacking result",
 		svc1log.SafeParam("availableNodesSchedulingMetadata", availableNodesSchedulingMetadata),
-		svc1log.SafeParam("driverResources", applicationResources.driverResources),
-		svc1log.SafeParam("executorResources", applicationResources.executorResources),
-		svc1log.SafeParam("minExecutorCount", applicationResources.minExecutorCount),
-		svc1log.SafeParam("maxExecutorCount", applicationResources.maxExecutorCount),
+		svc1log.SafeParam("driverResources", applicationResources.DriverResources),
+		svc1log.SafeParam("executorResources", applicationResources.ExecutorResources),
+		svc1log.SafeParam("minExecutorCount", applicationResources.MinExecutorCount),
+		svc1log.SafeParam("maxExecutorCount", applicationResources.MaxExecutorCount),
 		svc1log.SafeParam("hasCapacity", packingResult.HasCapacity),
 		svc1log.SafeParam("candidateDriverNodes", nodeNames),
 		svc1log.SafeParam("candidateExecutorNodes", executorNodeNames),
@@ -346,13 +348,13 @@ func (s *SparkSchedulerExtender) selectDriverNode(
 		svc1log.SafeParam("avg packing efficiency Max", efficiency.Max),
 		svc1log.SafeParam("binpacker", s.binpacker.Name))
 	if !packingResult.HasCapacity {
-		s.createDemandForApplicationInAnyZone(ctx, driver, applicationResources)
+		s.demandsManager.CreateDemandForApplicationInAnyZone(ctx, driver, applicationResources)
 		return "", failureFit, werror.Error("application does not fit to the cluster")
 	}
 
 	metrics.ReportPackingEfficiency(ctx, instanceGroup, s.binpacker.Name, efficiency)
 
-	s.removeDemandIfExists(ctx, driver)
+	s.demandsManager.DeleteDemandIfExists(ctx, driver, "SparkSchedulerExtender")
 	metrics.ReportInitialDriverExecutorCollocationMetric(ctx, instanceGroup, packingResult.DriverNode, packingResult.ExecutorNodes)
 	metrics.ReportInitialNodeCountMetrics(ctx, instanceGroup, packingResult.ExecutorNodes)
 	metrics.ReportCrossZoneMetric(ctx, instanceGroup, packingResult.DriverNode, packingResult.ExecutorNodes, availableNodes)
@@ -601,7 +603,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	if err != nil {
 		return "", failureInternal, err
 	}
-	executorResources := &resources.Resources{CPU: sparkResources.executorResources.CPU, Memory: sparkResources.executorResources.Memory, NvidiaGPU: sparkResources.executorResources.NvidiaGPU}
+	executorResources := &resources.Resources{CPU: sparkResources.ExecutorResources.CPU, Memory: sparkResources.ExecutorResources.Memory, NvidiaGPU: sparkResources.ExecutorResources.NvidiaGPU}
 	availableNodes := s.getNodes(ctx, nodeNames)
 
 	shouldScheduleIntoSingleAZ := false
@@ -654,7 +656,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 		potentialSuccessOutcome = successScheduledExtraExecutor
 	}
 
-	if s.binpacker.Name == SingleAzMinimalFragmentation {
+	if s.binpacker.Name == internalbinpacker.SingleAzMinimalFragmentation {
 		name, ok := s.rescheduleExecutorWithMinimalFragmentation(executor, executorNodeNames, availableNodesSchedulingMetadata, overhead, executorResources)
 		if ok {
 			return name, potentialSuccessOutcome, nil
@@ -670,9 +672,9 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 		svc1log.FromContext(ctx).Info("Failed to find space in zone for additional executor, creating a demand", svc1log.SafeParam("zone", singleAzZone))
 		metrics.IncrementSingleAzDynamicAllocationPackFailure(ctx, singleAzZone)
 		demandZone := demandapi.Zone(singleAzZone)
-		s.createDemandForExecutorInSpecificZone(ctx, executor, executorResources, &demandZone)
+		s.demandsManager.CreateDemandForExecutorInSpecificZone(ctx, executor, executorResources, &demandZone)
 	} else {
-		s.createDemandForExecutorInAnyZone(ctx, executor, executorResources)
+		s.demandsManager.CreateDemandForExecutorInAnyZone(ctx, executor, executorResources)
 	}
 	return "", failureFit, werror.ErrorWithContextParams(ctx, "not enough capacity to reschedule the executor")
 }

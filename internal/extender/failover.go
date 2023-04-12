@@ -25,6 +25,8 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
+	"github.com/palantir/k8s-spark-scheduler/internal/demands"
+	"github.com/palantir/k8s-spark-scheduler/internal/types"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
@@ -57,7 +59,15 @@ func (s *SparkSchedulerExtender) syncResourceReservationsAndDemands(ctx context.
 	staleSparkPods := unreservedSparkPodsBySparkID(ctx, rrs, s.softReservationStore, pods)
 	svc1log.FromContext(ctx).Info("starting reconciliation", svc1log.SafeParam("appCount", len(staleSparkPods)))
 
-	r := &reconciler{s.podLister, s.resourceReservations, s.softReservationStore, s.demands, availableResources, orderedNodes, s.instanceGroupLabel}
+	r := &reconciler{
+		podLister:            s.podLister,
+		resourceReservations: s.resourceReservations,
+		softReservations:     s.softReservationStore,
+		demands:              s.demandsManager,
+		availableResources:   availableResources,
+		orderedNodes:         orderedNodes,
+		instanceGroupLabel:   s.instanceGroupLabel,
+	}
 
 	extraExecutorsWithNoRRs := make(map[string][]*v1.Pod)
 	for _, sp := range staleSparkPods {
@@ -89,7 +99,7 @@ type reconciler struct {
 	podLister            *SparkPodLister
 	resourceReservations *cache.ResourceReservationCache
 	softReservations     *cache.SoftReservationStore
-	demands              *cache.SafeDemandCache
+	demands              demands.Manager
 	availableResources   map[instanceGroup]resources.NodeGroupResources
 	orderedNodes         map[instanceGroup][]*v1.Node
 	instanceGroupLabel   string
@@ -131,7 +141,7 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 		}
 		ig, _ := internal.FindInstanceGroupFromPodSpec(sp.inconsistentDriver.Spec, r.instanceGroupLabel)
 		instanceGroup := instanceGroup(ig)
-		endIdx := int(math.Min(float64(len(sp.inconsistentExecutors)), float64(appResources.minExecutorCount)))
+		endIdx := int(math.Min(float64(len(sp.inconsistentExecutors)), float64(appResources.MinExecutorCount)))
 		executorsUpToMin := sp.inconsistentExecutors[0:endIdx]
 		extraExecutors = sp.inconsistentExecutors[endIdx:]
 
@@ -157,10 +167,10 @@ func (r *reconciler) syncResourceReservations(ctx context.Context, sp *sparkPods
 
 func (r *reconciler) syncDemands(ctx context.Context, sp *sparkPods) {
 	if sp.inconsistentDriver != nil {
-		DeleteDemandIfExists(ctx, r.demands, sp.inconsistentDriver, "Reconciler")
+		r.demands.DeleteDemandIfExists(ctx, sp.inconsistentDriver, "Reconciler")
 	}
 	for _, e := range sp.inconsistentExecutors {
-		DeleteDemandIfExists(ctx, r.demands, e, "Reconciler")
+		r.demands.DeleteDemandIfExists(ctx, e, "Reconciler")
 	}
 }
 
@@ -185,15 +195,15 @@ func (r *reconciler) syncSoftReservations(ctx context.Context, extraExecutorsByA
 		}
 
 		for i, extraExecutor := range extraExecutors {
-			if i >= (applicationResources.maxExecutorCount - applicationResources.minExecutorCount) {
+			if i >= (applicationResources.MaxExecutorCount - applicationResources.MinExecutorCount) {
 				break
 			}
 			err := r.softReservations.AddReservationForPod(ctx, appID, extraExecutor.Name, v1beta2.Reservation{
 				Node: extraExecutor.Spec.NodeName,
 				Resources: v1beta2.ResourceList{
-					string(v1beta2.ResourceCPU):       &applicationResources.executorResources.CPU,
-					string(v1beta2.ResourceMemory):    &applicationResources.executorResources.Memory,
-					string(v1beta2.ResourceNvidiaGPU): &applicationResources.executorResources.NvidiaGPU,
+					string(v1beta2.ResourceCPU):       &applicationResources.ExecutorResources.CPU,
+					string(v1beta2.ResourceMemory):    &applicationResources.ExecutorResources.Memory,
+					string(v1beta2.ResourceNvidiaGPU): &applicationResources.ExecutorResources.NvidiaGPU,
 				},
 			})
 			if err != nil {
@@ -226,7 +236,7 @@ func (r *reconciler) syncApplicationSoftReservations(ctx context.Context) error 
 			continue
 		}
 
-		if appResources.maxExecutorCount > appResources.minExecutorCount {
+		if appResources.MaxExecutorCount > appResources.MinExecutorCount {
 			r.softReservations.CreateSoftReservationIfNotExists(d.Labels[common.SparkAppIDLabel])
 		}
 	}
@@ -356,16 +366,16 @@ func (r *reconciler) constructResourceReservation(
 
 	var reservedNodeNames []string
 	var reservedResources resources.NodeGroupResources
-	executorCountToAssignNodes := applicationResources.minExecutorCount - len(executors)
+	executorCountToAssignNodes := applicationResources.MinExecutorCount - len(executors)
 	if executorCountToAssignNodes > 0 {
-		reservedNodeNames, reservedResources = findNodes(executorCountToAssignNodes, applicationResources.executorResources, availableResources, nodes)
+		reservedNodeNames, reservedResources = findNodes(executorCountToAssignNodes, applicationResources.ExecutorResources, availableResources, nodes)
 		if len(reservedNodeNames) < executorCountToAssignNodes {
 			svc1log.FromContext(ctx).Error("could not reserve space for all executors",
 				svc1log.SafeParams(internal.PodSafeParams(*driver)))
 		}
 	}
 
-	executorNodes := make([]string, 0, applicationResources.minExecutorCount)
+	executorNodes := make([]string, 0, applicationResources.MinExecutorCount)
 	for _, e := range executors {
 		executorNodes = append(executorNodes, e.Spec.NodeName)
 	}
@@ -374,15 +384,15 @@ func (r *reconciler) constructResourceReservation(
 		driver.Spec.NodeName,
 		executorNodes,
 		driver,
-		applicationResources.driverResources,
-		applicationResources.executorResources)
+		applicationResources.DriverResources,
+		applicationResources.ExecutorResources)
 	for i, e := range executors {
 		rr.Status.Pods[executorReservationName(i)] = e.Name
 	}
 	return rr, reservedResources, nil
 }
 
-func (r *reconciler) getAppResources(ctx context.Context, sp *sparkPods) (*sparkApplicationResources, error) {
+func (r *reconciler) getAppResources(ctx context.Context, sp *sparkPods) (*types.SparkApplicationResources, error) {
 	var driver *v1.Pod
 	if sp.inconsistentDriver != nil {
 		driver = sp.inconsistentDriver

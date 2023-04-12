@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package extender
+package binpacker
 
 import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/binpack"

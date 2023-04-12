@@ -20,25 +20,23 @@ import (
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
-	clientset "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler/config"
+	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/conversionwebhook"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
+	"github.com/palantir/k8s-spark-scheduler/internal/demands"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	"github.com/palantir/k8s-spark-scheduler/internal/sort"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-logging/wlog/wapp"
 	"github.com/palantir/witchcraft-go-server/witchcraft"
 	"github.com/spf13/cobra"
-	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	clientcache "k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 var serverCmd = &cobra.Command{
@@ -54,58 +52,40 @@ func init() {
 }
 
 func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
-	var kubeconfig *rest.Config
-	var err error
-
 	install := info.InstallConfig.(config.Install)
-	if install.Kubeconfig != "" {
-		kubeconfig, err = clientcmd.BuildConfigFromFlags("", install.Kubeconfig)
-		if err != nil {
-			svc1log.FromContext(ctx).Error("Error building config from kubeconfig: %s", svc1log.Stacktrace(err))
-			return nil, err
-		}
-	} else {
-		kubeconfig, err = rest.InClusterConfig()
-		if err != nil {
-			svc1log.FromContext(ctx).Error("Error building in cluster kubeconfig: %s", svc1log.Stacktrace(err))
-			return nil, err
-		}
+	allClient, err := GetClients(ctx, install)
+	if err != nil {
+		return nil, err
 	}
-	kubeconfig.QPS = install.QPS
-	kubeconfig.Burst = install.Burst
+	err = InitServerWithClients(ctx, info, allClient)
+	return nil, err
+}
+
+// InitServerWithClients is exported for end to end testing
+func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allClient AllClient) error {
+	install := info.InstallConfig.(config.Install)
 	instanceGroupLabel := install.InstanceGroupLabel
 	if instanceGroupLabel == "" {
 		// for back-compat, as instanceGroupLabel was once hard-coded to this value
 		instanceGroupLabel = "resource_channel"
 	}
 
-	kubeClient, err := kubernetes.NewForConfig(kubeconfig)
-	if err != nil {
-		svc1log.FromContext(ctx).Error("Error building kubernetes clientset: %s", svc1log.Stacktrace(err))
-		return nil, err
-	}
-	sparkSchedulerClient, err := clientset.NewForConfig(kubeconfig)
-	if err != nil {
-		svc1log.FromContext(ctx).Error("Error building spark scheduler clientset: %s", svc1log.Stacktrace(err))
-		return nil, err
-	}
-	apiExtensionsClient, err := apiextensionsclientset.NewForConfig(kubeconfig)
-	if err != nil {
-		svc1log.FromContext(ctx).Error("Error building api extensions clientset: %s", svc1log.Stacktrace(err))
-		return nil, err
-	}
+	apiExtensionsClient := allClient.APIExtensionsClient
+	sparkSchedulerClient := allClient.SparkSchedulerClient
+	kubeClient := allClient.KubeClient
+
 	webhookClientConfig, err := conversionwebhook.InitializeCRDConversionWebhook(ctx, info.Router, install.Server,
 		install.WebhookServiceConfig.Namespace, install.WebhookServiceConfig.ServiceName, install.WebhookServiceConfig.ServicePort)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error instantiating CRD conversion webhook: %s", svc1log.Stacktrace(err))
-		return nil, err
+		return err
 	}
 	err = crd.EnsureResourceReservationsCRD(ctx, apiExtensionsClient, install.ResourceReservationCRDAnnotations,
 		v1beta2.ResourceReservationCustomResourceDefinition(webhookClientConfig, v1beta1.ResourceReservationCustomResourceDefinitionVersion()),
 	)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error ensuring resource reservations v1beta2 CRD exists: %s", svc1log.Stacktrace(err))
-		return nil, err
+		return err
 	}
 
 	kubeInformerFactory := informers.NewSharedInformerFactory(kubeClient, time.Second*30)
@@ -143,7 +123,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		podInformer.HasSynced,
 		resourceReservationInformer.HasSynced); !ok {
 		svc1log.FromContext(ctx).Error("Error waiting for cache to sync")
-		return nil, nil
+		return werror.ErrorWithContextParams(ctx, "could not sync")
 	}
 
 	resourceReservationCache, err := cache.NewResourceReservationCache(
@@ -155,21 +135,25 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error constructing resource reservation cache", svc1log.Stacktrace(err))
-		return nil, err
+		return err
 	}
 
 	lazyDemandInformer := crd.NewLazyDemandInformer(
 		sparkSchedulerInformerFactory,
 		apiExtensionsClient,
 	)
-
+	binpacker := binpacker.SelectBinpacker(install.BinpackAlgo)
 	demandCache := cache.NewSafeDemandCache(
 		lazyDemandInformer,
 		sparkSchedulerClient.ScalerV1alpha2(),
 		install.AsyncClientConfig,
 	)
-
-	extender.StartDemandGC(ctx, podInformerInterface, demandCache)
+	demandManager := demands.NewDefaultManager(
+		kubeClient.CoreV1(),
+		demandCache,
+		binpacker,
+		instanceGroupLabel)
+	extender.StartDemandGC(ctx, podInformerInterface, demandManager)
 
 	softReservationStore := cache.NewSoftReservationStore(ctx, podInformerInterface)
 
@@ -181,8 +165,6 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		podLister,
 	)
 
-	binpacker := extender.SelectBinpacker(install.BinpackAlgo)
-
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
 
 	sparkSchedulerExtender := extender.NewExtender(
@@ -192,7 +174,7 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 		softReservationStore,
 		resourceReservationManager,
 		kubeClient.CoreV1(),
-		demandCache,
+		demandManager,
 		apiExtensionsClient,
 		install.FIFO,
 		install.FifoConfig,
@@ -247,10 +229,10 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	go unschedulablePodMarker.Start(ctx)
 
 	if err := registerExtenderEndpoints(info.Router, sparkSchedulerExtender); err != nil {
-		return nil, err
+		return err
 	}
 
-	return nil, nil
+	return nil
 }
 
 // New creates and returns a witchcraft Server.
