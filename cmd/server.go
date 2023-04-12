@@ -27,6 +27,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
+	"github.com/palantir/k8s-spark-scheduler/internal/reservations"
 	"github.com/palantir/k8s-spark-scheduler/internal/sort"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -123,13 +124,7 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 		svc1log.FromContext(ctx).Error("Error waiting for cache to sync")
 		return werror.ErrorWithContextParams(ctx, "could not sync")
 	}
-
-	resourceReservationCache, err := cache.NewResourceReservationCache(
-		ctx,
-		resourceReservationInformerInterface,
-		sparkSchedulerClient.SparkschedulerV1beta2(),
-		install.AsyncClientConfig,
-	)
+	defaultStore := reservations.NewDefaultStore(sparkSchedulerClient.SparkschedulerV1beta2(), resourceReservationLister)
 
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error constructing resource reservation cache", svc1log.Stacktrace(err))
@@ -152,7 +147,7 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 	softReservationStore := cache.NewSoftReservationStore(ctx, podInformerInterface)
 
 	sparkPodLister := extender.NewSparkPodLister(podLister, instanceGroupLabel)
-	resourceReservationManager := extender.NewResourceReservationManager(ctx, resourceReservationCache, softReservationStore, sparkPodLister, podInformerInterface)
+	resourceReservationManager := extender.NewResourceReservationManager(ctx, defaultStore, softReservationStore, sparkPodLister, podInformerInterface)
 
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,
@@ -168,7 +163,7 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeLister,
 		sparkPodLister,
-		resourceReservationCache,
+		defaultStore,
 		softReservationStore,
 		resourceReservationManager,
 		kubeClient.CoreV1(),
@@ -189,22 +184,18 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 
 	resourceReporter := metrics.NewResourceReporter(
 		nodeLister,
-		resourceReservationCache,
+		defaultStore,
 		instanceGroupLabel,
 	)
 
 	metrics.RegisterInformerDelayMetrics(ctx, podInformerInterface)
 
-	cacheReporter := metrics.NewCacheMetrics(
-		resourceReservationLister,
-		resourceReservationCache,
-		demandCache,
-	)
+	cacheReporter := metrics.NewCacheMetrics(demandCache)
 
 	queueReporter := metrics.NewQueueReporter(podLister, instanceGroupLabel)
 
-	resourceReservationReporter := metrics.NewResourceReservationMetrics(resourceReservationCache)
-	softReservationReporter := metrics.NewSoftReservationMetrics(ctx, softReservationStore, podLister, resourceReservationCache)
+	resourceReservationReporter := metrics.NewResourceReservationMetrics(defaultStore)
+	softReservationReporter := metrics.NewSoftReservationMetrics(ctx, softReservationStore, podLister, defaultStore)
 
 	unschedulablePodMarker := extender.NewUnschedulablePodMarker(
 		nodeLister,
@@ -215,7 +206,6 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 		install.UnschedulablePodTimeoutDuration,
 	)
 
-	resourceReservationCache.Run(ctx)
 	lazyDemandInformer.Run(ctx)
 	demandCache.Run(ctx)
 	wasteMetricsReporter.StartSchedulingOverheadMetrics(podInformerInterface, lazyDemandInformer)

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
+	"github.com/palantir/k8s-spark-scheduler/internal/reservations"
 	"github.com/palantir/pkg/metrics"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -32,12 +33,12 @@ import (
 type SoftReservationMetrics struct {
 	softReservationStore *cache.SoftReservationStore
 	podLister            corelisters.PodLister
-	resourceReservations *cache.ResourceReservationCache
+	resourceReservations reservations.Store
 	logger               svc1log.Logger
 }
 
 // NewSoftReservationMetrics creates a SoftReservationMetrics
-func NewSoftReservationMetrics(ctx context.Context, store *cache.SoftReservationStore, podLister corelisters.PodLister, resourceReservations *cache.ResourceReservationCache) *SoftReservationMetrics {
+func NewSoftReservationMetrics(ctx context.Context, store *cache.SoftReservationStore, podLister corelisters.PodLister, resourceReservations reservations.Store) *SoftReservationMetrics {
 	return &SoftReservationMetrics{
 		softReservationStore: store,
 		podLister:            podLister,
@@ -66,7 +67,7 @@ func (s *SoftReservationMetrics) doStart(ctx context.Context) error {
 func (s *SoftReservationMetrics) emitSoftReservationMetrics(ctx context.Context) {
 	softReservationsCount := s.softReservationStore.GetApplicationCount()
 	extraExecutorCount := s.softReservationStore.GetActiveExtraExecutorCount()
-	execWithNoReservationCount, err := s.getAllocatedExecutorsWithNoReservationCount()
+	execWithNoReservationCount, err := s.getAllocatedExecutorsWithNoReservationCount(ctx)
 	if err != nil {
 		s.logger.Error("failed to emit executors with no reservation count metric", svc1log.Stacktrace(err))
 	} else {
@@ -77,9 +78,12 @@ func (s *SoftReservationMetrics) emitSoftReservationMetrics(ctx context.Context)
 	metrics.FromContext(ctx).Gauge(softReservationExecutorCount).Update(int64(extraExecutorCount))
 }
 
-func (s *SoftReservationMetrics) getAllocatedExecutorsWithNoReservationCount() (int, error) {
+func (s *SoftReservationMetrics) getAllocatedExecutorsWithNoReservationCount(ctx context.Context) (int, error) {
 	podsWithNoReservationCount := 0
-	rrs := s.resourceReservations.List()
+	rrs, err := s.resourceReservations.List(ctx)
+	if err != nil {
+		return 0, err
+	}
 	podsWithRRs := make(map[string]bool, len(rrs))
 	for _, rr := range rrs {
 		for _, podName := range rr.Status.Pods {

@@ -28,6 +28,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
+	"github.com/palantir/k8s-spark-scheduler/internal/reservations"
 	"github.com/palantir/k8s-spark-scheduler/internal/sort"
 	"github.com/palantir/witchcraft-go-logging/wlog"
 	"github.com/palantir/witchcraft-go-logging/wlog/evtlog/evt2log"
@@ -54,7 +55,7 @@ type Harness struct {
 	UnschedulablePodMarker   *extender.UnschedulablePodMarker
 	PodStore                 cache.Store
 	NodeStore                cache.Store
-	ResourceReservationCache *sscache.ResourceReservationCache
+	ResourceReservationCache reservations.Store
 	SoftReservationStore     *sscache.SoftReservationStore
 	Ctx                      context.Context
 }
@@ -80,6 +81,7 @@ func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, e
 	sparkSchedulerInformerFactory := ssinformers.NewSharedInformerFactory(fakeSchedulerClient, 0)
 	resourceReservationInformerInterface := sparkSchedulerInformerFactory.Sparkscheduler().V1beta2().ResourceReservations()
 	resourceReservationInformer := resourceReservationInformerInterface.Informer()
+	resourceReservationInformerLister := resourceReservationInformerInterface.Lister()
 
 	instanceGroupLabel := "resource_channel"
 
@@ -96,15 +98,7 @@ func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, e
 		podInformer.HasSynced,
 		resourceReservationInformer.HasSynced)
 
-	resourceReservationCache, err := sscache.NewResourceReservationCache(
-		ctx,
-		resourceReservationInformerInterface,
-		fakeSchedulerClient.SparkschedulerV1beta2(),
-		installConfig.AsyncClientConfig,
-	)
-	if err != nil {
-		return nil, err
-	}
+	defaultStore := reservations.NewDefaultStore(fakeSchedulerClient.SparkschedulerV1beta2(), resourceReservationInformerLister)
 
 	lazyDemandInformer := crd.NewLazyDemandInformer(
 		sparkSchedulerInformerFactory,
@@ -118,7 +112,7 @@ func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, e
 	softReservationStore := sscache.NewSoftReservationStore(ctx, podInformerInterface)
 
 	sparkPodLister := extender.NewSparkPodLister(podLister, instanceGroupLabel)
-	resourceReservationManager := extender.NewResourceReservationManager(ctx, resourceReservationCache, softReservationStore, sparkPodLister, podInformerInterface)
+	resourceReservationManager := extender.NewResourceReservationManager(ctx, defaultStore, softReservationStore, sparkPodLister, podInformerInterface)
 
 	overheadComputer := extender.NewOverheadComputer(
 		ctx,
@@ -137,7 +131,7 @@ func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, e
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeLister,
 		sparkPodLister,
-		resourceReservationCache,
+		defaultStore,
 		softReservationStore,
 		resourceReservationManager,
 		fakeKubeClient.CoreV1(),
@@ -166,7 +160,7 @@ func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, e
 		UnschedulablePodMarker:   unschedulablePodMarker,
 		PodStore:                 podInformer.GetStore(),
 		NodeStore:                nodeInformer.GetStore(),
-		ResourceReservationCache: resourceReservationCache,
+		ResourceReservationCache: defaultStore,
 		SoftReservationStore:     softReservationStore,
 		Ctx:                      ctx,
 	}, nil
