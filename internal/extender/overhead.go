@@ -16,6 +16,7 @@ package extender
 
 import (
 	"context"
+
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	werror "github.com/palantir/witchcraft-go-error"
@@ -106,19 +107,20 @@ func (o *defaultOverheadComputer) computeNodeOverhead(ctx context.Context, nodeN
 	nonSchedulableOverhead := resources.Zero()
 	for _, p := range podsOnNode {
 		pod := p
-		if !o.resourceReservationManager.PodHasReservation(ctx, pod) {
-			requests := o.podToResources(pod)
-			overhead.Add(requests)
-			if pod.Spec.SchedulerName == common.SparkSchedulerName {
-				if _, appHasResourceReservation := o.resourceReservationManager.GetResourceReservation(pod.Labels[common.SparkAppIDLabel], pod.Namespace); appHasResourceReservation {
-					svc1log.FromContext(ctx).Warn("found spark scheduler pod with no reservation but application has a resource reservation",
-						svc1log.SafeParam("nodeName", nodeName),
-						svc1log.SafeParam("podName", pod.Name),
-						svc1log.SafeParam("podNamespace", pod.Namespace))
-				}
-			} else {
-				nonSchedulableOverhead.Add(requests)
+		if o.resourceReservationManager.PodHasReservation(ctx, pod) {
+			continue
+		}
+		requests := o.podToResources(pod)
+		overhead.Add(requests)
+		if pod.Spec.SchedulerName == common.SparkSchedulerName {
+			if _, appHasResourceReservation := o.resourceReservationManager.GetResourceReservation(pod.Labels[common.SparkAppIDLabel], pod.Namespace); appHasResourceReservation {
+				svc1log.FromContext(ctx).Warn("found spark scheduler pod with no reservation but application has a resource reservation",
+					svc1log.SafeParam("nodeName", nodeName),
+					svc1log.SafeParam("podName", pod.Name),
+					svc1log.SafeParam("podNamespace", pod.Namespace))
 			}
+		} else {
+			nonSchedulableOverhead.Add(requests)
 		}
 	}
 	return overhead, nonSchedulableOverhead, nil
