@@ -59,6 +59,28 @@ func (s *SparkSchedulerExtender) createDemandForExecutorInAnyZone(ctx context.Co
 	s.createDemandForExecutorInSpecificZone(ctx, executorPod, executorResources, nil)
 }
 
+func (s *SparkSchedulerExtender) createPartialDemand(
+	ctx context.Context,
+	driverPod *v1.Pod,
+	executorResources *resources.Resources,
+	executorCount int,
+	zone *demandapi.Zone) {
+	if !s.demands.CRDExists() {
+		return
+	}
+	units := []demandapi.DemandUnit{
+		{
+			Count: executorCount,
+			Resources: demandapi.ResourceList{
+				demandapi.ResourceCPU:       executorResources.CPU,
+				demandapi.ResourceMemory:    executorResources.Memory,
+				demandapi.ResourceNvidiaGPU: executorResources.NvidiaGPU,
+			},
+		},
+	}
+	s.createDemand(ctx, driverPod, units, zone)
+}
+
 func (s *SparkSchedulerExtender) createDemandForExecutorInSpecificZone(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources, zone *demandapi.Zone) {
 	if !s.demands.CRDExists() {
 		return
