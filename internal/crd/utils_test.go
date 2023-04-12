@@ -19,7 +19,7 @@ import (
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta1"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
 var (
@@ -34,8 +34,8 @@ var (
 
 func Test_verifyCRD(t *testing.T) {
 	type args struct {
-		existing *v1.CustomResourceDefinition
-		desired  *v1.CustomResourceDefinition
+		existing *apiextensionsv1.CustomResourceDefinition
+		desired  *apiextensionsv1.CustomResourceDefinition
 	}
 	tests := []struct {
 		name string
@@ -69,8 +69,8 @@ func Test_verifyCRD(t *testing.T) {
 		{
 			name: "CRDs with identical conversion strategies do verify.",
 			args: args{
-				existing: v1beta2.ResourceReservationCustomResourceDefinition(&v1.WebhookClientConfig{
-					Service: &v1.ServiceReference{
+				existing: v1beta2.ResourceReservationCustomResourceDefinition(&apiextensionsv1.WebhookClientConfig{
+					Service: &apiextensionsv1.ServiceReference{
 						Namespace: testConversionServiceNamespace,
 						Name:      testConversionServiceName,
 						Path:      &testConversionServicePath,
@@ -78,8 +78,8 @@ func Test_verifyCRD(t *testing.T) {
 					},
 					CABundle: testConversionCABundle,
 				}),
-				desired: v1beta2.ResourceReservationCustomResourceDefinition(&v1.WebhookClientConfig{
-					Service: &v1.ServiceReference{
+				desired: v1beta2.ResourceReservationCustomResourceDefinition(&apiextensionsv1.WebhookClientConfig{
+					Service: &apiextensionsv1.ServiceReference{
 						Namespace: testConversionServiceNamespace,
 						Name:      testConversionServiceName,
 						Path:      &testConversionServicePath,
@@ -93,8 +93,8 @@ func Test_verifyCRD(t *testing.T) {
 		{
 			name: "CRDs with differing conversion services do not verify.",
 			args: args{
-				existing: v1beta2.ResourceReservationCustomResourceDefinition(&v1.WebhookClientConfig{
-					Service: &v1.ServiceReference{
+				existing: v1beta2.ResourceReservationCustomResourceDefinition(&apiextensionsv1.WebhookClientConfig{
+					Service: &apiextensionsv1.ServiceReference{
 						Namespace: testConversionServiceNamespace,
 						Name:      testConversionServiceName,
 						Path:      &testConversionServicePath,
@@ -102,8 +102,8 @@ func Test_verifyCRD(t *testing.T) {
 					},
 					CABundle: testConversionCABundle,
 				}),
-				desired: v1beta2.ResourceReservationCustomResourceDefinition(&v1.WebhookClientConfig{
-					Service: &v1.ServiceReference{
+				desired: v1beta2.ResourceReservationCustomResourceDefinition(&apiextensionsv1.WebhookClientConfig{
+					Service: &apiextensionsv1.ServiceReference{
 						Namespace: testConversionServiceNamespace,
 						Name:      testConversionServiceDifferentName,
 						Path:      &testConversionServicePath,
@@ -117,8 +117,8 @@ func Test_verifyCRD(t *testing.T) {
 		{
 			name: "CRDs with differing cabundles do not verify.",
 			args: args{
-				existing: v1beta2.ResourceReservationCustomResourceDefinition(&v1.WebhookClientConfig{
-					Service: &v1.ServiceReference{
+				existing: v1beta2.ResourceReservationCustomResourceDefinition(&apiextensionsv1.WebhookClientConfig{
+					Service: &apiextensionsv1.ServiceReference{
 						Namespace: testConversionServiceNamespace,
 						Name:      testConversionServiceName,
 						Path:      &testConversionServicePath,
@@ -126,8 +126,8 @@ func Test_verifyCRD(t *testing.T) {
 					},
 					CABundle: testConversionCABundle,
 				}),
-				desired: v1beta2.ResourceReservationCustomResourceDefinition(&v1.WebhookClientConfig{
-					Service: &v1.ServiceReference{
+				desired: v1beta2.ResourceReservationCustomResourceDefinition(&apiextensionsv1.WebhookClientConfig{
+					Service: &apiextensionsv1.ServiceReference{
 						Namespace: testConversionServiceNamespace,
 						Name:      testConversionServiceDifferentName,
 						Path:      &testConversionServicePath,
@@ -141,8 +141,8 @@ func Test_verifyCRD(t *testing.T) {
 		{
 			name: "CRD with no conversion strategy does not verify against a CRD that does.",
 			args: args{
-				existing: v1beta2.ResourceReservationCustomResourceDefinition(&v1.WebhookClientConfig{
-					Service: &v1.ServiceReference{
+				existing: v1beta2.ResourceReservationCustomResourceDefinition(&apiextensionsv1.WebhookClientConfig{
+					Service: &apiextensionsv1.ServiceReference{
 						Namespace: testConversionServiceNamespace,
 						Name:      testConversionServiceName,
 						Path:      &testConversionServicePath,

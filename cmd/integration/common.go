@@ -28,8 +28,8 @@ import (
 	"github.com/palantir/witchcraft-go-server/config"
 	"github.com/palantir/witchcraft-go-server/witchcraft"
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	v1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -75,10 +75,10 @@ func setUpServer(ctx context.Context, t *testing.T, installConfig config2.Instal
 		crds, err := allClients.APIExtensionsClient.ApiextensionsV1().CustomResourceDefinitions().List(context.Background(), metav1.ListOptions{})
 		require.NoError(t, err)
 		for _, crd := range crds.Items {
-			crd.Status.Conditions = []v1.CustomResourceDefinitionCondition{
+			crd.Status.Conditions = []apiextensionsv1.CustomResourceDefinitionCondition{
 				{
-					Type:   v1.Established,
-					Status: v1.ConditionTrue,
+					Type:   apiextensionsv1.Established,
+					Status: apiextensionsv1.ConditionTrue,
 				},
 			}
 			_, err = allClients.APIExtensionsClient.ApiextensionsV1().CustomResourceDefinitions().Update(context.Background(), &crd, metav1.UpdateOptions{})
@@ -123,13 +123,13 @@ func waitForCondition(ctx context.Context, t *testing.T, condition func() bool) 
 	}
 }
 
-func getAffinityForInstanceGroup(labelKey string, instanceGroupName string) *corev1.Affinity {
-	return &corev1.Affinity{
-		NodeAffinity: &corev1.NodeAffinity{
-			RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
-				NodeSelectorTerms: []corev1.NodeSelectorTerm{
+func getAffinityForInstanceGroup(labelKey string, instanceGroupName string) *v1.Affinity {
+	return &v1.Affinity{
+		NodeAffinity: &v1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+				NodeSelectorTerms: []v1.NodeSelectorTerm{
 					{
-						MatchExpressions: []corev1.NodeSelectorRequirement{
+						MatchExpressions: []v1.NodeSelectorRequirement{
 							{
 								Key:    labelKey,
 								Values: []string{instanceGroupName},
