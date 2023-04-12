@@ -68,8 +68,9 @@ func setUpServer(ctx context.Context, t *testing.T, installConfig config2.Instal
 		err := server.Start()
 		require.NoError(t, err)
 	}()
-
+	// wait to ensure that there is an extension to return
 	waitForCondition(ctx, t, func() bool {
+		// Ensure that CRDs are all marked as ready
 		crds, err := allClients.APIExtensionsClient.ApiextensionsV1().CustomResourceDefinitions().List(context.Background(), metav1.ListOptions{})
 		require.NoError(t, err)
 		for _, crd := range crds.Items {

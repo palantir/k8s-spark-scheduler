@@ -25,7 +25,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/witchcraft-go-server/config"
-	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -72,7 +72,7 @@ func Test_StaticCompaction(t *testing.T) {
 			},
 		},
 	}
-	driverPod := &corev1.Pod{
+	driverPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-pod-driver",
 			Namespace: "podNamespace",
@@ -88,42 +88,42 @@ func Test_StaticCompaction(t *testing.T) {
 				common.ExecutorCount:  "2",
 			},
 		},
-		Spec: corev1.PodSpec{
+		Spec: v1.PodSpec{
 			NodeName:      "n1",
 			SchedulerName: common.SparkSchedulerName,
 		},
-		Status: corev1.PodStatus{
-			Phase: corev1.PodRunning,
+		Status: v1.PodStatus{
+			Phase: v1.PodRunning,
 		},
 	}
-	existingNode := &corev1.Node{
+	existingNode := &v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "n1",
 			Labels: map[string]string{
-				corev1.LabelTopologyZone:          "zone1",
-				corev1.LabelFailureDomainBetaZone: "zone1",
-				"resource_channel":                "",
+				v1.LabelTopologyZone:          "zone1",
+				v1.LabelFailureDomainBetaZone: "zone1",
+				"resource_channel":            "",
 			},
 		},
-		Status: corev1.NodeStatus{
-			Capacity: map[corev1.ResourceName]resource.Quantity{
+		Status: v1.NodeStatus{
+			Capacity: map[v1.ResourceName]resource.Quantity{
 				"cpu":    resource.MustParse("32"),
 				"memory": resource.MustParse("28192Mi"),
 			},
-			Allocatable: map[corev1.ResourceName]resource.Quantity{
+			Allocatable: map[v1.ResourceName]resource.Quantity{
 				"cpu":    resource.MustParse("32"),
 				"memory": resource.MustParse("28192Mi"),
 			},
-			Conditions: []corev1.NodeCondition{
+			Conditions: []v1.NodeCondition{
 				{
-					Type:   corev1.NodeReady,
-					Status: corev1.ConditionTrue,
+					Type:   v1.NodeReady,
+					Status: v1.ConditionTrue,
 				},
 			},
 		},
 	}
 
-	executor1Pod := &corev1.Pod{
+	executor1Pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-pod-executor-1",
 			Namespace: "podNamespace",
@@ -132,11 +132,11 @@ func Test_StaticCompaction(t *testing.T) {
 				common.SparkAppIDLabel: "appID1",
 			},
 		},
-		Spec: corev1.PodSpec{
+		Spec: v1.PodSpec{
 			NodeName: "n1",
 		},
-		Status: corev1.PodStatus{
-			Phase: corev1.PodRunning,
+		Status: v1.PodStatus{
+			Phase: v1.PodRunning,
 		},
 	}
 	allClients := cmd.AllClient{
@@ -157,7 +157,7 @@ func Test_StaticCompaction(t *testing.T) {
 	defer testSetup.cleanup()
 	nodeNames := []string{existingNode.Name}
 	args := schedulerapi.ExtenderArgs{
-		Pod: &corev1.Pod{
+		Pod: &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "new-podName",
 				Namespace: "podNamespace",
@@ -171,13 +171,13 @@ func Test_StaticCompaction(t *testing.T) {
 					common.ExecutorCount:  "4",
 				},
 			},
-			Spec: corev1.PodSpec{
-				Affinity: &corev1.Affinity{
-					NodeAffinity: &corev1.NodeAffinity{
-						RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
-							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+			Spec: v1.PodSpec{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
 								{
-									MatchExpressions: []corev1.NodeSelectorRequirement{
+									MatchExpressions: []v1.NodeSelectorRequirement{
 										{
 											Key:      "resource_channel",
 											Operator: "",
@@ -190,7 +190,7 @@ func Test_StaticCompaction(t *testing.T) {
 					},
 				},
 			},
-			Status: corev1.PodStatus{},
+			Status: v1.PodStatus{},
 		},
 		NodeNames: &nodeNames,
 	}
