@@ -5,7 +5,7 @@ set -o nounset
 set -o pipefail
 
 if [ "$#" -ne 8 ]; then
-    echo "Illegal number of parameters. Correct usage: submit-test-spark-app <app-id> <executor-count> <driver-cpu> <driver-mem> <executor-cpu> <executor-mem>"
+    echo "Illegal number of parameters. Correct usage: submit-test-spark-app <app-id> <executor-count> <driver-cpu> <driver-mem> <driver-nvidia-gpu> <executor-cpu> <executor-mem> <executor-nvidia-gpu>"
 fi
 
 APP_ID=$1
@@ -18,7 +18,7 @@ EXECUTOR_MEM=$7
 EXECUTOR_NVIDIA_GPUS=$8
 
 # create driver
-kubectl create -f <(cat << EOF
+kubectl create -f - <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
@@ -48,7 +48,7 @@ spec:
         nvidia.com/gpu: "$DRIVER_NVIDIA_GPUS"
       limits:
         nvidia.com/gpu: "$DRIVER_NVIDIA_GPUS"
-EOF)
+EOF
 
 # wait for driver to be running
 until grep 'Running' <(kubectl get pod test-driver-$APP_ID -o=jsonpath='{.status.phase}'); do
@@ -58,7 +58,7 @@ DRIVER_UID=$(kubectl get pod test-driver-$APP_ID -o=jsonpath='{.metadata.uid}')
 
 # create executors
 for i in $(seq "$EXECUTOR_COUNT"); do
-  kubectl create -f <(cat << EOF
+  kubectl create -f - <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
@@ -85,6 +85,6 @@ spec:
         nvidia.com/gpu: "$EXECUTOR_NVIDIA_GPUS"
       limits:
         nvidia.com/gpu: "$EXECUTOR_NVIDIA_GPUS"
-EOF)
+EOF
 done
 
