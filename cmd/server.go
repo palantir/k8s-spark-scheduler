@@ -57,12 +57,12 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	err = InitServerWithClients(ctx, info, allClient)
+	_, err = InitServerWithClients(ctx, info, allClient)
 	return nil, err
 }
 
 // InitServerWithClients is exported for end to end testing
-func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allClient AllClient) error {
+func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allClient AllClient) (*extender.SparkSchedulerExtender, error) {
 	install := info.InstallConfig.(config.Install)
 	instanceGroupLabel := install.InstanceGroupLabel
 	if instanceGroupLabel == "" {
@@ -78,14 +78,14 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 		install.WebhookServiceConfig.Namespace, install.WebhookServiceConfig.ServiceName, install.WebhookServiceConfig.ServicePort)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error instantiating CRD conversion webhook: %s", svc1log.Stacktrace(err))
-		return err
+		return nil, err
 	}
 	err = crd.EnsureResourceReservationsCRD(ctx, apiExtensionsClient, install.ResourceReservationCRDAnnotations,
 		v1beta2.ResourceReservationCustomResourceDefinition(webhookClientConfig, v1beta1.ResourceReservationCustomResourceDefinitionVersion()),
 	)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error ensuring resource reservations v1beta2 CRD exists: %s", svc1log.Stacktrace(err))
-		return err
+		return nil, err
 	}
 
 	kubeInformerFactory := informers.NewSharedInformerFactory(kubeClient, time.Second*30)
@@ -123,7 +123,7 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 		podInformer.HasSynced,
 		resourceReservationInformer.HasSynced); !ok {
 		svc1log.FromContext(ctx).Error("Error waiting for cache to sync")
-		return werror.ErrorWithContextParams(ctx, "could not sync")
+		return nil, werror.ErrorWithContextParams(ctx, "could not sync")
 	}
 
 	resourceReservationCache, err := cache.NewResourceReservationCache(
@@ -135,7 +135,7 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 
 	if err != nil {
 		svc1log.FromContext(ctx).Error("Error constructing resource reservation cache", svc1log.Stacktrace(err))
-		return err
+		return nil, err
 	}
 
 	lazyDemandInformer := crd.NewLazyDemandInformer(
@@ -231,10 +231,10 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 	go unschedulablePodMarker.Start(ctx)
 
 	if err := registerExtenderEndpoints(info.Router, sparkSchedulerExtender); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return sparkSchedulerExtender, nil
 }
 
 // New creates and returns a witchcraft Server.
