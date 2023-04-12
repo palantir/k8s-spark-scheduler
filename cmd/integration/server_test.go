@@ -17,8 +17,6 @@ package integration
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
 
@@ -29,6 +27,8 @@ import (
 	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/witchcraft-go-server/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	"k8s.io/apimachinery/pkg/api/resource"
