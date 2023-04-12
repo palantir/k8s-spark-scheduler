@@ -65,7 +65,7 @@ type SparkSchedulerExtender struct {
 	podLister                  *SparkPodLister
 	resourceReservations       *cache.ResourceReservationCache
 	softReservationStore       *cache.SoftReservationStore
-	resourceReservationManager *ResourceReservationManager
+	resourceReservationManager ResourceReservationManager
 	coreClient                 corev1.CoreV1Interface
 	nodeSorter                 *ns.NodeSorter
 
@@ -89,7 +89,7 @@ func NewExtender(
 	podLister *SparkPodLister,
 	resourceReservations *cache.ResourceReservationCache,
 	softReservationStore *cache.SoftReservationStore,
-	resourceReservationManager *ResourceReservationManager,
+	resourceReservationManager ResourceReservationManager,
 	coreClient corev1.CoreV1Interface,
 	demands *cache.SafeDemandCache,
 	apiExtensionsClient apiextensionsclientset.Interface,
