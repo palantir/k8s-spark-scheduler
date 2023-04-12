@@ -21,7 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 
-	"github.com/palantir/k8s-spark-scheduler/internal/extender"
+	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender/extendertest"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,7 +34,7 @@ func TestScheduler(t *testing.T) {
 	podsToSchedule := extendertest.StaticAllocationSparkPods("2-executor-app", 2)
 
 	testHarness, err := extendertest.NewTestExtender(
-		extender.SingleAzTightlyPack,
+		binpacker.SingleAzTightlyPack,
 		&node1,
 		&node2,
 		&podsToSchedule[0],
@@ -94,7 +94,7 @@ func TestMinimalFragmentation(t *testing.T) {
 	podsToSchedule := extendertest.DynamicAllocationSparkPods("dynamic-app", 1, 2)
 
 	testHarness, err := extendertest.NewTestExtender(
-		extender.SingleAzMinimalFragmentation,
+		binpacker.SingleAzMinimalFragmentation,
 		&node1,
 		&node2,
 		&staticPodsToSchedule[0],
@@ -147,7 +147,7 @@ func TestMinimalFragmentationEdgeCase(t *testing.T) {
 	dynamicApp := extendertest.DynamicAllocationSparkPodsWithSizes("dyn-app", 0, 1, "1", "4", "1", "3")
 
 	testHarness, err := extendertest.NewTestExtender(
-		extender.SingleAzMinimalFragmentation,
+		binpacker.SingleAzMinimalFragmentation,
 		&node1,
 		&node2,
 		&staticApp[0],
@@ -323,7 +323,7 @@ func TestDynamicAllocationScheduling(t *testing.T) {
 			for i := range test.podsToSchedule {
 				harnessArgs = append(harnessArgs, &test.podsToSchedule[i])
 			}
-			testHarness, err := extendertest.NewTestExtender(extender.SingleAzTightlyPack, harnessArgs...)
+			testHarness, err := extendertest.NewTestExtender(binpacker.SingleAzTightlyPack, harnessArgs...)
 			if err != nil {
 				t.Fatal("Could not setup test extender")
 			}

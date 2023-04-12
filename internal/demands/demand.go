@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package extender
+package demands
 
 import (
 	"context"
@@ -21,14 +21,17 @@ import (
 	demandapi "github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/scaler/v1alpha2"
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
+	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/k8s-spark-scheduler/internal/events"
+	"github.com/palantir/k8s-spark-scheduler/internal/types"
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 )
 
@@ -43,46 +46,53 @@ var (
 	}
 )
 
+// Manager holds the types of demand operations that are available
+type Manager interface {
+	DeleteDemandIfExists(ctx context.Context, pod *v1.Pod, source string)
+	CreateDemandForApplicationInAnyZone(ctx context.Context, driverPod *v1.Pod, applicationResources *types.SparkApplicationResources)
+	CreateDemandForExecutorInAnyZone(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources)
+	CreateDemandForExecutorInSpecificZone(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources, zone *demandapi.Zone)
+}
+
+type defaultManager struct {
+	coreClient         corev1.CoreV1Interface
+	demands            *cache.SafeDemandCache
+	binpacker          *binpacker.Binpacker
+	instanceGroupLabel string
+}
+
+// NewDefaultManager creates the default implementation of the Manager
+func NewDefaultManager(
+	coreClient corev1.CoreV1Interface,
+	demands *cache.SafeDemandCache,
+	binpacker *binpacker.Binpacker,
+	instanceGroupLabel string) Manager {
+	return &defaultManager{
+		coreClient:         coreClient,
+		demands:            demands,
+		binpacker:          binpacker,
+		instanceGroupLabel: instanceGroupLabel,
+	}
+}
+
 // TODO: should patch instead of put to avoid conflicts
-func (s *SparkSchedulerExtender) updatePodStatus(ctx context.Context, pod *v1.Pod, _ *v1.PodCondition) {
+func (d *defaultManager) updatePodStatus(ctx context.Context, pod *v1.Pod, _ *v1.PodCondition) {
 	if !podutil.UpdatePodCondition(&pod.Status, demandCreatedCondition) {
 		svc1log.FromContext(ctx).Info("pod condition for demand creation already exist")
 		return
 	}
-	_, err := s.coreClient.Pods(pod.Namespace).UpdateStatus(ctx, pod, metav1.UpdateOptions{})
+	_, err := d.coreClient.Pods(pod.Namespace).UpdateStatus(ctx, pod, metav1.UpdateOptions{})
 	if err != nil {
 		svc1log.FromContext(ctx).Warn("pod condition update failed", svc1log.SafeParam("reason", err.Error()))
 	}
 }
 
-func (s *SparkSchedulerExtender) createDemandForExecutorInAnyZone(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources) {
-	s.createDemandForExecutorInSpecificZone(ctx, executorPod, executorResources, nil)
+func (d *defaultManager) CreateDemandForExecutorInAnyZone(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources) {
+	d.CreateDemandForExecutorInSpecificZone(ctx, executorPod, executorResources, nil)
 }
 
-func (s *SparkSchedulerExtender) createPartialDemand(
-	ctx context.Context,
-	driverPod *v1.Pod,
-	executorResources *resources.Resources,
-	executorCount int,
-	zone *demandapi.Zone) {
-	if !s.demands.CRDExists() {
-		return
-	}
-	units := []demandapi.DemandUnit{
-		{
-			Count: executorCount,
-			Resources: demandapi.ResourceList{
-				demandapi.ResourceCPU:       executorResources.CPU,
-				demandapi.ResourceMemory:    executorResources.Memory,
-				demandapi.ResourceNvidiaGPU: executorResources.NvidiaGPU,
-			},
-		},
-	}
-	s.createDemand(ctx, driverPod, units, zone)
-}
-
-func (s *SparkSchedulerExtender) createDemandForExecutorInSpecificZone(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources, zone *demandapi.Zone) {
-	if !s.demands.CRDExists() {
+func (d *defaultManager) CreateDemandForExecutorInSpecificZone(ctx context.Context, executorPod *v1.Pod, executorResources *resources.Resources, zone *demandapi.Zone) {
+	if !d.demands.CRDExists() {
 		return
 	}
 	units := []demandapi.DemandUnit{
@@ -98,46 +108,46 @@ func (s *SparkSchedulerExtender) createDemandForExecutorInSpecificZone(ctx conte
 			},
 		},
 	}
-	s.createDemand(ctx, executorPod, units, zone)
+	d.createDemand(ctx, executorPod, units, zone)
 }
 
-func (s *SparkSchedulerExtender) createDemandForApplicationInAnyZone(ctx context.Context, driverPod *v1.Pod, applicationResources *sparkApplicationResources) {
-	if !s.demands.CRDExists() {
+func (d *defaultManager) CreateDemandForApplicationInAnyZone(ctx context.Context, driverPod *v1.Pod, applicationResources *types.SparkApplicationResources) {
+	if !d.demands.CRDExists() {
 		return
 	}
-	s.createDemand(ctx, driverPod, demandResourcesForApplication(driverPod, applicationResources), nil)
+	d.createDemand(ctx, driverPod, demandResourcesForApplication(driverPod, applicationResources), nil)
 }
 
-func (s *SparkSchedulerExtender) createDemand(ctx context.Context, pod *v1.Pod, demandUnits []demandapi.DemandUnit, zone *demandapi.Zone) {
-	instanceGroup, ok := internal.FindInstanceGroupFromPodSpec(pod.Spec, s.instanceGroupLabel)
+func (d *defaultManager) createDemand(ctx context.Context, pod *v1.Pod, demandUnits []demandapi.DemandUnit, zone *demandapi.Zone) {
+	instanceGroup, ok := internal.FindInstanceGroupFromPodSpec(pod.Spec, d.instanceGroupLabel)
 	if !ok {
 		svc1log.FromContext(ctx).Error("No instanceGroup label exists. Cannot map to InstanceGroup. Skipping demand object",
-			svc1log.SafeParam("expectedLabel", s.instanceGroupLabel))
+			svc1log.SafeParam("expectedLabel", d.instanceGroupLabel))
 		return
 	}
 
-	newDemand, err := s.newDemand(pod, instanceGroup, demandUnits, zone)
+	newDemand, err := d.newDemand(pod, instanceGroup, demandUnits, zone)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("failed to construct demand object", svc1log.Stacktrace(err))
 		return
 	}
-	err = s.doCreateDemand(ctx, newDemand)
+	err = d.doCreateDemand(ctx, newDemand)
 	if err != nil {
 		svc1log.FromContext(ctx).Error("failed to create demand", svc1log.Stacktrace(err))
 		return
 	}
-	go s.updatePodStatus(ctx, pod, demandCreatedCondition)
+	go d.updatePodStatus(ctx, pod, demandCreatedCondition)
 }
 
-func (s *SparkSchedulerExtender) doCreateDemand(ctx context.Context, newDemand *demandapi.Demand) error {
+func (d *defaultManager) doCreateDemand(ctx context.Context, newDemand *demandapi.Demand) error {
 	demandObjectBytes, err := json.Marshal(newDemand)
 	if err != nil {
 		return werror.Wrap(err, "failed to marshal demand object")
 	}
 	svc1log.FromContext(ctx).Info("Creating demand object", svc1log.SafeParams(internal.DemandSafeParamsFromObj(newDemand)), svc1log.SafeParam("demandObjectBytes", string(demandObjectBytes)))
-	err = s.demands.Create(newDemand)
+	err = d.demands.Create(newDemand)
 	if err != nil {
-		_, ok := s.demands.Get(newDemand.Namespace, newDemand.Name)
+		_, ok := d.demands.Get(newDemand.Namespace, newDemand.Name)
 		if ok {
 			svc1log.FromContext(ctx).Info("demand object already exists for pod so no action will be taken")
 			return nil
@@ -147,25 +157,25 @@ func (s *SparkSchedulerExtender) doCreateDemand(ctx context.Context, newDemand *
 	return err
 }
 
-func (s *SparkSchedulerExtender) removeDemandIfExists(ctx context.Context, pod *v1.Pod) {
-	DeleteDemandIfExists(ctx, s.demands, pod, "SparkSchedulerExtender")
+func (d *defaultManager) removeDemandIfExists(ctx context.Context, pod *v1.Pod) {
+	d.DeleteDemandIfExists(ctx, pod, "SparkSchedulerExtender")
 }
 
 // DeleteDemandIfExists removes a demand object if it exists, and emits an event tagged by the source of the deletion
-func DeleteDemandIfExists(ctx context.Context, cache *cache.SafeDemandCache, pod *v1.Pod, source string) {
-	if !cache.CRDExists() {
+func (d *defaultManager) DeleteDemandIfExists(ctx context.Context, pod *v1.Pod, source string) {
+	if !d.demands.CRDExists() {
 		return
 	}
 	demandName := utils.DemandName(pod)
-	if demand, ok := cache.Get(pod.Namespace, demandName); ok {
+	if demand, ok := d.demands.Get(pod.Namespace, demandName); ok {
 		// there is no harm in the demand being deleted elsewhere in between the two calls.
-		cache.Delete(pod.Namespace, demandName)
+		d.demands.Delete(pod.Namespace, demandName)
 		svc1log.FromContext(ctx).Info("Removed demand object for pod", svc1log.SafeParams(internal.DemandSafeParams(demandName, pod.Namespace)))
 		events.EmitDemandDeleted(ctx, demand, source)
 	}
 }
 
-func (s *SparkSchedulerExtender) newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit, zone *demandapi.Zone) (*demandapi.Demand, error) {
+func (d *defaultManager) newDemand(pod *v1.Pod, instanceGroup string, units []demandapi.DemandUnit, zone *demandapi.Zone) (*demandapi.Demand, error) {
 	appID, ok := pod.Labels[common.SparkAppIDLabel]
 	if !ok {
 		return nil, werror.Error("pod did not contain expected label for AppID", werror.SafeParam("expectedLabel", common.SparkAppIDLabel))
@@ -179,26 +189,26 @@ func (s *SparkSchedulerExtender) newDemand(pod *v1.Pod, instanceGroup string, un
 				common.SparkAppIDLabel: appID,
 			},
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(pod, podGroupVersionKind),
+				*metav1.NewControllerRef(pod, types.PodGroupVersionKind),
 			},
 		},
 		Spec: demandapi.DemandSpec{
 			InstanceGroup:               instanceGroup,
 			Units:                       units,
-			EnforceSingleZoneScheduling: s.binpacker.IsSingleAz,
+			EnforceSingleZoneScheduling: d.binpacker.IsSingleAz,
 			Zone:                        zone,
 		},
 	}, nil
 }
 
-func demandResourcesForApplication(driverPod *v1.Pod, applicationResources *sparkApplicationResources) []demandapi.DemandUnit {
+func demandResourcesForApplication(driverPod *v1.Pod, applicationResources *types.SparkApplicationResources) []demandapi.DemandUnit {
 	demandUnits := []demandapi.DemandUnit{
 		{
 			Count: 1,
 			Resources: demandapi.ResourceList{
-				demandapi.ResourceCPU:       applicationResources.driverResources.CPU,
-				demandapi.ResourceMemory:    applicationResources.driverResources.Memory,
-				demandapi.ResourceNvidiaGPU: applicationResources.driverResources.NvidiaGPU,
+				demandapi.ResourceCPU:       applicationResources.DriverResources.CPU,
+				demandapi.ResourceMemory:    applicationResources.DriverResources.Memory,
+				demandapi.ResourceNvidiaGPU: applicationResources.DriverResources.NvidiaGPU,
 			},
 			// By specifying the pod driver pod here, we don't duplicate the resources of the pod with the created demand
 			PodNamesByNamespace: map[string][]string{
@@ -206,13 +216,13 @@ func demandResourcesForApplication(driverPod *v1.Pod, applicationResources *spar
 			},
 		},
 	}
-	if applicationResources.minExecutorCount > 0 {
+	if applicationResources.MinExecutorCount > 0 {
 		demandUnits = append(demandUnits, demandapi.DemandUnit{
-			Count: applicationResources.minExecutorCount,
+			Count: applicationResources.MinExecutorCount,
 			Resources: demandapi.ResourceList{
-				demandapi.ResourceCPU:       applicationResources.executorResources.CPU,
-				demandapi.ResourceMemory:    applicationResources.executorResources.Memory,
-				demandapi.ResourceNvidiaGPU: applicationResources.executorResources.NvidiaGPU,
+				demandapi.ResourceCPU:       applicationResources.ExecutorResources.CPU,
+				demandapi.ResourceMemory:    applicationResources.ExecutorResources.Memory,
+				demandapi.ResourceNvidiaGPU: applicationResources.ExecutorResources.NvidiaGPU,
 			},
 		})
 	}

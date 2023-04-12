@@ -23,9 +23,11 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	ssinformers "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/informers/externalversions"
 	"github.com/palantir/k8s-spark-scheduler/config"
+	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/conversionwebhook"
 	"github.com/palantir/k8s-spark-scheduler/internal/crd"
+	"github.com/palantir/k8s-spark-scheduler/internal/demands"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/k8s-spark-scheduler/internal/metrics"
 	"github.com/palantir/k8s-spark-scheduler/internal/sort"
@@ -131,14 +133,18 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 		apiExtensionsClient,
 		time.Millisecond*5,
 	)
-
+	binpacker := binpacker.SelectBinpacker(install.BinpackAlgo)
 	demandCache := cache.NewSafeDemandCache(
 		lazyDemandInformer,
 		sparkSchedulerClient.ScalerV1alpha2(),
 		install.AsyncClientConfig,
 	)
-
-	extender.StartDemandGC(ctx, podInformerInterface, demandCache)
+	demandManager := demands.NewDefaultManager(
+		kubeClient.CoreV1(),
+		demandCache,
+		binpacker,
+		instanceGroupLabel)
+	extender.StartDemandGC(ctx, podInformerInterface, demandManager)
 
 	softReservationStore := cache.NewSoftReservationStore(ctx, podInformerInterface)
 
@@ -152,8 +158,6 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 		nodeLister,
 	)
 
-	binpacker := extender.SelectBinpacker(install.BinpackAlgo)
-
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
 
 	sparkSchedulerExtender := extender.NewExtender(
@@ -163,7 +167,7 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 		softReservationStore,
 		resourceReservationManager,
 		kubeClient.CoreV1(),
-		demandCache,
+		demandManager,
 		apiExtensionsClient,
 		install.FIFO,
 		install.FifoConfig,

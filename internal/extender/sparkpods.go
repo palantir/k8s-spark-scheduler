@@ -23,18 +23,12 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
+	"github.com/palantir/k8s-spark-scheduler/internal/types"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	corelisters "k8s.io/client-go/listers/core/v1"
 )
-
-type sparkApplicationResources struct {
-	driverResources   *resources.Resources
-	executorResources *resources.Resources
-	minExecutorCount  int
-	maxExecutorCount  int
-}
 
 // SparkPodLister is a PodLister which can also list drivers per node selector
 type SparkPodLister struct {
@@ -76,7 +70,7 @@ func filterToEarliestAndSort(driver *v1.Pod, allDrivers []*v1.Pod, instanceGroup
 	return earlierDrivers
 }
 
-func sparkResources(ctx context.Context, pod *v1.Pod) (*sparkApplicationResources, error) {
+func sparkResources(ctx context.Context, pod *v1.Pod) (*types.SparkApplicationResources, error) {
 	parsedResources := map[string]resource.Quantity{}
 	dynamicAllocationEnabled := false
 	if daLabel, ok := pod.Annotations[common.DynamicAllocationEnabled]; ok {
@@ -134,7 +128,12 @@ func sparkResources(ctx context.Context, pod *v1.Pod) (*sparkApplicationResource
 		Memory:    parsedResources[common.ExecutorMemory],
 		NvidiaGPU: parsedResources[common.ExecutorNvidiaGPUs],
 	}
-	return &sparkApplicationResources{driverResources, executorResources, minExecutorCount, maxExecutorCount}, nil
+	return &types.SparkApplicationResources{
+		DriverResources:   driverResources,
+		ExecutorResources: executorResources,
+		MinExecutorCount:  minExecutorCount,
+		MaxExecutorCount:  maxExecutorCount,
+	}, nil
 }
 
 func sparkResourceUsage(driverResources, executorResources *resources.Resources, driverNode string, executorNodes []string) resources.NodeGroupResources {

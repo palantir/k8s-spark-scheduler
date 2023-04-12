@@ -32,7 +32,7 @@ import (
 // OverheadComputer computes non spark scheduler managed pods total resources periodically
 type OverheadComputer struct {
 	podInformer                coreinformers.PodInformer
-	resourceReservationManager *ResourceReservationManager
+	resourceReservationManager ResourceReservationManager
 	resourceRequests           ClusterRequests
 	nodeLister                 corelisters.NodeLister
 	overheadLock               *sync.RWMutex
@@ -56,7 +56,7 @@ type PodRequestInfo struct {
 func NewOverheadComputer(
 	ctx context.Context,
 	podInformer coreinformers.PodInformer,
-	resourceReservationManager *ResourceReservationManager,
+	resourceReservationManager ResourceReservationManager,
 	nodeLister corelisters.NodeLister) *OverheadComputer {
 	computer := &OverheadComputer{
 		podInformer:                podInformer,
