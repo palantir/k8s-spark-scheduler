@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
-	binpacker2 "github.com/palantir/k8s-spark-scheduler/internal/binpacker"
+	internalbinpacker "github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -46,7 +46,7 @@ type UnschedulablePodMarker struct {
 	podLister        corelisters.PodLister
 	coreClient       corev1.CoreV1Interface
 	overheadComputer *OverheadComputer
-	binpacker        *binpacker2.Binpacker
+	binpacker        *internalbinpacker.Binpacker
 	timeoutDuration  time.Duration
 }
 
@@ -56,7 +56,7 @@ func NewUnschedulablePodMarker(
 	podLister corelisters.PodLister,
 	coreClient corev1.CoreV1Interface,
 	overheadComputer *OverheadComputer,
-	binpacker *binpacker2.Binpacker,
+	binpacker *internalbinpacker.Binpacker,
 	timeoutDuration time.Duration) *UnschedulablePodMarker {
 
 	if timeoutDuration <= 0 {

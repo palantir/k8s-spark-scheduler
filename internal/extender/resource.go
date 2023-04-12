@@ -24,7 +24,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal"
-	binpacker2 "github.com/palantir/k8s-spark-scheduler/internal/binpacker"
+	internalbinpacker "github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/cache"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
@@ -76,7 +76,7 @@ type SparkSchedulerExtender struct {
 
 	isFIFO                                              bool
 	fifoConfig                                          config.FifoConfig
-	binpacker                                           *binpacker2.Binpacker
+	binpacker                                           *internalbinpacker.Binpacker
 	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ bool
 	overheadComputer                                    *OverheadComputer
 	lastRequest                                         time.Time
@@ -97,7 +97,7 @@ func NewExtender(
 	apiExtensionsClient apiextensionsclientset.Interface,
 	isFIFO bool,
 	fifoConfig config.FifoConfig,
-	binpacker *binpacker2.Binpacker,
+	binpacker *internalbinpacker.Binpacker,
 	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ bool,
 	overheadComputer *OverheadComputer,
 	instanceGroupLabel string,
@@ -649,7 +649,7 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 		potentialSuccessOutcome = successScheduledExtraExecutor
 	}
 
-	if s.binpacker.Name == binpacker2.SingleAzMinimalFragmentation {
+	if s.binpacker.Name == internalbinpacker.SingleAzMinimalFragmentation {
 		name, ok := s.rescheduleExecutorWithMinimalFragmentation(executor, executorNodeNames, availableNodesSchedulingMetadata, overhead, executorResources)
 		if ok {
 			return name, potentialSuccessOutcome, nil
