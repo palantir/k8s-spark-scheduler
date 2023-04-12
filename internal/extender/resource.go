@@ -76,7 +76,7 @@ type SparkSchedulerExtender struct {
 	fifoConfig                                          config.FifoConfig
 	binpacker                                           *Binpacker
 	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ bool
-	overheadComputer                                    *OverheadComputer
+	overheadComputer                                    OverheadComputer
 	lastRequest                                         time.Time
 	instanceGroupLabel                                  string
 
@@ -97,7 +97,7 @@ func NewExtender(
 	fifoConfig config.FifoConfig,
 	binpacker *Binpacker,
 	shouldScheduleDynamicallyAllocatedExecutorsInSameAZ bool,
-	overheadComputer *OverheadComputer,
+	overheadComputer OverheadComputer,
 	instanceGroupLabel string,
 	nodeSorter *ns.NodeSorter,
 	wasteMetricsReporter *metrics.WasteMetricsReporter) *SparkSchedulerExtender {
@@ -296,7 +296,10 @@ func (s *SparkSchedulerExtender) selectDriverNode(
 	}
 
 	usage := s.resourceReservationManager.GetReservedResources()
-	overhead := s.overheadComputer.GetOverhead(ctx, availableNodes)
+	overhead, err := s.overheadComputer.GetOverhead(ctx, availableNodes)
+	if err != nil {
+		return "", failureInternal, err
+	}
 
 	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usage, overhead)
 	driverNodeNames, executorNodeNames := s.nodeSorter.PotentialNodes(availableNodesSchedulingMetadata, nodeNames)
@@ -634,7 +637,11 @@ func (s *SparkSchedulerExtender) rescheduleExecutor(ctx context.Context, executo
 	}
 
 	usage := s.resourceReservationManager.GetReservedResources()
-	overhead := s.overheadComputer.GetOverhead(ctx, availableNodes)
+	overhead, err := s.overheadComputer.GetOverhead(ctx, availableNodes)
+	if err != nil {
+		return "", failureInternal, err
+	}
+
 	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(availableNodes, usage, overhead)
 
 	usage.Add(overhead)

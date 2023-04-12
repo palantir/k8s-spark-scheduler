@@ -177,10 +177,8 @@ func initServer(ctx context.Context, info witchcraft.InitInfo) (func(), error) {
 	resourceReservationManager := extender.NewResourceReservationManager(ctx, resourceReservationCache, softReservationStore, sparkPodLister, podInformerInterface)
 
 	overheadComputer := extender.NewOverheadComputer(
-		ctx,
-		podInformerInterface,
 		resourceReservationManager,
-		nodeLister,
+		podLister,
 	)
 
 	binpacker := extender.SelectBinpacker(install.BinpackAlgo)
