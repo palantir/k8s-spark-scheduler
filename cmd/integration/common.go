@@ -34,13 +34,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type testSetup struct {
+// TestSetup returns values needed for setting up the server
+type TestSetup struct {
 	ref     *extender.SparkSchedulerExtender
 	ctx     context.Context
 	cleanup func()
 }
 
-func setUpServer(ctx context.Context, t *testing.T, installConfig config2.Install, allClients cmd.AllClient) testSetup {
+// SetUpServer sets up a WitchcraftServer invokes the init function with the client set
+func SetUpServer(ctx context.Context, t *testing.T, installConfig config2.Install, allClients cmd.AllClient) TestSetup {
 	var ref *extender.SparkSchedulerExtender
 	var rootCtx context.Context
 	server := witchcraft.NewServer().
@@ -93,14 +95,15 @@ func setUpServer(ctx context.Context, t *testing.T, installConfig config2.Instal
 		}
 	}
 
-	return testSetup{
+	return TestSetup{
 		ref:     ref,
 		ctx:     rootCtx,
 		cleanup: cleanup,
 	}
 }
 
-func toResource(parse resource.Quantity) *resource.Quantity {
+// ToResource de-references a Quantity
+func ToResource(parse resource.Quantity) *resource.Quantity {
 	return &parse
 }
 
@@ -123,7 +126,8 @@ func waitForCondition(ctx context.Context, t *testing.T, condition func() bool) 
 	}
 }
 
-func getAffinityForInstanceGroup(labelKey string, instanceGroupName string) *v1.Affinity {
+// GetAffinityForInstanceGroup creates an Affinity for an instance group
+func GetAffinityForInstanceGroup(labelKey string, instanceGroupName string) *v1.Affinity {
 	return &v1.Affinity{
 		NodeAffinity: &v1.NodeAffinity{
 			RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{

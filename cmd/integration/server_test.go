@@ -48,22 +48,22 @@ func Test_StaticCompaction(t *testing.T) {
 				"driver": {
 					Node: "n1",
 					Resources: map[string]*resource.Quantity{
-						"cpu":    toResource(resource.MustParse("1")),
-						"memory": toResource(resource.MustParse("1024Mi")),
+						"cpu":    ToResource(resource.MustParse("1")),
+						"memory": ToResource(resource.MustParse("1024Mi")),
 					},
 				},
 				"executor-1": {
 					Node: "n1",
 					Resources: map[string]*resource.Quantity{
-						"cpu":    toResource(resource.MustParse("2")),
-						"memory": toResource(resource.MustParse("4096Mi")),
+						"cpu":    ToResource(resource.MustParse("2")),
+						"memory": ToResource(resource.MustParse("4096Mi")),
 					},
 				},
 				"executor-2": {
 					Node: "n1",
 					Resources: map[string]*resource.Quantity{
-						"cpu":    toResource(resource.MustParse("2")),
-						"memory": toResource(resource.MustParse("4096Mi")),
+						"cpu":    ToResource(resource.MustParse("2")),
+						"memory": ToResource(resource.MustParse("4096Mi")),
 					},
 				},
 			},
@@ -156,7 +156,7 @@ func Test_StaticCompaction(t *testing.T) {
 		ShouldScheduleDynamicallyAllocatedExecutorsInSameAZ: true,
 		BinpackAlgo: binpacker.SingleAzMinimalFragmentation,
 	}
-	testSetup := setUpServer(context.Background(), t, installConfig, allClients)
+	testSetup := SetUpServer(context.Background(), t, installConfig, allClients)
 	ctx := testSetup.ctx
 	defer testSetup.cleanup()
 	nodeNames := []string{existingNode.Name}
@@ -176,7 +176,7 @@ func Test_StaticCompaction(t *testing.T) {
 				},
 			},
 			Spec: v1.PodSpec{
-				Affinity: getAffinityForInstanceGroup("resource_channel", "desiredInstanceGroup"),
+				Affinity: GetAffinityForInstanceGroup("resource_channel", "desiredInstanceGroup"),
 			},
 		},
 		NodeNames: &nodeNames,
