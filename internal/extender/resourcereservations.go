@@ -39,6 +39,10 @@ import (
 	clientcache "k8s.io/client-go/tools/cache"
 )
 
+const (
+	slowLogDuration = 2 * time.Minute
+)
+
 var podGroupVersionKind = v1.SchemeGroupVersion.WithKind("Pod")
 
 // ResourceReservationManager is a central point which manages the creation and reading of both resource reservations and soft reservations
@@ -367,6 +371,16 @@ func (rrm *defaultResourceReservationManager) bindExecutorToResourceReservation(
 		if !creationTime.IsZero() {
 			duration := time.Since(creationTime)
 			metrics.ReportTimeToFirstBindMetrics(ctx, duration)
+
+			if duration > slowLogDuration {
+				svc1log.FromContext(ctx).Warn(
+					"Resource reservation was unbound for a while",
+					svc1log.SafeParam("duration", duration.String()),
+					svc1log.SafeParam("appID", resourceReservation.Labels[v1beta1.AppIDLabel]),
+					svc1log.SafeParam("node", node),
+					svc1log.SafeParam("executor", executor.Name),
+				)
+			}
 		}
 	}
 	return nil
