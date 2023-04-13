@@ -374,11 +374,13 @@ func (rrm *defaultResourceReservationManager) bindExecutorToResourceReservation(
 
 			if duration > slowLogDuration {
 				svc1log.FromContext(ctx).Warn(
-					"Resource reservation was unbound for a while",
+					"Time to first executor bind to resource reservation is above threshold",
 					svc1log.SafeParam("duration", duration.String()),
 					svc1log.SafeParam("appID", resourceReservation.Labels[v1beta1.AppIDLabel]),
 					svc1log.SafeParam("node", node),
 					svc1log.SafeParam("executor", executor.Name),
+					svc1log.SafeParam("executorNamespace", executor.Namespace),
+					svc1log.SafeParam("reservationName", reservationName),
 				)
 			}
 		}
