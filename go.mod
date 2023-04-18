@@ -13,6 +13,7 @@ require (
 	github.com/palantir/witchcraft-go-logging v1.17.0
 	github.com/palantir/witchcraft-go-server v1.30.0
 	github.com/spf13/cobra v1.4.0
+	github.com/stretchr/testify v1.8.0
 	go.uber.org/atomic v1.7.0
 	// Pin for CVE-2022-27664
 	golang.org/x/net v0.7.0 // indirect
@@ -25,8 +26,6 @@ require (
 	k8s.io/kubernetes v1.24.7
 	sigs.k8s.io/controller-runtime v0.11.0
 )
-
-require github.com/stretchr/testify v1.8.0
 
 require (
 	github.com/PuerkitoBio/purell v1.1.1 // indirect

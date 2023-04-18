@@ -23,7 +23,7 @@ import (
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/apis/sparkscheduler/v1beta2"
 	ssclientset "github.com/palantir/k8s-spark-scheduler-lib/pkg/client/clientset/versioned/fake"
 	"github.com/palantir/k8s-spark-scheduler/cmd"
-	config2 "github.com/palantir/k8s-spark-scheduler/config"
+	schedulerconfig "github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/binpacker"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
 	"github.com/palantir/witchcraft-go-server/config"
@@ -149,7 +149,7 @@ func Test_StaticCompaction(t *testing.T) {
 		KubeClient:           k8sfake.NewSimpleClientset(existingNode, driverPod, executor1Pod),
 	}
 
-	installConfig := config2.Install{
+	installConfig := schedulerconfig.Install{
 		Install: config.Install{
 			UseConsoleLog: true,
 		},

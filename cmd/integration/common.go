@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/palantir/k8s-spark-scheduler/cmd"
-	config2 "github.com/palantir/k8s-spark-scheduler/config"
+	schedulerconfig "github.com/palantir/k8s-spark-scheduler/config"
 	"github.com/palantir/k8s-spark-scheduler/internal/extender"
 	"github.com/palantir/witchcraft-go-logging/wlog"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
@@ -42,11 +42,11 @@ type TestSetup struct {
 }
 
 // SetUpServer sets up a WitchcraftServer invokes the init function with the client set
-func SetUpServer(ctx context.Context, t *testing.T, installConfig config2.Install, allClients cmd.AllClient) TestSetup {
+func SetUpServer(ctx context.Context, t *testing.T, installConfig schedulerconfig.Install, allClients cmd.AllClient) TestSetup {
 	var ref *extender.SparkSchedulerExtender
 	var rootCtx context.Context
 	server := witchcraft.NewServer().
-		WithInstallConfigType(config2.Install{}).
+		WithInstallConfigType(schedulerconfig.Install{}).
 		WithInstallConfig(installConfig).
 		WithSelfSignedCertificate().
 		WithRuntimeConfig(config.Runtime{
@@ -61,31 +61,40 @@ func SetUpServer(ctx context.Context, t *testing.T, installConfig config2.Instal
 				var err error
 				ref, err = cmd.InitServerWithClients(ctx, initInfo, allClients)
 				require.NoError(t, err)
-				return err
+				return nil
 			}
 			err := wapp.RunWithFatalLogging(ctx, f)
 			require.NoError(t, err)
-			return nil, err
+			return nil, nil
 		})
 	go func() {
 		err := server.Start()
 		require.NoError(t, err)
 	}()
-	// wait to ensure that there is an extension to return
+
+	// wait for there to be a CRD we have ensured existed
 	waitForCondition(ctx, t, func() bool {
-		// Ensure that CRDs are all marked as ready
 		crds, err := allClients.APIExtensionsClient.ApiextensionsV1().CustomResourceDefinitions().List(context.Background(), metav1.ListOptions{})
 		require.NoError(t, err)
-		for _, crd := range crds.Items {
-			crd.Status.Conditions = []apiextensionsv1.CustomResourceDefinitionCondition{
-				{
-					Type:   apiextensionsv1.Established,
-					Status: apiextensionsv1.ConditionTrue,
-				},
-			}
-			_, err = allClients.APIExtensionsClient.ApiextensionsV1().CustomResourceDefinitions().Update(context.Background(), &crd, metav1.UpdateOptions{})
-			require.NoError(t, err)
+		return len(crds.Items) == 1
+	})
+
+	// Update that CRD to be ready
+	crds, err := allClients.APIExtensionsClient.ApiextensionsV1().CustomResourceDefinitions().List(context.Background(), metav1.ListOptions{})
+	require.NoError(t, err)
+	for _, crd := range crds.Items {
+		crd.Status.Conditions = []apiextensionsv1.CustomResourceDefinitionCondition{
+			{
+				Type:   apiextensionsv1.Established,
+				Status: apiextensionsv1.ConditionTrue,
+			},
 		}
+		_, err = allClients.APIExtensionsClient.ApiextensionsV1().CustomResourceDefinitions().Update(context.Background(), &crd, metav1.UpdateOptions{})
+		require.NoError(t, err)
+	}
+
+	// wait to ensure that there is an extension to return
+	waitForCondition(ctx, t, func() bool {
 		return ref != nil
 	})
 
@@ -102,7 +111,7 @@ func SetUpServer(ctx context.Context, t *testing.T, installConfig config2.Instal
 	}
 }
 
-// ToResource de-references a Quantity
+// ToResource returns a pointer to a Quantity
 func ToResource(parse resource.Quantity) *resource.Quantity {
 	return &parse
 }
