@@ -37,6 +37,7 @@ import (
 	schedulerapi "k8s.io/kube-scheduler/extender/v1"
 )
 
+// Test_StaticCompaction tests that an existing static driver pod and its executors and be re-scheduled
 func Test_StaticCompaction(t *testing.T) {
 	rr := v1beta2.ResourceReservation{
 		ObjectMeta: metav1.ObjectMeta{
@@ -168,11 +169,6 @@ func Test_StaticCompaction(t *testing.T) {
 				Labels: map[string]string{
 					common.SparkRoleLabel:  common.Executor,
 					common.SparkAppIDLabel: "appID1",
-				},
-				Annotations: map[string]string{
-					common.ExecutorCPU:    "2",
-					common.ExecutorMemory: "4096Mi",
-					common.ExecutorCount:  "4",
 				},
 			},
 			Spec: v1.PodSpec{
