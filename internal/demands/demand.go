@@ -31,19 +31,6 @@ import (
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
-)
-
-const (
-	podDemandCreated v1.PodConditionType = "PodDemandCreated"
-)
-
-var (
-	demandCreatedCondition = &v1.PodCondition{
-		Type:   podDemandCreated,
-		Status: v1.ConditionTrue,
-	}
 )
 
 // Manager holds the types of demand operations that are available
@@ -55,7 +42,6 @@ type Manager interface {
 }
 
 type defaultManager struct {
-	coreClient         corev1.CoreV1Interface
 	demands            *cache.SafeDemandCache
 	binpacker          *binpacker.Binpacker
 	instanceGroupLabel string
@@ -63,27 +49,13 @@ type defaultManager struct {
 
 // NewDefaultManager creates the default implementation of the Manager
 func NewDefaultManager(
-	coreClient corev1.CoreV1Interface,
 	demands *cache.SafeDemandCache,
 	binpacker *binpacker.Binpacker,
 	instanceGroupLabel string) Manager {
 	return &defaultManager{
-		coreClient:         coreClient,
 		demands:            demands,
 		binpacker:          binpacker,
 		instanceGroupLabel: instanceGroupLabel,
-	}
-}
-
-// TODO: should patch instead of put to avoid conflicts
-func (d *defaultManager) updatePodStatus(ctx context.Context, pod *v1.Pod, _ *v1.PodCondition) {
-	if !podutil.UpdatePodCondition(&pod.Status, demandCreatedCondition) {
-		svc1log.FromContext(ctx).Info("pod condition for demand creation already exist")
-		return
-	}
-	_, err := d.coreClient.Pods(pod.Namespace).UpdateStatus(ctx, pod, metav1.UpdateOptions{})
-	if err != nil {
-		svc1log.FromContext(ctx).Warn("pod condition update failed", svc1log.SafeParam("reason", err.Error()))
 	}
 }
 
@@ -136,7 +108,6 @@ func (d *defaultManager) createDemand(ctx context.Context, pod *v1.Pod, demandUn
 		svc1log.FromContext(ctx).Error("failed to create demand", svc1log.Stacktrace(err))
 		return
 	}
-	go d.updatePodStatus(ctx, pod, demandCreatedCondition)
 }
 
 func (d *defaultManager) doCreateDemand(ctx context.Context, newDemand *demandapi.Demand) error {

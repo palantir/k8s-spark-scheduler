@@ -149,7 +149,6 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 		install.AsyncClientConfig,
 	)
 	demandManager := demands.NewDefaultManager(
-		kubeClient.CoreV1(),
 		demandCache,
 		binpacker,
 		instanceGroupLabel)

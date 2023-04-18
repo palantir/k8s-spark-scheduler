@@ -136,7 +136,7 @@ func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, e
 
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)
 
-	demandManager := demands.NewDefaultManager(fakeKubeClient.CoreV1(), demandCache, binpacker, instanceGroupLabel)
+	demandManager := demands.NewDefaultManager(demandCache, binpacker, instanceGroupLabel)
 	sparkSchedulerExtender := extender.NewExtender(
 		nodeLister,
 		sparkPodLister,
