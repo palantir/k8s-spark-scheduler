@@ -13,6 +13,7 @@ require (
 	github.com/palantir/witchcraft-go-logging v1.17.0
 	github.com/palantir/witchcraft-go-server v1.30.0
 	github.com/spf13/cobra v1.4.0
+	github.com/stretchr/testify v1.8.0
 	go.uber.org/atomic v1.7.0
 	// Pin for CVE-2022-27664
 	golang.org/x/net v0.7.0 // indirect
@@ -65,6 +66,7 @@ require (
 	github.com/palantir/witchcraft-go-params v1.2.0 // indirect
 	github.com/palantir/witchcraft-go-tracing v1.4.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.uber.org/multierr v1.6.0 // indirect

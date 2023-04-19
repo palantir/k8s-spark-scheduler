@@ -21,7 +21,7 @@ import (
 
 	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,7 +29,7 @@ import (
 )
 
 // CheckCRDExists checks if the given crd exists and is established
-func CheckCRDExists(ctx context.Context, crdName string, clientset apiextensionsclientset.Interface) (*v1.CustomResourceDefinition, bool, error) {
+func CheckCRDExists(ctx context.Context, crdName string, clientset apiextensionsclientset.Interface) (*apiextensionsv1.CustomResourceDefinition, bool, error) {
 	crd, err := clientset.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -38,7 +38,7 @@ func CheckCRDExists(ctx context.Context, crdName string, clientset apiextensions
 		return nil, false, err
 	}
 	for _, cond := range crd.Status.Conditions {
-		if cond.Type == v1.Established && cond.Status == v1.ConditionTrue {
+		if cond.Type == apiextensionsv1.Established && cond.Status == apiextensionsv1.ConditionTrue {
 			return crd, true, nil
 		}
 	}
@@ -56,26 +56,26 @@ func annotationsAreEqual(existingAnnotations, desiredAnnotations map[string]stri
 	return reflect.DeepEqual(emptyIfNil(existingAnnotations), emptyIfNil(desiredAnnotations))
 }
 
-func conversionStrategiesAreEqual(existingConversion, desiredConversion *v1.CustomResourceConversion) bool {
+func conversionStrategiesAreEqual(existingConversion, desiredConversion *apiextensionsv1.CustomResourceConversion) bool {
 	return reflect.DeepEqual(existingConversion, desiredConversion)
 }
 
-func verifyCRD(existing, desired *v1.CustomResourceDefinition) bool {
+func verifyCRD(existing, desired *apiextensionsv1.CustomResourceDefinition) bool {
 	return versionsAreEqual(existing.Spec.Versions, desired.Spec.Versions) && annotationsAreEqual(existing.Annotations, desired.Annotations) && conversionStrategiesAreEqual(existing.Spec.Conversion, desired.Spec.Conversion)
 }
 
 // getVersionWithName returns the CustomResourceDefinitionVersion with the specified name if it is found
-func getVersionWithName(name string, versions []v1.CustomResourceDefinitionVersion) (v1.CustomResourceDefinitionVersion, bool) {
+func getVersionWithName(name string, versions []apiextensionsv1.CustomResourceDefinitionVersion) (apiextensionsv1.CustomResourceDefinitionVersion, bool) {
 	for _, version := range versions {
 		if version.Name == name {
 			return version, true
 		}
 	}
-	return v1.CustomResourceDefinitionVersion{}, false
+	return apiextensionsv1.CustomResourceDefinitionVersion{}, false
 }
 
 // TODO(cbattarbee): Convert to map comparison
-func versionsAreEqual(existingVersions []v1.CustomResourceDefinitionVersion, desiredVersions []v1.CustomResourceDefinitionVersion) bool {
+func versionsAreEqual(existingVersions []apiextensionsv1.CustomResourceDefinitionVersion, desiredVersions []apiextensionsv1.CustomResourceDefinitionVersion) bool {
 	if len(existingVersions) != len(desiredVersions) {
 		return false
 	}
@@ -95,7 +95,7 @@ func versionsAreEqual(existingVersions []v1.CustomResourceDefinitionVersion, des
 
 // EnsureResourceReservationsCRD is responsible for creating and ensuring the ResourceReservation CRD
 // is created, it ensures that both v1beta1 and v1beta2 exist.
-func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsclientset.Interface, annotations map[string]string, crd *v1.CustomResourceDefinition) error {
+func EnsureResourceReservationsCRD(ctx context.Context, clientset apiextensionsclientset.Interface, annotations map[string]string, crd *apiextensionsv1.CustomResourceDefinition) error {
 	if crd.Annotations == nil {
 		crd.Annotations = make(map[string]string)
 	}

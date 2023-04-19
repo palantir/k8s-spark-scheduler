@@ -24,7 +24,7 @@ import (
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	"github.com/palantir/witchcraft-go-server/config"
 	"github.com/palantir/witchcraft-go-server/wrouter"
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 )
@@ -50,7 +50,7 @@ func InitializeCRDConversionWebhook(
 	schedulerNamespace string,
 	schedulerServiceName string,
 	schedulerServicePort int32,
-) (*v1.WebhookClientConfig, error) {
+) (*apiextensionsv1.WebhookClientConfig, error) {
 	err := addConversionWebhookRoute(ctx, router)
 	if err != nil {
 		return nil, err
@@ -72,8 +72,8 @@ func InitializeCRDConversionWebhook(
 		return nil, werror.WrapWithContextParams(ctx, err, "Failed to read CA bundle from file, can not generate conversion webhook client config")
 	}
 
-	return &v1.WebhookClientConfig{
-		Service: &v1.ServiceReference{
+	return &apiextensionsv1.WebhookClientConfig{
+		Service: &apiextensionsv1.ServiceReference{
 			Namespace: schedulerNamespace,
 			Name:      schedulerServiceName,
 			Path:      &path,
