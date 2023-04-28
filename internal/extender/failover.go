@@ -50,7 +50,10 @@ func (s *SparkSchedulerExtender) syncResourceReservationsAndDemands(ctx context.
 		return err
 	}
 	rrs := s.resourceReservations.List()
-	overhead := s.overheadComputer.GetOverhead(ctx, nodes)
+	overhead, err := s.overheadComputer.GetOverhead(ctx, nodes)
+	if err != nil {
+		return err
+	}
 	softReservationOverhead := s.softReservationStore.UsedSoftReservationResources()
 	availableResources, orderedNodes := availableResourcesPerInstanceGroup(s.instanceGroupLabel, rrs, nodes, overhead, softReservationOverhead)
 	staleSparkPods := unreservedSparkPodsBySparkID(ctx, rrs, s.softReservationStore, pods)

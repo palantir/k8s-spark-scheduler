@@ -160,10 +160,8 @@ func InitServerWithClients(ctx context.Context, info witchcraft.InitInfo, allCli
 	resourceReservationManager := extender.NewResourceReservationManager(ctx, resourceReservationCache, softReservationStore, sparkPodLister, podInformerInterface)
 
 	overheadComputer := extender.NewOverheadComputer(
-		ctx,
-		podInformerInterface,
 		resourceReservationManager,
-		nodeLister,
+		podLister,
 	)
 
 	wasteMetricsReporter := metrics.NewWasteMetricsReporter(ctx, instanceGroupLabel)

@@ -16,31 +16,22 @@ package extender
 
 import (
 	"context"
-	"sync"
 
 	"github.com/palantir/k8s-spark-scheduler-lib/pkg/resources"
 	"github.com/palantir/k8s-spark-scheduler/internal/common"
-	"github.com/palantir/k8s-spark-scheduler/internal/common/utils"
+	werror "github.com/palantir/witchcraft-go-error"
 	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	clientcache "k8s.io/client-go/tools/cache"
 )
 
 // OverheadComputer computes non spark scheduler managed pods total resources periodically
-type OverheadComputer struct {
-	podInformer                coreinformers.PodInformer
+type defaultOverheadComputer struct {
+	podLister                  corelisters.PodLister
 	resourceReservationManager ResourceReservationManager
-	resourceRequests           ClusterRequests
-	nodeLister                 corelisters.NodeLister
-	overheadLock               *sync.RWMutex
-	ctx                        context.Context
 }
-
-// ClusterRequests represents the pod requests in the cluster, indexed by node name
-type ClusterRequests map[string]NodeRequests
 
 // NodeRequests represents the currently present pod requests on this node, indexed by pod uid
 type NodeRequests map[types.UID]PodRequestInfo
@@ -52,147 +43,107 @@ type PodRequestInfo struct {
 	requests     *resources.Resources
 }
 
-// NewOverheadComputer creates a new OverheadComputer instance
-func NewOverheadComputer(
-	ctx context.Context,
-	podInformer coreinformers.PodInformer,
-	resourceReservationManager ResourceReservationManager,
-	nodeLister corelisters.NodeLister) *OverheadComputer {
-	computer := &OverheadComputer{
-		podInformer:                podInformer,
-		resourceReservationManager: resourceReservationManager,
-		resourceRequests:           ClusterRequests{},
-		nodeLister:                 nodeLister,
-		overheadLock:               &sync.RWMutex{},
-		ctx:                        ctx,
-	}
-
-	podInformer.Informer().AddEventHandler(
-		clientcache.FilteringResourceEventHandler{
-			FilterFunc: computer.podHasNodeName,
-			Handler: clientcache.ResourceEventHandlerFuncs{
-				AddFunc:    computer.addPodRequests,
-				DeleteFunc: computer.deletePodRequests,
-			},
-		})
-	return computer
+// OverheadComputer exposes methods for determining how many resources have alread
+type OverheadComputer interface {
+	GetOverhead(ctx context.Context, nodes []*v1.Node) (resources.NodeGroupResources, error)
+	GetNonSchedulableOverhead(ctx context.Context, nodes []*v1.Node) (resources.NodeGroupResources, error)
 }
 
-func (o *OverheadComputer) getOrCreateNodeRequests(nodeName string) NodeRequests {
-	nodeRequests, ok := o.resourceRequests[nodeName]
-	if !ok {
-		nodeRequests = NodeRequests{}
-		o.resourceRequests[nodeName] = nodeRequests
+// NewOverheadComputer creates a new OverheadComputer instance
+func NewOverheadComputer(
+	resourceReservationManager ResourceReservationManager,
+	podLister corelisters.PodLister) OverheadComputer {
+	return &defaultOverheadComputer{
+		resourceReservationManager: resourceReservationManager,
+		podLister:                  podLister,
 	}
-	return nodeRequests
 }
 
 // GetOverhead fills overhead information for given nodes.
-func (o OverheadComputer) GetOverhead(ctx context.Context, nodes []*v1.Node) resources.NodeGroupResources {
-	ov, _ := o.getOverheadByNode(ctx, nodes)
-	return ov
+func (o *defaultOverheadComputer) GetOverhead(ctx context.Context, nodes []*v1.Node) (resources.NodeGroupResources, error) {
+	ov, _, err := o.getOverheadByNode(ctx, nodes)
+	if err != nil {
+		return resources.NodeGroupResources{}, err
+	}
+	return ov, nil
 }
 
 // GetNonSchedulableOverhead fills non-schedulable overhead information for given nodes.
 // Non-schedulable overhead is overhead by pods that are running, but do not have 'spark-scheduler' as their scheduler name.
-func (o OverheadComputer) GetNonSchedulableOverhead(ctx context.Context, nodes []*v1.Node) resources.NodeGroupResources {
-	_, nso := o.getOverheadByNode(ctx, nodes)
-	return nso
+func (o *defaultOverheadComputer) GetNonSchedulableOverhead(ctx context.Context, nodes []*v1.Node) (resources.NodeGroupResources, error) {
+	_, nso, err := o.getOverheadByNode(ctx, nodes)
+	if err != nil {
+		return resources.NodeGroupResources{}, err
+	}
+	return nso, nil
 }
 
 // getOverheadByNode computes and returns the overhead per node name.
 // This returns (overhead per node, nonSchedulableOverhead per node).
-func (o OverheadComputer) getOverheadByNode(ctx context.Context, nodes []*v1.Node) (resources.NodeGroupResources, resources.NodeGroupResources) {
+func (o *defaultOverheadComputer) getOverheadByNode(ctx context.Context, nodes []*v1.Node) (resources.NodeGroupResources, resources.NodeGroupResources, error) {
 	overhead := resources.NodeGroupResources{}
 	nonSchedulableOverhead := resources.NodeGroupResources{}
 
 	for _, n := range nodes {
-		ov, nso := o.computeNodeOverhead(ctx, n.Name)
+		ov, nso, err := o.computeNodeOverhead(ctx, n.Name)
+		if err != nil {
+			return resources.NodeGroupResources{}, resources.NodeGroupResources{}, err
+		}
 		overhead[n.Name] = ov
 		nonSchedulableOverhead[n.Name] = nso
 	}
 	svc1log.FromContext(ctx).Debug("using overhead for nodes", svc1log.SafeParam("overhead", overhead), svc1log.SafeParam("nonSchedulableOverhead", nonSchedulableOverhead))
-	return overhead, nonSchedulableOverhead
+	return overhead, nonSchedulableOverhead, nil
 }
 
 // computeNodeOverhead adds the requests of pods that don't have reservations and are counted as overhead.
 // This returns (overhead, nonSchedulableOverhead).
-func (o *OverheadComputer) computeNodeOverhead(ctx context.Context, nodeName string) (*resources.Resources, *resources.Resources) {
-	o.overheadLock.RLock()
-	defer o.overheadLock.RUnlock()
-	nodeRequests, ok := o.resourceRequests[nodeName]
-	if !ok {
-		return resources.Zero(), resources.Zero()
+func (o *defaultOverheadComputer) computeNodeOverhead(ctx context.Context, nodeName string) (*resources.Resources, *resources.Resources, error) {
+	podsOnNode, err := o.getPodsOnNode(ctx, nodeName)
+	if err != nil {
+		return nil, nil, err
 	}
 	overhead := resources.Zero()
 	nonSchedulableOverhead := resources.Zero()
-	for _, podRequestInfo := range nodeRequests {
-		pod, err := o.podInformer.Lister().Pods(podRequestInfo.podNamespace).Get(podRequestInfo.podName)
-		if err != nil {
-			svc1log.FromContext(ctx).Warn("error when checking if pod has a reservation, node overhead calculation might be inaccurate",
-				svc1log.SafeParam("nodeName", nodeName),
-				svc1log.SafeParam("podName", podRequestInfo.podName),
-				svc1log.SafeParam("podNamespace", podRequestInfo.podNamespace))
+	for _, p := range podsOnNode {
+		pod := p
+		if o.resourceReservationManager.PodHasReservation(ctx, pod) {
 			continue
 		}
-		if !o.resourceReservationManager.PodHasReservation(ctx, pod) {
-			overhead.Add(podRequestInfo.requests)
-			if pod.Spec.SchedulerName == common.SparkSchedulerName {
-				if _, appHasResourceReservation := o.resourceReservationManager.GetResourceReservation(pod.Labels[common.SparkAppIDLabel], pod.Namespace); appHasResourceReservation {
-					svc1log.FromContext(ctx).Warn("found spark scheduler pod with no reservation but application has a resource reservation",
-						svc1log.SafeParam("nodeName", nodeName),
-						svc1log.SafeParam("podName", podRequestInfo.podName),
-						svc1log.SafeParam("podNamespace", podRequestInfo.podNamespace))
-				}
-			} else {
-				nonSchedulableOverhead.Add(podRequestInfo.requests)
+		requests := o.podToResources(pod)
+		overhead.Add(requests)
+		if pod.Spec.SchedulerName == common.SparkSchedulerName {
+			if _, appHasResourceReservation := o.resourceReservationManager.GetResourceReservation(pod.Labels[common.SparkAppIDLabel], pod.Namespace); appHasResourceReservation {
+				svc1log.FromContext(ctx).Warn("found spark scheduler pod with no reservation but application has a resource reservation",
+					svc1log.SafeParam("nodeName", nodeName),
+					svc1log.SafeParam("podName", pod.Name),
+					svc1log.SafeParam("podNamespace", pod.Namespace))
 			}
+		} else {
+			nonSchedulableOverhead.Add(requests)
 		}
 	}
-	return overhead, nonSchedulableOverhead
+	return overhead, nonSchedulableOverhead, nil
 }
 
-func (o *OverheadComputer) podHasNodeName(obj interface{}) bool {
-	if pod, ok := utils.GetPodFromObjectOrTombstone(obj); ok {
-		return pod.Spec.NodeName != ""
+func (o *defaultOverheadComputer) getPodsOnNode(ctx context.Context, nodeName string) ([]*v1.Pod, error) {
+	pods, err := o.podLister.List(labels.Everything())
+	if err != nil {
+		return nil, werror.WrapWithContextParams(ctx, err, "could not list from pords")
 	}
-	svc1log.FromContext(o.ctx).Error("failed to parse object as pod", svc1log.UnsafeParam("obj", obj))
-	return false
+	var podsOnNode []*v1.Pod
+	for _, p := range pods {
+		pod := p
+		if pod.Spec.NodeName != nodeName {
+			continue
+		}
+		podsOnNode = append(podsOnNode, pod)
+
+	}
+	return podsOnNode, nil
 }
 
-func (o *OverheadComputer) addPodRequests(obj interface{}) {
-	o.overheadLock.Lock()
-	defer o.overheadLock.Unlock()
-
-	pod, ok := obj.(*v1.Pod)
-	if !ok {
-		svc1log.FromContext(o.ctx).Error("failed to parse object as pod", svc1log.UnsafeParam("obj", obj))
-		return
-	}
-	nodeRequests := o.getOrCreateNodeRequests(pod.Spec.NodeName)
-	nodeRequests[pod.UID] = PodRequestInfo{pod.Name, pod.Namespace, podToResources(o.ctx, pod)}
-}
-
-func (o *OverheadComputer) deletePodRequests(obj interface{}) {
-	o.overheadLock.Lock()
-	defer o.overheadLock.Unlock()
-
-	pod, ok := utils.GetPodFromObjectOrTombstone(obj)
-	if !ok {
-		svc1log.FromContext(o.ctx).Error("failed to parse object as pod", svc1log.UnsafeParam("obj", obj))
-		return
-	}
-	nodeRequests := o.getOrCreateNodeRequests(pod.Spec.NodeName)
-	if _, ok := nodeRequests[pod.UID]; !ok {
-		return
-	}
-	delete(nodeRequests, pod.UID)
-	if len(nodeRequests) == 0 {
-		delete(o.resourceRequests, pod.Spec.NodeName)
-	}
-}
-
-func podToResources(ctx context.Context, pod *v1.Pod) *resources.Resources {
+func (o *defaultOverheadComputer) podToResources(pod *v1.Pod) *resources.Resources {
 	res := resources.Zero()
 	for _, c := range pod.Spec.Containers {
 		resourceRequests := c.Resources.Requests

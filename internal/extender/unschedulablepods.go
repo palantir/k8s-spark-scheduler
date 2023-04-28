@@ -45,7 +45,7 @@ type UnschedulablePodMarker struct {
 	nodeLister       corelisters.NodeLister
 	podLister        corelisters.PodLister
 	coreClient       corev1.CoreV1Interface
-	overheadComputer *OverheadComputer
+	overheadComputer OverheadComputer
 	binpacker        *internalbinpacker.Binpacker
 	timeoutDuration  time.Duration
 }
@@ -55,7 +55,7 @@ func NewUnschedulablePodMarker(
 	nodeLister corelisters.NodeLister,
 	podLister corelisters.PodLister,
 	coreClient corev1.CoreV1Interface,
-	overheadComputer *OverheadComputer,
+	overheadComputer OverheadComputer,
 	binpacker *internalbinpacker.Binpacker,
 	timeoutDuration time.Duration) *UnschedulablePodMarker {
 
@@ -147,7 +147,10 @@ func (u *UnschedulablePodMarker) DoesPodExceedClusterCapacity(ctx context.Contex
 	}
 
 	usage := zeroUsage(nodes)
-	overhead := u.overheadComputer.GetNonSchedulableOverhead(ctx, nodes)
+	overhead, err := u.overheadComputer.GetNonSchedulableOverhead(ctx, nodes)
+	if err != nil {
+		return false, err
+	}
 	availableNodesSchedulingMetadata := resources.NodeSchedulingMetadataForNodes(nodes, usage, overhead)
 	applicationResources, err := sparkResources(ctx, driver)
 	if err != nil {

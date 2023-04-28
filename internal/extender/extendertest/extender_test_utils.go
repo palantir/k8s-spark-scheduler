@@ -123,10 +123,8 @@ func NewTestExtender(binpackAlgo string, objects ...runtime.Object) (*Harness, e
 	resourceReservationManager := extender.NewResourceReservationManager(ctx, resourceReservationCache, softReservationStore, sparkPodLister, podInformerInterface)
 
 	overheadComputer := extender.NewOverheadComputer(
-		ctx,
-		podInformerInterface,
 		resourceReservationManager,
-		nodeLister,
+		podLister,
 	)
 
 	isFIFO := true
