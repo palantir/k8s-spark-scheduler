@@ -42,6 +42,14 @@ metadata:
 spec:
   schedulerName: spark-scheduler
 ```
+
+The annotated resources should be equal to what spark job really requires from k8s. Otherwise, the scheduler could try to
+deploy pods to nodes which have no enough resources. Also, the memory configuration in spark arguments (`spark.driver.memory` and
+`spark.executor.memory`) is power-of-two equivalents (In other words, `spark.executor.memory=1G` means the executor requires
+`1Gi` memory). By contrast, this scheduler treats `G` and `Gi` as different values. For another, the memory annotation
+should include the memory overheads (`spark.kubernetes.memoryOverheadFactor`, `spark.driver.memoryOverhead` 
+and `spark.executor.memoryOverhead`).
+
 ### executor:
 ```yml
 apiVersion: v1
